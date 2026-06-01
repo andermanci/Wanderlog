@@ -1,0 +1,12 @@
+# Configuración de despliegue en Netlify
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# SPA fallback: cualquier ruta sirve index.html y React Router resuelve.
+# Sin esto, recargar /dashboard, /trips/:id/map o /auth/callback da 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
