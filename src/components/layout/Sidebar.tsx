@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Map, FileText, Calendar,
@@ -51,6 +51,7 @@ function getTripNav(tripId: string): TripNavItem[] {
 export function Sidebar({ tripId }: SidebarProps) {
   const { profile, user } = useAuthStore()
   const signOut = useSignOut()
+  const location = useLocation()
   const email = profile?.email ?? user?.email ?? ''
   const displayName = profile?.full_name?.trim() || null
   const [collapsed, setCollapsed] = useState(false)
@@ -107,40 +108,31 @@ export function Sidebar({ tripId }: SidebarProps) {
 
       {/* Navegación */}
       <nav className="flex-1 px-2 py-2 flex flex-col gap-0.5 overflow-y-auto">
-        {navItems.map((item) => (
+        {navItems.map((item) => {
+          const active = location.pathname === item.to
+          return (
           <Tooltip key={item.to} delayDuration={0}>
             <TooltipTrigger asChild>
               <NavLink
                 to={item.to}
-                end={'end' in item ? (item as NavItem).end : true}
-                className={({ isActive }) => cn(
-                  'relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 overflow-hidden',
+                className={cn(
+                  'relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all duration-150',
                   collapsed && 'justify-center px-0',
-                  isActive
+                  active
                     ? 'text-primary font-semibold'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
                 )}
+                style={active ? { background: 'color-mix(in srgb, var(--primary) 22%, transparent)' } : undefined}
               >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <>
-                        <span
-                          aria-hidden
-                          className="absolute inset-0 rounded-lg"
-                          style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)' }}
-                        />
-                        <span
-                          aria-hidden
-                          className="absolute left-0 top-0 bottom-0 w-1 rounded-r-full"
-                          style={{ background: 'var(--primary)' }}
-                        />
-                      </>
-                    )}
-                    <span className="relative z-10 shrink-0 flex">{item.icon}</span>
-                    {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
-                  </>
+                {active && (
+                  <span
+                    aria-hidden
+                    className="absolute left-0 top-0 bottom-0 w-1.5 rounded-r-full"
+                    style={{ background: 'var(--primary)' }}
+                  />
                 )}
+                <span className="shrink-0 flex">{item.icon}</span>
+                {!collapsed && <span className="truncate">{item.label}</span>}
               </NavLink>
             </TooltipTrigger>
             {collapsed && (
@@ -149,7 +141,8 @@ export function Sidebar({ tripId }: SidebarProps) {
               </TooltipContent>
             )}
           </Tooltip>
-        ))}
+          )
+        })}
       </nav>
 
       {/* Usuario */}
