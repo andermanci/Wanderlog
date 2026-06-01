@@ -12,6 +12,7 @@ import {
   usePackingItems, useCreatePackingItem, useTogglePackingItem,
   useDeletePackingItem, useBulkCreatePackingItems,
 } from '@/lib/queries/packing'
+import { TripHeader } from '@/components/trips/TripHeader'
 import type { PackingItem } from '@/types/database'
 
 const PACKING_TEMPLATES = [
@@ -98,11 +99,12 @@ export function PackingPage() {
   const categories = grouped ? Object.keys(grouped) : []
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      <TripHeader tripId={tripId!} section="Equipaje" />
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-serif text-3xl font-medium">Lista de equipaje</h1>
-          <p className="text-muted-foreground text-sm mt-1">{checkedItems} de {totalItems} items listos</p>
+          <h1 className="font-serif text-2xl font-medium">Equipaje</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{checkedItems} de {totalItems} items listos</p>
         </div>
         <Button
           variant="outline"
@@ -249,7 +251,7 @@ export function PackingPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="w-6 h-6 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive transition-opacity"
+                              className="w-6 h-6 opacity-60 hover:opacity-100 text-destructive hover:text-destructive transition-opacity"
                               onClick={() => deleteItem.mutate({ id: item.id, tripId: tripId! })}
                             >
                               <Trash2 size={11} />

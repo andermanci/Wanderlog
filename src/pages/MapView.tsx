@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { APIProvider, Map, AdvancedMarker, InfoWindow, Pin, ColorScheme, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
@@ -345,6 +345,15 @@ export function MapViewPage() {
         <div className="w-80 flex flex-col border-r border-border" style={{ background: 'var(--sidebar)' }}>
           {/* Búsqueda */}
           <div className="p-4 border-b border-border">
+            <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-2 flex-wrap">
+              <Link to="/dashboard" className="hover:text-foreground transition-colors">Viajes</Link>
+              <span className="opacity-50">›</span>
+              <Link to={`/trips/${tripId}`} className="hover:text-foreground transition-colors truncate max-w-[110px]">
+                {trip?.name ?? '…'}
+              </Link>
+              <span className="opacity-50">›</span>
+              <span className="text-foreground font-medium">Mapa</span>
+            </nav>
             <h2 className="font-serif text-xl mb-3">Mapa</h2>
             <div className="flex gap-2">
               <Input

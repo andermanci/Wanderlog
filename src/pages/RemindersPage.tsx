@@ -4,7 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Bell, Plus, Trash2, Loader2, BellOff } from 'lucide-react'
+import { Bell, Plus, Trash2, Loader2, BellOff, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,8 +18,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useReminders, useCreateReminder, useDeleteReminder } from '@/lib/queries/reminders'
+import { useTrip } from '@/lib/queries/trips'
+import { useDocuments } from '@/lib/queries/documents'
+import { TripHeader } from '@/components/trips/TripHeader'
 import { useAuthStore } from '@/store/authStore'
-import { formatDate } from '@/lib/utils'
 import type { Reminder } from '@/types/database'
 import { format, parseISO, isPast } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -43,8 +45,10 @@ type FormValues = z.infer<typeof schema>
 
 export function RemindersPage() {
   const { tripId } = useParams<{ tripId: string }>()
-  const { user } = useAuthStore()
+  useAuthStore()
   const { data: reminders, isLoading } = useReminders(tripId!)
+  const { data: trip } = useTrip(tripId!)
+  const { data: documents } = useDocuments(tripId!)
   const createReminder = useCreateReminder()
   const deleteReminder = useDeleteReminder()
 
@@ -85,12 +89,39 @@ export function RemindersPage() {
   const pending = reminders?.filter(r => !isPast(parseISO(r.remind_at))) ?? []
   const past = reminders?.filter(r => isPast(parseISO(r.remind_at))) ?? []
 
+  // Avisos sugeridos: cuenta atrás del viaje + check-in de vuelos.
+  const existingTitles = new Set((reminders ?? []).map(r => r.title.toLowerCase()))
+  const suggestions: { title: string; remind_at: string; type: FormValues['type'] }[] = []
+  if (trip) {
+    const d = parseISO(trip.start_date)
+    d.setDate(d.getDate() - 1)
+    d.setHours(9, 0, 0, 0)
+    const title = `Tu viaje a ${trip.destination} empieza mañana`
+    if (!isPast(d) && !existingTitles.has(title.toLowerCase())) {
+      suggestions.push({ title, remind_at: d.toISOString(), type: 'trip_countdown' })
+    }
+  }
+  for (const doc of documents ?? []) {
+    if (doc.category === 'flight' && doc.datetime_start) {
+      const checkin = new Date(parseISO(doc.datetime_start).getTime() - 24 * 60 * 60 * 1000)
+      const title = `Check-in: ${doc.title}`
+      if (!isPast(checkin) && !existingTitles.has(title.toLowerCase())) {
+        suggestions.push({ title, remind_at: checkin.toISOString(), type: 'checkin' })
+      }
+    }
+  }
+
+  function addSuggestion(s: { title: string; remind_at: string; type: FormValues['type'] }) {
+    createReminder.mutate({ trip_id: tripId!, activity_id: null, title: s.title, remind_at: s.remind_at, type: s.type })
+  }
+
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      <TripHeader tripId={tripId!} section="Avisos" />
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-serif text-3xl font-medium">Avisos</h1>
-          <p className="text-muted-foreground text-sm mt-1">Recordatorios y alertas del viaje</p>
+          <h1 className="font-serif text-2xl font-medium">Avisos</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Recordatorios y alertas</p>
         </div>
         <Button
           onClick={() => setFormOpen(true)}
@@ -128,13 +159,43 @@ export function RemindersPage() {
         </motion.div>
       )}
 
+      {/* Sugeridos */}
+      {suggestions.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <Sparkles size={13} style={{ color: 'var(--primary)' }} /> Sugeridos
+          </h2>
+          <div className="space-y-2">
+            {suggestions.map((s, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 p-3 rounded-xl"
+                style={{ background: 'color-mix(in srgb, var(--primary) 7%, transparent)', border: '1px dashed color-mix(in srgb, var(--primary) 30%, transparent)' }}
+              >
+                <Bell size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium line-clamp-1">{s.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(parseISO(s.remind_at), "dd 'de' MMMM 'a las' HH:mm", { locale: es })}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" className="gap-1.5 text-xs flex-shrink-0"
+                  onClick={() => addSuggestion(s)} disabled={createReminder.isPending}>
+                  <Plus size={13} /> Añadir
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" style={{ background: 'var(--secondary)' }} />
           ))}
         </div>
-      ) : !reminders?.length ? (
+      ) : !reminders?.length && suggestions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <BellOff size={48} className="mb-4 text-muted-foreground" />
           <h3 className="font-serif text-xl mb-2">Sin recordatorios</h3>
@@ -247,7 +308,7 @@ function ReminderRow({ reminder, index, onDelete }: { reminder: Reminder; index:
       <Button
         size="icon"
         variant="ghost"
-        className="w-7 h-7 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive transition-opacity flex-shrink-0"
+        className="w-7 h-7 opacity-60 hover:opacity-100 text-destructive hover:text-destructive transition-opacity flex-shrink-0"
         onClick={() => onDelete(reminder)}
       >
         <Trash2 size={12} />

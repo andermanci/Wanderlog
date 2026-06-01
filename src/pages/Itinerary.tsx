@@ -26,8 +26,8 @@ import {
 } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
 import { useTripAttachments } from '@/lib/queries/attachments'
-import { formatDate } from '@/lib/utils'
 import { buildRoutePoints } from '@/lib/route'
+import { TripHeader } from '@/components/trips/TripHeader'
 import type { Activity, ItineraryDay } from '@/types/database'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -134,15 +134,12 @@ export function ItineraryPage() {
   const loading = loadingDays || loadingActs
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      <TripHeader tripId={tripId!} section="Itinerario" />
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-serif text-3xl font-medium">Itinerario</h1>
-          {trip && (
-            <p className="text-muted-foreground text-sm mt-1">
-              {formatDate(trip.start_date)} — {formatDate(trip.end_date)}
-            </p>
-          )}
+          <h1 className="font-serif text-2xl font-medium">Itinerario</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Plan día a día</p>
         </div>
         <div className="flex items-center gap-2">
           {hasRoute && (

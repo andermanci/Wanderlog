@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Search, SlidersHorizontal, Bell, MapPin, Calendar } from 'lucide-react'
+import { Plus, Search, SlidersHorizontal, Bell, MapPin, Calendar, CalendarClock, Clock, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -16,8 +17,9 @@ import { TripCard } from '@/components/trips/TripCard'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
 import { useTrips, useDeleteTrip } from '@/lib/queries/trips'
 import { usePendingReminders } from '@/lib/queries/reminders'
+import { useTodayActivities } from '@/lib/queries/itinerary'
 import { useAuthStore } from '@/store/authStore'
-import { formatDate, STATUS_LABELS } from '@/lib/utils'
+import { formatDate, STATUS_LABELS, ACTIVITY_COLORS, ACTIVITY_LABELS } from '@/lib/utils'
 import type { Trip } from '@/types/database'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -26,6 +28,7 @@ export function Dashboard() {
   const { profile } = useAuthStore()
   const { data: trips, isLoading } = useTrips()
   const { data: reminders } = usePendingReminders()
+  const { data: todayActs } = useTodayActivities()
   const deleteTrip = useDeleteTrip()
 
   const [search, setSearch] = useState('')
@@ -64,6 +67,51 @@ export function Dashboard() {
               {profile?.full_name?.split(' ')[0] ?? 'Viajero'} ✦
             </h1>
           </motion.div>
+
+          {/* Hoy: actividades del itinerario de hoy */}
+          {todayActs && todayActs.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 rounded-xl p-4"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <CalendarClock size={16} style={{ color: 'var(--primary)' }} />
+                <h2 className="font-serif text-lg">Hoy</h2>
+                <Badge variant="outline" className="text-xs">{todayActs.length}</Badge>
+              </div>
+              <div className="space-y-1">
+                {todayActs.map(a => {
+                  const color = ACTIVITY_COLORS[a.type]
+                  return (
+                    <Link
+                      key={a.id}
+                      to={`/trips/${a.trip_id}/itinerary`}
+                      className="group flex items-center gap-3 p-2 rounded-lg hover:bg-secondary transition-colors"
+                    >
+                      <span className="text-xs tabular-nums w-12 flex-shrink-0 flex items-center gap-1 text-muted-foreground">
+                        {a.start_time
+                          ? <>{a.start_time.slice(0, 5)}</>
+                          : <Clock size={11} className="opacity-50" />}
+                      </span>
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                      <span className="text-sm font-medium flex-1 min-w-0 line-clamp-1">{a.title}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0 hidden sm:inline" style={{ background: `${color}18`, color }}>
+                        {ACTIVITY_LABELS[a.type]}
+                      </span>
+                      {a.trips && (
+                        <span className="text-xs text-muted-foreground flex-shrink-0 hidden sm:inline max-w-[120px] truncate">
+                          {a.trips.name}
+                        </span>
+                      )}
+                      <ChevronRight size={14} className="text-muted-foreground opacity-60 hover:opacity-100 transition-opacity flex-shrink-0" />
+                    </Link>
+                  )
+                })}
+              </div>
+            </motion.div>
+          )}
 
           {/* Toolbar */}
           <div className="flex flex-col sm:flex-row gap-3 mb-6">

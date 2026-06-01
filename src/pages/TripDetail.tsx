@@ -3,16 +3,20 @@ import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   MapPin, Calendar, DollarSign, FileText,
-  Map, Package, Bell, Receipt, Pencil, ArrowRight, UserPlus, Users,
+  Map as MapIcon, Package, Bell, Receipt, Pencil, ArrowRight, UserPlus, Users,
+  CalendarClock, ChevronRight, Clock,
 } from 'lucide-react'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import { useTrip } from '@/lib/queries/trips'
 import { useExpenses } from '@/lib/queries/expenses'
-import { useDocuments } from '@/lib/queries/documents'
 import { useReminders } from '@/lib/queries/reminders'
+import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
+import { usePackingItems } from '@/lib/queries/packing'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
 import { ShareTripDialog } from '@/components/trips/ShareTripDialog'
 import { useAuthStore } from '@/store/authStore'
@@ -20,7 +24,7 @@ import { formatDate, formatCurrency, STATUS_LABELS, STATUS_COLORS, countdownLabe
 
 const QUICK_LINKS = [
   { label: 'Itinerario', icon: Calendar, path: 'itinerary' },
-  { label: 'Mapa', icon: Map, path: 'map' },
+  { label: 'Mapa', icon: MapIcon, path: 'map' },
   { label: 'Documentos', icon: FileText, path: 'documents' },
   { label: 'Equipaje', icon: Package, path: 'packing' },
   { label: 'Gastos', icon: Receipt, path: 'expenses' },
@@ -31,8 +35,10 @@ export function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>()
   const { data: trip, isLoading } = useTrip(tripId!)
   const { data: expenses } = useExpenses(tripId!)
-  const { data: documents } = useDocuments(tripId!)
   const { data: reminders } = useReminders(tripId!)
+  const { data: activities } = useActivities(tripId!)
+  const { data: days } = useItineraryDays(tripId!)
+  const { data: packing } = usePackingItems(tripId!)
   const { user } = useAuthStore()
   const [editOpen, setEditOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -41,6 +47,18 @@ export function TripDetail() {
   const totalGastos = expenses?.reduce((sum, e) => sum + e.amount, 0) ?? 0
   const presupuesto = trip?.budget_total ?? 0
   const pct = presupuesto > 0 ? Math.min((totalGastos / presupuesto) * 100, 100) : 0
+
+  // Próxima actividad (de hoy en adelante)
+  const dayDate = new Map((days ?? []).map(d => [d.id, d.date]))
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const nextActivity = (activities ?? [])
+    .map(a => ({ a, date: dayDate.get(a.day_id) ?? '' }))
+    .filter(x => x.date && x.date >= todayStr)
+    .sort((x, y) => x.date !== y.date ? x.date.localeCompare(y.date) : x.a.order_index - y.a.order_index)[0]
+
+  const packingTotal = packing?.length ?? 0
+  const packingPct = packingTotal > 0 ? Math.round((packing!.filter(p => p.is_checked).length / packingTotal) * 100) : 0
+  const pendingReminders = reminders?.filter(r => !r.is_sent && new Date(r.remind_at) > new Date()).length ?? 0
 
   if (isLoading) {
     return (
@@ -62,6 +80,13 @@ export function TripDetail() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground -mb-4">
+        <Link to="/dashboard" className="hover:text-foreground transition-colors">Viajes</Link>
+        <ChevronRight size={12} className="opacity-50" />
+        <span className="text-foreground font-medium truncate max-w-[220px]">{trip.name}</span>
+      </nav>
+
       {/* Hero */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -142,20 +167,51 @@ export function TripDetail() {
         </div>
       )}
 
-      {/* Stats */}
+      {/* Stats accionables */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: 'Documentos', value: documents?.length ?? 0, icon: FileText },
-          { label: 'Recordatorios', value: reminders?.filter(r => !r.is_sent).length ?? 0, icon: Bell },
-          { label: 'Gastos registrados', value: expenses?.length ?? 0, icon: Receipt },
-          { label: 'Pendientes', value: reminders?.filter(r => !r.is_sent && new Date(r.remind_at) > new Date()).length ?? 0, icon: Bell },
-        ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-            <Icon size={16} className="text-muted-foreground mb-2" />
-            <p className="text-2xl font-serif font-medium text-foreground">{value}</p>
-            <p className="text-xs text-muted-foreground">{label}</p>
+        {/* Próximo */}
+        <Link
+          to={`/trips/${tripId}/itinerary`}
+          className="col-span-2 rounded-xl p-4 transition-colors hover:border-primary"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+        >
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+            <CalendarClock size={14} style={{ color: 'var(--primary)' }} /> Próximo
           </div>
-        ))}
+          {nextActivity ? (
+            <>
+              <p className="font-medium line-clamp-1">{nextActivity.a.title}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                {format(new Date(nextActivity.date + 'T00:00:00'), "EEE dd MMM", { locale: es })}
+                {nextActivity.a.start_time && <><Clock size={10} /> {nextActivity.a.start_time.slice(0, 5)}</>}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground mt-1">Sin actividades próximas</p>
+          )}
+        </Link>
+
+        {/* Equipaje */}
+        <Link
+          to={`/trips/${tripId}/packing`}
+          className="rounded-xl p-4 transition-colors hover:border-primary"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+        >
+          <Package size={16} className="text-muted-foreground mb-2" />
+          <p className="text-2xl font-serif font-medium text-foreground">{packingTotal > 0 ? `${packingPct}%` : '—'}</p>
+          <p className="text-xs text-muted-foreground">Equipaje</p>
+        </Link>
+
+        {/* Avisos pendientes */}
+        <Link
+          to={`/trips/${tripId}/reminders`}
+          className="rounded-xl p-4 transition-colors hover:border-primary"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+        >
+          <Bell size={16} className="text-muted-foreground mb-2" />
+          <p className="text-2xl font-serif font-medium text-foreground">{pendingReminders}</p>
+          <p className="text-xs text-muted-foreground">Avisos pendientes</p>
+        </Link>
       </div>
 
       {/* Presupuesto */}

@@ -21,6 +21,7 @@ import {
 import { useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument, uploadDocumentFile } from '@/lib/queries/documents'
 import { useTripAttachments, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useActivities } from '@/lib/queries/itinerary'
+import { TripHeader } from '@/components/trips/TripHeader'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate, DOCUMENT_LABELS } from '@/lib/utils'
 import type { Document, ActivityAttachment } from '@/types/database'
@@ -153,11 +154,12 @@ export function DocumentsPage() {
   }, {})
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      <TripHeader tripId={tripId!} section="Documentos" />
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-serif text-3xl font-medium">Cartera de viaje</h1>
-          <p className="text-muted-foreground text-sm mt-1">Documentos, reservas y confirmaciones</p>
+          <h1 className="font-serif text-2xl font-medium">Documentos</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Reservas, billetes y confirmaciones</p>
         </div>
         <Button
           onClick={openCreate}
@@ -244,7 +246,7 @@ export function DocumentsPage() {
                             </p>
                           )}
                         </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <div className="flex gap-1 opacity-60 hover:opacity-100 transition-opacity flex-shrink-0">
                           {doc.file_url && (
                             <Button size="icon" variant="ghost" className="w-7 h-7" asChild>
                               <a href={doc.file_url} target="_blank" rel="noreferrer"><File size={12} /></a>

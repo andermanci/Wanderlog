@@ -107,7 +107,7 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
 
       {/* Acciones (aparecen en hover) */}
       <div className={cn(
-        'absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
+        'absolute top-2 right-2 flex gap-1 opacity-60 hover:opacity-100 transition-opacity',
         'pointer-events-none group-hover:pointer-events-auto',
       )}>
         <Button

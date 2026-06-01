@@ -19,6 +19,7 @@ import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useExpenses, useCreateExpense, useDeleteExpense } from '@/lib/queries/expenses'
 import { useTrip } from '@/lib/queries/trips'
+import { TripHeader } from '@/components/trips/TripHeader'
 import { EXPENSE_CATEGORIES, formatCurrency, formatDate } from '@/lib/utils'
 import type { Expense } from '@/types/database'
 
@@ -61,6 +62,16 @@ export function ExpensesPage() {
     value: expenses?.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0) ?? 0,
   })).filter(d => d.value > 0)
 
+  // Gasto por día (ordenado por fecha)
+  const byDay = Object.entries(
+    (expenses ?? []).reduce<Record<string, number>>((acc, e) => {
+      acc[e.date] = (acc[e.date] ?? 0) + e.amount
+      return acc
+    }, {})
+  ).sort((a, b) => a[0].localeCompare(b[0]))
+  const dayChartData = byDay.map(([date, value]) => ({ name: formatDate(date, 'dd MMM'), value }))
+  const avgPerDay = byDay.length > 0 ? total / byDay.length : 0
+
   async function onSubmit(values: FormValues) {
     await createExpense.mutateAsync({ ...values, trip_id: tripId! })
     setFormOpen(false)
@@ -68,11 +79,12 @@ export function ExpensesPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      <TripHeader tripId={tripId!} section="Gastos" />
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-serif text-3xl font-medium">Gastos</h1>
-          <p className="text-muted-foreground text-sm mt-1">Control del presupuesto del viaje</p>
+          <h1 className="font-serif text-2xl font-medium">Gastos</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Control del presupuesto</p>
         </div>
         <Button
           onClick={() => setFormOpen(true)}
@@ -154,6 +166,28 @@ export function ExpensesPage() {
         </div>
       )}
 
+      {/* Gasto por día */}
+      {dayChartData.length > 0 && (
+        <div className="p-5 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-serif text-lg">Por día</h2>
+            <span className="text-sm text-muted-foreground">Media: <span style={{ color: 'var(--primary)' }}>{formatCurrency(avgPerDay)}</span>/día</span>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={dayChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="name" tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}€`} />
+              <Tooltip
+                contentStyle={{ background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--foreground)' }}
+                formatter={(value: unknown) => [formatCurrency(Number(value)), 'Gasto']}
+              />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]} fill="var(--primary)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Lista de gastos */}
       <h2 className="font-serif text-lg mb-4">Detalle de gastos</h2>
       {isLoading ? (
@@ -209,7 +243,7 @@ export function ExpensesPage() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="w-6 h-6 opacity-0 group-hover:opacity-100 text-destructive transition-opacity"
+                  className="w-6 h-6 opacity-60 hover:opacity-100 text-destructive transition-opacity"
                   onClick={() => deleteExpense.mutate({ id: expense.id, tripId: tripId! })}
                 >
                   <Trash2 size={11} />

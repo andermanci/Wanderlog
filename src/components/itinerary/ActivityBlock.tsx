@@ -140,7 +140,7 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
           </div>
 
           {/* Actions */}
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <div className="flex gap-1 opacity-60 hover:opacity-100 transition-opacity flex-shrink-0">
             {activity.external_link && (
               <Button size="icon" variant="ghost" className="w-6 h-6" asChild>
                 <a href={activity.external_link} target="_blank" rel="noreferrer">

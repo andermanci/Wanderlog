@@ -1,11 +1,38 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/store/authStore'
 import type { Activity, ItineraryDay } from '@/types/database'
 import { toast } from 'sonner'
 
 export const itineraryKeys = {
   days: (tripId: string) => ['itinerary', 'days', tripId] as const,
   activities: (tripId: string) => ['itinerary', 'activities', tripId] as const,
+  today: () => ['itinerary', 'today'] as const,
+}
+
+export type TodayActivity = Activity & {
+  trips: { name: string; destination: string } | null
+}
+
+// Actividades del itinerario cuya fecha de día es HOY, en todos los viajes
+// accesibles del usuario. Para el panel "Hoy" del dashboard.
+export function useTodayActivities() {
+  const { user } = useAuthStore()
+  return useQuery({
+    queryKey: itineraryKeys.today(),
+    enabled: !!user,
+    queryFn: async () => {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const { data, error } = await supabase
+        .from('activities')
+        .select('*, itinerary_days!inner(date), trips(name, destination)')
+        .eq('itinerary_days.date', today)
+        .order('start_time', { ascending: true, nullsFirst: true })
+      if (error) throw error
+      return data as unknown as TodayActivity[]
+    },
+  })
 }
 
 export function useItineraryDays(tripId: string) {
