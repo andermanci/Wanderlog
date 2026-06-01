@@ -9,7 +9,7 @@ export function ProtectedRoute() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 rounded-full border-2 border-t-transparent animate-spin"
-            style={{ borderColor: '#c9a84c', borderTopColor: 'transparent' }} />
+            style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
           <span className="text-muted-foreground font-serif text-lg">Wanderlog</span>
         </div>
       </div>

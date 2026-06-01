@@ -112,6 +112,8 @@ export type Database = {
           notes: string | null
           order_index: number
           place_id: string | null
+          origin: string | null
+          destination: string | null
           created_at: string
         }
         Insert: {
@@ -129,6 +131,8 @@ export type Database = {
           notes?: string | null
           order_index?: number
           place_id?: string | null
+          origin?: string | null
+          destination?: string | null
           created_at?: string
         }
         Update: {
@@ -146,6 +150,8 @@ export type Database = {
           notes?: string | null
           order_index?: number
           place_id?: string | null
+          origin?: string | null
+          destination?: string | null
           created_at?: string
         }
         Relationships: []
@@ -331,6 +337,8 @@ export type Database = {
           currency: string
           date: string
           created_at: string
+          external_id: string | null
+          source: string
         }
         Insert: {
           id?: string
@@ -341,6 +349,8 @@ export type Database = {
           currency: string
           date: string
           created_at?: string
+          external_id?: string | null
+          source?: string
         }
         Update: {
           id?: string
@@ -351,12 +361,119 @@ export type Database = {
           currency?: string
           date?: string
           created_at?: string
+          external_id?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
+      bank_connections: {
+        Row: {
+          id: string
+          user_id: string
+          trip_id: string
+          provider: string
+          requisition_id: string
+          account_id: string | null
+          institution_id: string | null
+          status: 'pending' | 'linked' | 'expired' | 'error'
+          expires_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          trip_id: string
+          provider?: string
+          requisition_id: string
+          account_id?: string | null
+          institution_id?: string | null
+          status?: 'pending' | 'linked' | 'expired' | 'error'
+          expires_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          trip_id?: string
+          provider?: string
+          requisition_id?: string
+          account_id?: string | null
+          institution_id?: string | null
+          status?: 'pending' | 'linked' | 'expired' | 'error'
+          expires_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      activity_attachments: {
+        Row: {
+          id: string
+          activity_id: string
+          trip_id: string
+          name: string
+          file_url: string
+          mime: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          activity_id: string
+          trip_id: string
+          name: string
+          file_url: string
+          mime?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          activity_id?: string
+          trip_id?: string
+          name?: string
+          file_url?: string
+          mime?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      trip_collaborators: {
+        Row: {
+          id: string
+          trip_id: string
+          email: string
+          user_id: string | null
+          invited_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          email: string
+          user_id?: string | null
+          invited_by: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          trip_id?: string
+          email?: string
+          user_id?: string | null
+          invited_by?: string
+          created_at?: string
         }
         Relationships: []
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      share_trip: {
+        Args: { p_trip_id: string; p_email: string }
+        Returns: Database['public']['Tables']['trip_collaborators']['Row']
+      }
+      has_trip_access: {
+        Args: { p_trip_id: string }
+        Returns: boolean
+      }
+    }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
   }
@@ -372,6 +489,9 @@ export type FavoritePlace = Database['public']['Tables']['favorite_places']['Row
 export type Reminder = Database['public']['Tables']['reminders']['Row']
 export type PackingItem = Database['public']['Tables']['packing_items']['Row']
 export type Expense = Database['public']['Tables']['expenses']['Row']
+export type TripCollaborator = Database['public']['Tables']['trip_collaborators']['Row']
+export type BankConnection = Database['public']['Tables']['bank_connections']['Row']
+export type ActivityAttachment = Database['public']['Tables']['activity_attachments']['Row']
 
 export type TripStatus = Trip['status']
 export type ActivityType = Activity['type']

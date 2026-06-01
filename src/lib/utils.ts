@@ -64,7 +64,7 @@ export interface ICSEvent {
 
 export const ACTIVITY_COLORS: Record<string, string> = {
   flight: '#6366f1',
-  hotel: '#c9a84c',
+  hotel: '#f59e0b',
   restaurant: '#f97316',
   activity: '#22c55e',
   transport: '#06b6d4',
@@ -107,7 +107,7 @@ export const PLACE_CATEGORY_LABELS: Record<string, string> = {
 
 export const PLACE_CATEGORY_COLORS: Record<string, string> = {
   restaurant: '#f97316',
-  hotel: '#c9a84c',
+  hotel: '#f59e0b',
   attraction: '#22c55e',
   cafe: '#8b5cf6',
   bar: '#ec4899',
@@ -131,5 +131,5 @@ export const STATUS_COLORS: Record<string, string> = {
   planning: '#6b7280',
   confirmed: '#3b82f6',
   in_progress: '#22c55e',
-  completed: '#c9a84c',
+  completed: '#6366f1',
 }

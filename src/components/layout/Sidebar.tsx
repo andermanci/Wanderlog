@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Map, FileText, Calendar,
@@ -7,12 +7,11 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
-import { signOut } from '@/hooks/useAuth'
+import { useSignOut } from '@/hooks/useAuth'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useState } from 'react'
-import { toast } from 'sonner'
 
 interface NavItem {
   to: string
@@ -50,18 +49,11 @@ function getTripNav(tripId: string): TripNavItem[] {
 }
 
 export function Sidebar({ tripId }: SidebarProps) {
-  const { profile } = useAuthStore()
-  const navigate = useNavigate()
+  const { profile, user } = useAuthStore()
+  const signOut = useSignOut()
+  const email = profile?.email ?? user?.email ?? ''
+  const displayName = profile?.full_name?.trim() || null
   const [collapsed, setCollapsed] = useState(false)
-
-  async function handleSignOut() {
-    try {
-      await signOut()
-      navigate('/login')
-    } catch {
-      toast.error('Error al cerrar sesión')
-    }
-  }
 
   const navItems = tripId ? getTripNav(tripId) : globalNav
 
@@ -70,13 +62,13 @@ export function Sidebar({ tripId }: SidebarProps) {
       animate={{ width: collapsed ? 64 : 220 }}
       transition={{ duration: 0.25, ease: 'easeInOut' }}
       className="flex flex-col h-full border-r border-border relative"
-      style={{ background: 'var(--sidebar-background, #0d0d16)', minWidth: collapsed ? 64 : 220 }}
+      style={{ background: 'var(--sidebar-background, var(--sidebar))', minWidth: collapsed ? 64 : 220 }}
     >
       {/* Toggle */}
       <button
         onClick={() => setCollapsed(c => !c)}
         className="absolute -right-3 top-6 z-10 w-6 h-6 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary transition-colors"
-        style={{ background: '#12121a' }}
+        style={{ background: 'var(--card)' }}
       >
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
@@ -84,8 +76,8 @@ export function Sidebar({ tripId }: SidebarProps) {
       {/* Logo */}
       <div className={cn('flex items-center gap-3 px-4 py-5 border-b border-border', collapsed && 'justify-center px-0')}>
         <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #c9a84c22, #c9a84c55)', border: '1px solid #c9a84c44' }}>
-          <Compass size={16} style={{ color: '#c9a84c' }} />
+          style={{ background: 'var(--gradient-primary-subtle)', border: '1px solid color-mix(in srgb, var(--primary) 27%, transparent)' }}>
+          <Compass size={16} style={{ color: 'var(--primary)' }} />
         </div>
         <AnimatePresence>
           {!collapsed && (
@@ -122,27 +114,33 @@ export function Sidebar({ tripId }: SidebarProps) {
                 to={item.to}
                 end={'end' in item ? (item as NavItem).end : true}
                 className={({ isActive }) => cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150',
+                  'relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 overflow-hidden',
                   collapsed && 'justify-center px-0',
                   isActive
-                    ? 'text-primary font-medium'
+                    ? 'text-primary font-semibold'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
-                  isActive && 'bg-primary/10',
                 )}
               >
-                <span className="flex-shrink-0">{item.icon}</span>
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="whitespace-nowrap overflow-hidden"
-                    >
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
+                {({ isActive }) => (
+                  <>
+                    {isActive && (
+                      <>
+                        <span
+                          aria-hidden
+                          className="absolute inset-0 rounded-lg"
+                          style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)' }}
+                        />
+                        <span
+                          aria-hidden
+                          className="absolute left-0 top-0 bottom-0 w-1 rounded-r-full"
+                          style={{ background: 'var(--primary)' }}
+                        />
+                      </>
+                    )}
+                    <span className="relative z-10 shrink-0 flex">{item.icon}</span>
+                    {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
+                  </>
+                )}
               </NavLink>
             </TooltipTrigger>
             {collapsed && (
@@ -161,8 +159,8 @@ export function Sidebar({ tripId }: SidebarProps) {
       )}>
         <Avatar className="w-8 h-8 flex-shrink-0 ring-1 ring-border">
           <AvatarImage src={profile?.avatar_url ?? undefined} />
-          <AvatarFallback className="text-xs" style={{ background: '#1a1a26', color: '#c9a84c' }}>
-            {profile?.full_name?.[0] ?? profile?.email?.[0] ?? 'U'}
+          <AvatarFallback className="text-xs" style={{ background: 'var(--secondary)', color: 'var(--primary)' }}>
+            {(displayName?.[0] ?? email[0] ?? 'U').toUpperCase()}
           </AvatarFallback>
         </Avatar>
 
@@ -174,8 +172,8 @@ export function Sidebar({ tripId }: SidebarProps) {
               exit={{ opacity: 0, width: 0 }}
               className="flex-1 min-w-0 overflow-hidden"
             >
-              <p className="text-xs font-medium truncate text-foreground">{profile?.full_name ?? 'Usuario'}</p>
-              <p className="text-xs text-muted-foreground truncate">{profile?.email}</p>
+              <p className="text-xs font-medium truncate text-foreground">{displayName ?? email}</p>
+              {displayName && <p className="text-xs text-muted-foreground truncate">{email}</p>}
             </motion.div>
           )}
         </AnimatePresence>
@@ -186,7 +184,7 @@ export function Sidebar({ tripId }: SidebarProps) {
               variant="ghost"
               size="icon"
               className="flex-shrink-0 w-7 h-7 text-muted-foreground hover:text-destructive"
-              onClick={handleSignOut}
+              onClick={signOut}
             >
               <LogOut size={14} />
             </Button>

@@ -42,7 +42,9 @@ export function usePendingReminders() {
         .order('remind_at')
         .limit(10)
       if (error) throw error
-      return data as (Reminder & { trips: { name: string; destination: string } | null })[]
+      // El embed trips(...) lo resuelve PostgREST por la FK; los tipos
+      // generados no incluyen la relación, así que casteamos vía unknown.
+      return data as unknown as (Reminder & { trips: { name: string; destination: string } | null })[]
     },
   })
 }

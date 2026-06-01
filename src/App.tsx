@@ -8,6 +8,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 
 import { LoginPage } from '@/pages/Login'
 import { AuthCallback } from '@/pages/AuthCallback'
+import { RevolutCallback } from '@/pages/RevolutCallback'
 import { Dashboard } from '@/pages/Dashboard'
 import { TripDetail } from '@/pages/TripDetail'
 import { ItineraryPage } from '@/pages/Itinerary'
@@ -23,6 +24,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5,
+      // Mantén los datos en caché 1 h aunque la vista se desmonte, para que
+      // volver al dashboard desde un viaje muestre los datos al instante
+      // (y refresque en segundo plano) en vez de recargar desde cero.
+      gcTime: 1000 * 60 * 60,
       retry: 1,
     },
   },
@@ -45,6 +50,9 @@ export default function App() {
 
           {/* Protegidas */}
           <Route element={<ProtectedRoute />}>
+            {/* Callback de importación bancaria (pantalla completa, sin sidebar) */}
+            <Route path="/import/revolut/callback" element={<RevolutCallback />} />
+
             <Route element={<AppLayout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
@@ -69,9 +77,9 @@ export default function App() {
           position="top-right"
           toastOptions={{
             style: {
-              background: '#12121a',
-              border: '1px solid #2a2a3a',
-              color: '#f5f0e8',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              color: 'var(--foreground)',
             },
           }}
         />

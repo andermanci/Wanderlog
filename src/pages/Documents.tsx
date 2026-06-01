@@ -4,7 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload } from 'lucide-react'
+import { Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, Calendar, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,9 +19,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument, uploadDocumentFile } from '@/lib/queries/documents'
+import { useTripAttachments, useDeleteAttachment } from '@/lib/queries/attachments'
+import { useActivities } from '@/lib/queries/itinerary'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate, DOCUMENT_LABELS } from '@/lib/utils'
-import type { Document } from '@/types/database'
+import type { Document, ActivityAttachment } from '@/types/database'
 import { toast } from 'sonner'
 
 const schema = z.object({
@@ -52,13 +54,24 @@ export function DocumentsPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const { user } = useAuthStore()
   const { data: documents, isLoading } = useDocuments(tripId!)
+  const { data: attachments } = useTripAttachments(tripId!)
+  const { data: activities } = useActivities(tripId!)
+  const deleteAttachment = useDeleteAttachment(tripId!)
   const createDoc = useCreateDocument()
   const updateDoc = useUpdateDocument()
   const deleteDoc = useDeleteDocument()
 
+  // Agrupa los adjuntos del itinerario por actividad.
+  const activityById = new Map((activities ?? []).map(a => [a.id, a]))
+  const attachmentsByActivity = (attachments ?? []).reduce<Record<string, typeof attachments>>((acc, att) => {
+    (acc[att.activity_id] ??= []).push(att)
+    return acc
+  }, {})
+
   const [formOpen, setFormOpen] = useState(false)
   const [editDoc, setEditDoc] = useState<Document | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null)
+  const [deleteAttTarget, setDeleteAttTarget] = useState<ActivityAttachment | null>(null)
   const [uploading, setUploading] = useState(false)
   const [fileUrl, setFileUrl] = useState<string | null>(null)
 
@@ -148,7 +161,7 @@ export function DocumentsPage() {
         </div>
         <Button
           onClick={openCreate}
-          style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
+          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
           className="gap-2"
         >
           <Plus size={16} />
@@ -159,7 +172,7 @@ export function DocumentsPage() {
       {isLoading ? (
         <div className="space-y-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full" style={{ background: '#1a1a26' }} />
+            <Skeleton key={i} className="h-20 w-full" style={{ background: 'var(--secondary)' }} />
           ))}
         </div>
       ) : !documents?.length ? (
@@ -170,13 +183,18 @@ export function DocumentsPage() {
             Guarda billetes, reservas de hotel, entradas y más.
           </p>
           <Button onClick={openCreate} className="mt-6 gap-2"
-            style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}>
+            style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
             <Plus size={16} />
             Añadir documento
           </Button>
         </div>
       ) : (
         <div className="space-y-6">
+          <div className="flex items-center gap-2">
+            <FileText size={16} style={{ color: 'var(--primary)' }} />
+            <h2 className="font-serif text-xl font-medium">Del viaje</h2>
+            <span className="text-xs text-muted-foreground">DNI, reservas y confirmaciones</span>
+          </div>
           {Object.entries(grouped ?? {}).map(([cat, docs]) => (
             <div key={cat}>
               <div className="flex items-center gap-2 mb-3">
@@ -192,7 +210,7 @@ export function DocumentsPage() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
                     className="group flex items-start gap-4 p-4 rounded-xl"
-                    style={{ background: '#12121a', border: '1px solid #2a2a3a' }}
+                    style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
                   >
                     <span className="text-2xl flex-shrink-0">{CATEGORY_ICONS[doc.category]}</span>
                     <div className="flex-1 min-w-0">
@@ -205,7 +223,7 @@ export function DocumentsPage() {
                             )}
                             {doc.locator && (
                               <span className="text-xs font-mono px-1.5 py-0.5 rounded"
-                                style={{ background: 'rgba(201,168,76,0.12)', color: '#c9a84c' }}>
+                                style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
                                 {doc.locator}
                               </span>
                             )}
@@ -256,9 +274,66 @@ export function DocumentsPage() {
         </div>
       )}
 
+      {/* Documentos del itinerario (adjuntos de actividades) */}
+      {Object.keys(attachmentsByActivity).length > 0 && (
+        <div className="mt-10">
+          <div className="flex items-center gap-2 mb-1">
+            <Calendar size={16} style={{ color: 'var(--primary)' }} />
+            <h2 className="font-serif text-xl font-medium">Del itinerario</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">Entradas, QRs y documentos adjuntos a actividades</p>
+
+          <div className="space-y-4">
+            {Object.entries(attachmentsByActivity).map(([activityId, atts]) => {
+              const act = activityById.get(activityId)
+              return (
+                <div key={activityId} className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <MapPin size={13} style={{ color: 'var(--primary)' }} />
+                    <p className="font-medium text-sm">{act?.title ?? 'Actividad'}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {atts?.map(att => {
+                      const isImg = att.mime?.startsWith('image/') ?? /\.(png|jpe?g|webp)$/i.test(att.file_url)
+                      return (
+                        <div
+                          key={att.id}
+                          className="flex items-center gap-2 rounded-lg border border-border pr-1"
+                          style={{ background: 'var(--secondary)' }}
+                        >
+                          <a href={att.file_url} target="_blank" rel="noreferrer" title={att.name}
+                            className="flex items-center gap-2 pl-1.5 py-1.5 min-w-0">
+                            {isImg ? (
+                              <img src={att.file_url} alt={att.name} className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                            ) : (
+                              <span className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0" style={{ background: 'var(--card)' }}>
+                                <File size={14} style={{ color: 'var(--primary)' }} />
+                              </span>
+                            )}
+                            <span className="text-xs truncate max-w-[160px]">{att.name}</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteAttTarget(att)}
+                            className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive flex-shrink-0"
+                            title="Eliminar adjunto"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Form Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">{editDoc ? 'Editar documento' : 'Nuevo documento'}</DialogTitle>
           </DialogHeader>
@@ -324,8 +399,9 @@ export function DocumentsPage() {
               <Input {...register('seat')} placeholder="14A" />
             </div>
             <div className="space-y-1.5">
-              <Label>Enlace</Label>
-              <Input {...register('link')} placeholder="https://..." />
+              <Label>Enlace de la reserva (eDreams, Booking…)</Label>
+              <Input {...register('link')} placeholder="https://www.edreams.es/..." />
+              {errors.link && <p className="text-xs text-destructive">{errors.link.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label>Adjunto (PDF o imagen)</Label>
@@ -336,7 +412,7 @@ export function DocumentsPage() {
                 {uploading
                   ? <Loader2 size={16} className="animate-spin" />
                   : fileUrl
-                    ? <File size={16} style={{ color: '#c9a84c' }} />
+                    ? <File size={16} style={{ color: 'var(--primary)' }} />
                     : <Upload size={16} className="text-muted-foreground" />
                 }
                 <span className="text-xs text-muted-foreground">
@@ -361,7 +437,7 @@ export function DocumentsPage() {
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={isSubmitting || uploading}
-                style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}>
+                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
                 {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
                 {editDoc ? 'Guardar' : 'Añadir'}
               </Button>
@@ -371,7 +447,7 @@ export function DocumentsPage() {
       </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar documento?</AlertDialogTitle>
             <AlertDialogDescription>Se eliminará <strong>{deleteTarget?.title}</strong>.</AlertDialogDescription>
@@ -383,6 +459,27 @@ export function DocumentsPage() {
               onClick={() => {
                 if (deleteTarget) deleteDoc.mutate({ id: deleteTarget.id, tripId: tripId! })
                 setDeleteTarget(null)
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteAttTarget} onOpenChange={() => setDeleteAttTarget(null)}>
+        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">¿Eliminar adjunto?</AlertDialogTitle>
+            <AlertDialogDescription>Se eliminará <strong>{deleteAttTarget?.name}</strong> del itinerario.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteAttTarget) deleteAttachment.mutate(deleteAttTarget.id)
+                setDeleteAttTarget(null)
               }}
             >
               Eliminar

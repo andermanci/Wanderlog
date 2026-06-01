@@ -26,7 +26,7 @@ export function useExpenses(tripId: string) {
 export function useCreateExpense() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (values: Omit<Expense, 'id' | 'created_at'>) => {
+    mutationFn: async (values: Omit<Expense, 'id' | 'created_at' | 'external_id' | 'source'>) => {
       const { data, error } = await supabase
         .from('expenses')
         .insert(values)

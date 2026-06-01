@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, processLock } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -13,5 +13,13 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // Lock en memoria en vez de navigator.locks (que puede quedarse
+    // bloqueado entre pestañas y colgar storage/queries indefinidamente).
+    lock: processLock,
   },
 })
+
+// Solo en desarrollo: expone el cliente para diagnóstico desde la consola.
+if (import.meta.env.DEV) {
+  ;(window as unknown as { supabase: typeof supabase }).supabase = supabase
+}

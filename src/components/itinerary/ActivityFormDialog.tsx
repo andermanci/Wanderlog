@@ -1,8 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Upload, FileText, X, Paperclip } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -11,7 +11,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { LocationPicker } from '@/components/itinerary/LocationPicker'
 import { useCreateActivity, useUpdateActivity } from '@/lib/queries/itinerary'
+import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAttachment } from '@/lib/queries/attachments'
+import { useAuthStore } from '@/store/authStore'
 import type { Activity, ItineraryDay } from '@/types/database'
 import { ACTIVITY_LABELS } from '@/lib/utils'
 import { formatDate } from '@/lib/utils'
@@ -23,6 +26,8 @@ const schema = z.object({
   start_time: z.string().optional(),
   end_time: z.string().optional(),
   address: z.string().optional(),
+  origin: z.string().optional(),
+  destination: z.string().optional(),
   description: z.string().optional(),
   price: z.preprocess(v => (v === '' || v == null) ? undefined : Number(v), z.number().optional()),
   external_link: z.string().url('URL inválida').optional().or(z.literal('')),
@@ -46,6 +51,26 @@ export function ActivityFormDialog({
 }: ActivityFormDialogProps) {
   const createActivity = useCreateActivity()
   const updateActivity = useUpdateActivity()
+  const { user } = useAuthStore()
+  const { data: tripAttachments } = useTripAttachments(tripId)
+  const addAttachment = useAddAttachment(tripId, activity?.id ?? '')
+  const deleteAttachment = useDeleteAttachment(tripId)
+  const attachFileRef = useRef<HTMLInputElement>(null)
+  const [uploadingAtt, setUploadingAtt] = useState(false)
+
+  const attachments = (tripAttachments ?? []).filter(a => a.activity_id === activity?.id)
+
+  async function handleAttachmentUpload(file: File) {
+    if (!activity || !user) return
+    if (file.size > 10 * 1024 * 1024) { return }
+    setUploadingAtt(true)
+    try {
+      const url = await uploadAttachmentFile(file, user.id, tripId, activity.id)
+      await addAttachment.mutateAsync({ name: file.name, file_url: url, mime: file.type || null })
+    } finally {
+      setUploadingAtt(false)
+    }
+  }
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
@@ -61,6 +86,8 @@ export function ActivityFormDialog({
         start_time: activity.start_time ?? '',
         end_time: activity.end_time ?? '',
         address: activity.address ?? '',
+        origin: activity.origin ?? '',
+        destination: activity.destination ?? '',
         description: activity.description ?? '',
         price: activity.price ?? undefined,
         external_link: activity.external_link ?? '',
@@ -90,7 +117,9 @@ export function ActivityFormDialog({
       trip_id: tripId,
       day_id: values.day_id,
       description: values.description ?? null,
-      address: values.address ?? null,
+      address: values.address || null,
+      origin: values.origin || null,
+      destination: values.destination || null,
       start_time: values.start_time || null,
       end_time: values.end_time || null,
       price: values.price ?? null,
@@ -109,7 +138,7 @@ export function ActivityFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
         <DialogHeader>
           <DialogTitle className="font-serif text-xl">{activity ? 'Editar actividad' : 'Nueva actividad'}</DialogTitle>
         </DialogHeader>
@@ -157,10 +186,35 @@ export function ActivityFormDialog({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Dirección</Label>
-            <Input {...register('address')} placeholder="Ej: Via Sacra, Roma" />
-          </div>
+          {watch('type') === 'transport' ? (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Origen</Label>
+                <LocationPicker
+                  value={watch('origin')}
+                  onChange={(v) => setValue('origin', v, { shouldDirty: true })}
+                  placeholder="Punto de salida"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Destino</Label>
+                <LocationPicker
+                  value={watch('destination')}
+                  onChange={(v) => setValue('destination', v, { shouldDirty: true })}
+                  placeholder="Punto de llegada"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>Dirección</Label>
+              <LocationPicker
+                value={watch('address')}
+                onChange={(v) => setValue('address', v, { shouldDirty: true })}
+                placeholder="Buscar o elegir en el mapa"
+              />
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Descripción</Label>
@@ -184,10 +238,69 @@ export function ActivityFormDialog({
             <Textarea {...register('notes')} rows={2} placeholder="Notas adicionales..." />
           </div>
 
+          {/* Adjuntos (entradas, QRs, PDFs) */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5"><Paperclip size={13} /> Entradas y documentos</Label>
+            {!activity ? (
+              <p className="text-xs text-muted-foreground">
+                Guarda la actividad y vuelve a abrirla para adjuntar entradas, QRs o PDFs.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {attachments.map(att => {
+                  const isImg = att.mime?.startsWith('image/') ?? /\.(png|jpe?g|webp)$/i.test(att.file_url)
+                  return (
+                    <div key={att.id} className="relative group">
+                      <a href={att.file_url} target="_blank" rel="noreferrer" title={att.name}
+                        className="block w-20 h-20 rounded-lg overflow-hidden border border-border">
+                        {isImg ? (
+                          <img src={att.file_url} alt={att.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-1" style={{ background: 'var(--secondary)' }}>
+                            <FileText size={20} style={{ color: 'var(--primary)' }} />
+                            <span className="text-[9px] text-muted-foreground line-clamp-2 text-center">{att.name}</span>
+                          </div>
+                        )}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => deleteAttachment.mutate(att.id)}
+                        title="Eliminar"
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-background border border-border flex items-center justify-center text-destructive hover:bg-destructive hover:text-white shadow transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )
+                })}
+                <button
+                  type="button"
+                  onClick={() => attachFileRef.current?.click()}
+                  disabled={uploadingAtt}
+                  className="w-20 h-20 rounded-lg border border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
+                >
+                  {uploadingAtt ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+                  <span className="text-[10px]">{uploadingAtt ? 'Subiendo' : 'Añadir'}</span>
+                </button>
+                <input
+                  ref={attachFileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleAttachmentUpload(file)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
           <DialogFooter className="gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={isSubmitting}
-              style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}>
+              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
               {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
               {activity ? 'Guardar' : 'Añadir'}
             </Button>

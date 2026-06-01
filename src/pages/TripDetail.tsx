@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  MapPin, Calendar, Tag, DollarSign, FileText,
-  Map, Package, Bell, Receipt, Pencil, ArrowRight,
+  MapPin, Calendar, DollarSign, FileText,
+  Map, Package, Bell, Receipt, Pencil, ArrowRight, UserPlus, Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +14,8 @@ import { useExpenses } from '@/lib/queries/expenses'
 import { useDocuments } from '@/lib/queries/documents'
 import { useReminders } from '@/lib/queries/reminders'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
+import { ShareTripDialog } from '@/components/trips/ShareTripDialog'
+import { useAuthStore } from '@/store/authStore'
 import { formatDate, formatCurrency, STATUS_LABELS, STATUS_COLORS, countdownLabel } from '@/lib/utils'
 
 const QUICK_LINKS = [
@@ -31,7 +33,10 @@ export function TripDetail() {
   const { data: expenses } = useExpenses(tripId!)
   const { data: documents } = useDocuments(tripId!)
   const { data: reminders } = useReminders(tripId!)
+  const { user } = useAuthStore()
   const [editOpen, setEditOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const isOwner = !!trip && trip.user_id === user?.id
 
   const totalGastos = expenses?.reduce((sum, e) => sum + e.amount, 0) ?? 0
   const presupuesto = trip?.budget_total ?? 0
@@ -40,9 +45,9 @@ export function TripDetail() {
   if (isLoading) {
     return (
       <div className="p-8 space-y-4">
-        <Skeleton className="h-48 w-full rounded-xl" style={{ background: '#1a1a26' }} />
-        <Skeleton className="h-8 w-64" style={{ background: '#1a1a26' }} />
-        <Skeleton className="h-5 w-48" style={{ background: '#1a1a26' }} />
+        <Skeleton className="h-48 w-full rounded-xl" style={{ background: 'var(--secondary)' }} />
+        <Skeleton className="h-8 w-64" style={{ background: 'var(--secondary)' }} />
+        <Skeleton className="h-5 w-48" style={{ background: 'var(--secondary)' }} />
       </div>
     )
   }
@@ -66,7 +71,7 @@ export function TripDetail() {
       >
         {trip.cover_image_url
           ? <img src={trip.cover_image_url} alt={trip.name} className="w-full h-56 object-cover" />
-          : <div className="w-full h-56" style={{ background: 'linear-gradient(135deg, #1a1a26, #12121a)' }} />
+          : <div className="w-full h-56" style={{ background: 'linear-gradient(135deg, var(--secondary), var(--card))' }} />
         }
         <div className="card-overlay absolute inset-0" />
 
@@ -81,23 +86,41 @@ export function TripDetail() {
               </span>
               <h1 className="font-serif text-4xl font-medium text-white">{trip.name}</h1>
               <div className="flex items-center gap-1.5 text-white/70 text-sm mt-1">
-                <MapPin size={14} style={{ color: '#c9a84c' }} />
+                <MapPin size={14} style={{ color: 'var(--primary)' }} />
                 <span>{trip.destination}</span>
                 <span className="mx-1.5 opacity-30">·</span>
                 <Calendar size={14} />
                 <span>{formatDate(trip.start_date, 'dd MMM')} — {formatDate(trip.end_date, 'dd MMM yyyy')}</span>
                 <span className="mx-1.5 opacity-30">·</span>
-                <span style={{ color: '#c9a84c' }}>{countdownLabel(trip.start_date)}</span>
+                <span style={{ color: 'var(--primary)' }}>{countdownLabel(trip.start_date)}</span>
               </div>
             </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setEditOpen(true)}
-              className="glass rounded-lg w-9 h-9 text-white hover:text-white"
-            >
-              <Pencil size={16} />
-            </Button>
+            <div className="flex items-center gap-2">
+              {isOwner ? (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setShareOpen(true)}
+                  className="glass rounded-lg w-9 h-9 text-white hover:text-white"
+                  title="Compartir viaje"
+                >
+                  <UserPlus size={16} />
+                </Button>
+              ) : (
+                <span className="glass rounded-lg px-2.5 h-9 flex items-center gap-1.5 text-white/80 text-xs" title="Compartido contigo">
+                  <Users size={14} /> Compartido
+                </span>
+              )}
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setEditOpen(true)}
+                className="glass rounded-lg w-9 h-9 text-white hover:text-white"
+                title="Editar viaje"
+              >
+                <Pencil size={16} />
+              </Button>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -112,7 +135,7 @@ export function TripDetail() {
         <div className="flex flex-wrap gap-2">
           {trip.tags.map(tag => (
             <Badge key={tag} variant="outline"
-              style={{ borderColor: 'rgba(201,168,76,0.3)', color: '#c9a84c' }}>
+              style={{ borderColor: 'color-mix(in srgb, var(--primary) 30%, transparent)', color: 'var(--primary)' }}>
               {tag}
             </Badge>
           ))}
@@ -127,7 +150,7 @@ export function TripDetail() {
           { label: 'Gastos registrados', value: expenses?.length ?? 0, icon: Receipt },
           { label: 'Pendientes', value: reminders?.filter(r => !r.is_sent && new Date(r.remind_at) > new Date()).length ?? 0, icon: Bell },
         ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="rounded-xl p-4" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+          <div key={label} className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
             <Icon size={16} className="text-muted-foreground mb-2" />
             <p className="text-2xl font-serif font-medium text-foreground">{value}</p>
             <p className="text-xs text-muted-foreground">{label}</p>
@@ -137,10 +160,10 @@ export function TripDetail() {
 
       {/* Presupuesto */}
       {presupuesto > 0 && (
-        <div className="rounded-xl p-5" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <div className="rounded-xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <DollarSign size={16} style={{ color: '#c9a84c' }} />
+              <DollarSign size={16} style={{ color: 'var(--primary)' }} />
               <span className="font-medium">Presupuesto</span>
             </div>
             <span className="text-sm text-muted-foreground">
@@ -169,12 +192,12 @@ export function TripDetail() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="flex items-center justify-between p-4 rounded-xl transition-colors cursor-pointer group"
-                style={{ background: '#12121a', border: '1px solid #2a2a3a' }}
+                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                    style={{ background: 'rgba(201,168,76,0.1)' }}>
-                    <Icon size={16} style={{ color: '#c9a84c' }} />
+                    style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}>
+                    <Icon size={16} style={{ color: 'var(--primary)' }} />
                   </div>
                   <span className="text-sm font-medium">{label}</span>
                 </div>
@@ -189,6 +212,12 @@ export function TripDetail() {
         open={editOpen}
         onClose={() => setEditOpen(false)}
         trip={trip}
+      />
+
+      <ShareTripDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        tripId={trip.id}
       />
     </div>
   )

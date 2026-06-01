@@ -1,30 +1,112 @@
-import { useState, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
-import { APIProvider, Map, AdvancedMarker, InfoWindow, Pin } from '@vis.gl/react-google-maps'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { eachDayOfInterval, parseISO, format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { APIProvider, Map, AdvancedMarker, InfoWindow, Pin, ColorScheme, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Search, Star, MapPin, ExternalLink, Bookmark, X, Plus, Calendar,
+  Search, Star, MapPin, ExternalLink, Bookmark, X, Plus, Calendar, Route,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { DatePicker } from '@/components/ui/date-picker'
 import { useFavoritePlaces, useSaveFavoritePlace, useDeleteFavoritePlace } from '@/lib/queries/places'
-import { useCreateActivity } from '@/lib/queries/itinerary'
-import { useItineraryDays } from '@/lib/queries/itinerary'
+import { useCreateActivity, useItineraryDays, useUpsertDays, useActivities } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
-import { placeTypeToCategory, getCategoryColor, MAPS_DARK_STYLE } from '@/lib/maps'
-import { PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS, formatDate } from '@/lib/utils'
+import { placeTypeToCategory, getCategoryColor } from '@/lib/maps'
+import { buildRoutePoints } from '@/lib/route'
+import { PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
 import type { FavoritePlace } from '@/types/database'
 import { toast } from 'sonner'
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
+
+// Dibuja la ruta del itinerario sobre el mapa de la app.
+// 1) Resuelve cada parada a coordenadas con Places (omite las que no resuelvan).
+// 2) Traza la ruta por carretera (Directions) con esas coordenadas.
+// 3) Si no hay ruta por carretera, dibuja una línea aproximada que las conecta.
+function MapDirections({ stops }: { stops: string[] }) {
+  const map = useMap()
+  const routesLib = useMapsLibrary('routes')
+  const placesLib = useMapsLibrary('places')
+  const [renderer, setRenderer] = useState<google.maps.DirectionsRenderer | null>(null)
+
+  useEffect(() => {
+    if (!routesLib || !map) return
+    const r = new routesLib.DirectionsRenderer({
+      map,
+      suppressMarkers: false,
+      polylineOptions: { strokeColor: '#6366f1', strokeWeight: 5, strokeOpacity: 0.9 },
+    })
+    setRenderer(r)
+    return () => r.setMap(null)
+  }, [routesLib, map])
+
+  useEffect(() => {
+    if (!routesLib || !placesLib || !renderer || !map || stops.length < 2) return
+    let cancelled = false
+    let polyline: google.maps.Polyline | null = null
+
+    ;(async () => {
+      // 1) Resolver paradas → coordenadas (Places).
+      const resolved = await Promise.all(stops.slice(0, 25).map(async (q) => {
+        try {
+          const { places } = await placesLib.Place.searchByText({
+            textQuery: q, fields: ['location'], maxResultCount: 1,
+          })
+          const loc = places?.[0]?.location
+          return loc ? { lat: loc.lat(), lng: loc.lng() } : null
+        } catch { return null }
+      }))
+      if (cancelled) return
+
+      const pts = resolved.filter((p): p is { lat: number; lng: number } => !!p)
+      // Quita paradas consecutivas casi idénticas.
+      const uniq = pts.filter((p, i) =>
+        i === 0 || Math.abs(p.lat - pts[i - 1].lat) > 1e-4 || Math.abs(p.lng - pts[i - 1].lng) > 1e-4)
+      if (uniq.length < 2) {
+        toast.error('No se pudieron localizar las paradas del itinerario.')
+        return
+      }
+
+      // 2) Ruta por carretera con coordenadas.
+      const svc = new routesLib.DirectionsService()
+      svc.route({
+        origin: uniq[0],
+        destination: uniq[uniq.length - 1],
+        waypoints: uniq.slice(1, -1).map(location => ({ location, stopover: true })),
+        travelMode: google.maps.TravelMode.DRIVING,
+      }, (res, status) => {
+        if (cancelled) return
+        if (status === 'OK' && res) {
+          renderer.setDirections(res)
+        } else {
+          // 3) Fallback: línea aproximada conectando las paradas.
+          renderer.set('directions', null)
+          polyline = new google.maps.Polyline({
+            path: uniq, map,
+            strokeColor: '#6366f1', strokeWeight: 4, strokeOpacity: 0.85,
+          })
+          const bounds = new google.maps.LatLngBounds()
+          uniq.forEach(p => bounds.extend(p))
+          map.fitBounds(bounds, 56)
+          toast.info('Mostrando ruta aproximada (no hay ruta por carretera entre todas las paradas).')
+        }
+      })
+    })()
+
+    return () => { cancelled = true; polyline?.setMap(null) }
+  }, [routesLib, placesLib, renderer, map, stops])
+
+  return null
+}
 
 interface PlaceResult {
   place_id: string
@@ -38,8 +120,17 @@ interface PlaceResult {
   url?: string
 }
 
+// Forma normalizada para añadir al itinerario, válida tanto para un
+// favorito guardado como para un resultado de búsqueda.
+interface PendingPlace {
+  name: string
+  address: string | null
+  link: string | null
+  place_id: string | null
+}
+
 interface AddToItineraryState {
-  place: FavoritePlace
+  place: PendingPlace
   open: boolean
 }
 
@@ -48,9 +139,20 @@ export function MapViewPage() {
   const { data: trip } = useTrip(tripId!)
   const { data: favorites } = useFavoritePlaces(tripId!)
   const { data: days } = useItineraryDays(tripId!)
+  const { data: activities } = useActivities(tripId!)
   const saveFavorite = useSaveFavoritePlace()
   const deleteFavorite = useDeleteFavoritePlace()
   const createActivity = useCreateActivity()
+  const upsertDays = useUpsertDays()
+
+  // Auto-genera los días del viaje si aún no existen (igual que la página
+  // de Itinerario), para que el desplegable de día tenga opciones.
+  useEffect(() => {
+    if (!trip || !days || days.length > 0) return
+    const range = eachDayOfInterval({ start: parseISO(trip.start_date), end: parseISO(trip.end_date) })
+    upsertDays.mutate(range.map(d => ({ trip_id: trip.id, date: format(d, 'yyyy-MM-dd'), notes: null })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip, days])
 
   const [searchInput, setSearchInput] = useState('')
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([])
@@ -58,22 +160,113 @@ export function MapViewPage() {
   const [selectedFavorite, setSelectedFavorite] = useState<FavoritePlace | null>(null)
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null)
   const [addToItineraryState, setAddToItineraryState] = useState<AddToItineraryState | null>(null)
-  const [selectedDay, setSelectedDay] = useState<string>('')
+  const [selectedDate, setSelectedDate] = useState<string>('')
   const [selectedTime, setSelectedTime] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [showRoute, setShowRoute] = useState(searchParams.get('route') === '1')
 
-  const searchPlaces = useCallback(() => {
-    if (!mapInstance || !searchInput.trim()) return
-    const service = new google.maps.places.PlacesService(mapInstance)
-    service.textSearch(
-      { query: searchInput, location: mapInstance.getCenter() ?? undefined },
-      (results, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-          setSearchResults(results as unknown as PlaceResult[])
+  const routePoints = useMemo(
+    () => buildRoutePoints(activities ?? [], days ?? []),
+    [activities, days],
+  )
+  const routeStops = useMemo(() => routePoints.map(p => p.location), [routePoints])
+
+  // Si llegamos con ?route=1 (desde el itinerario), mostramos la ruta y limpiamos el query.
+  useEffect(() => {
+    if (searchParams.get('route') === '1') {
+      setShowRoute(true)
+      searchParams.delete('route')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
+
+  const searchPlaces = useCallback(async () => {
+    const q = searchInput.trim()
+    if (!q) return
+    if (typeof google === 'undefined' || !google.maps?.places) {
+      toast.error('El mapa todavía se está cargando. Inténtalo en un momento.')
+      return
+    }
+    const center = mapInstance?.getCenter() ?? undefined
+
+    // Mapea un Place de la API nueva al shape que usa el resto del componente.
+    const fromNew = (p: google.maps.places.Place): PlaceResult => ({
+      place_id: p.id,
+      name: p.displayName ?? '',
+      formatted_address: p.formattedAddress ?? '',
+      rating: p.rating ?? undefined,
+      geometry: { location: { lat: () => p.location!.lat(), lng: () => p.location!.lng() } },
+      types: p.types ?? [],
+      website: p.websiteURI ?? undefined,
+      url: p.googleMapsURI ?? undefined,
+    })
+
+    // Pinta los resultados y centra el mapa en ellos.
+    const applyResults = (rs: PlaceResult[]) => {
+      setSearchResults(rs)
+      setSelectedPlace(rs.length === 1 ? rs[0] : null)
+      if (!mapInstance || !rs.length) return
+      if (rs.length === 1) {
+        mapInstance.panTo({ lat: rs[0].geometry.location.lat(), lng: rs[0].geometry.location.lng() })
+        mapInstance.setZoom(15)
+      } else {
+        const bounds = new google.maps.LatLngBounds()
+        rs.forEach(r => bounds.extend({ lat: r.geometry.location.lat(), lng: r.geometry.location.lng() }))
+        mapInstance.fitBounds(bounds, 64)
+      }
+    }
+
+    // 1) Places API (New)
+    try {
+      if (google.maps.places.Place?.searchByText) {
+        const { places } = await google.maps.places.Place.searchByText({
+          textQuery: q,
+          fields: ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'types', 'websiteURI', 'googleMapsURI'],
+          maxResultCount: 12,
+          ...(center ? { locationBias: center } : {}),
+        })
+        if (places?.length) {
+          applyResults(places.filter(p => p.location).map(fromNew))
+          return
         }
       }
-    )
-  }, [mapInstance, searchInput])
+    } catch (e) {
+      console.warn('[map] Place.searchByText no disponible, pruebo legacy:', e)
+    }
+
+    // 2) Fallback: PlacesService.textSearch (API legacy)
+    try {
+      const service = new google.maps.places.PlacesService(mapInstance ?? document.createElement('div'))
+      service.textSearch(
+        { query: q, ...(center ? { location: center, radius: 50000 } : {}) },
+        (results, status) => {
+          const S = google.maps.places.PlacesServiceStatus
+          if (status === S.OK && results?.length) {
+            applyResults(results as unknown as PlaceResult[])
+          } else if (status === S.ZERO_RESULTS) {
+            setSearchResults([])
+            toast.info('Sin resultados para esa búsqueda')
+          } else {
+            setSearchResults([])
+            toast.error(`No se pudo buscar (${status}). Revisa que la "Places API" esté activada en Google Cloud.`)
+          }
+        }
+      )
+    } catch (e) {
+      console.error('[map] textSearch error:', e)
+      toast.error('No se pudo buscar lugares')
+    }
+  }, [searchInput, mapInstance])
+
+  // Selecciona un resultado y centra el mapa en él.
+  const selectPlace = useCallback((place: PlaceResult) => {
+    setSelectedPlace(place)
+    if (mapInstance) {
+      mapInstance.panTo({ lat: place.geometry.location.lat(), lng: place.geometry.location.lng() })
+      mapInstance.setZoom(16)
+    }
+  }, [mapInstance])
 
   async function handleSaveFavorite(place: PlaceResult) {
     if (!tripId) return
@@ -96,11 +289,13 @@ export function MapViewPage() {
   }
 
   async function handleAddToItinerary() {
-    if (!addToItineraryState || !selectedDay) return
+    if (!addToItineraryState || !selectedDate) return
+    const dayId = days?.find(d => d.date === selectedDate)?.id
+    if (!dayId) { toast.error('Esa fecha no está dentro del viaje'); return }
     const { place } = addToItineraryState
     await createActivity.mutateAsync({
       trip_id: tripId!,
-      day_id: selectedDay,
+      day_id: dayId,
       type: 'place',
       title: place.name,
       address: place.address ?? null,
@@ -111,10 +306,12 @@ export function MapViewPage() {
       external_link: place.link ?? null,
       notes: null,
       order_index: 0,
-      place_id: place.id,
+      place_id: place.place_id,
+      origin: null,
+      destination: null,
     })
     setAddToItineraryState(null)
-    setSelectedDay('')
+    setSelectedDate('')
     setSelectedTime('')
     toast.success('Añadido al itinerario')
   }
@@ -131,7 +328,7 @@ export function MapViewPage() {
     return (
       <div className="flex items-center justify-center h-full text-center p-8">
         <div>
-          <MapPin size={48} className="mx-auto mb-4" style={{ color: '#c9a84c' }} />
+          <MapPin size={48} className="mx-auto mb-4" style={{ color: 'var(--primary)' }} />
           <h2 className="font-serif text-2xl mb-2">API Key de Google Maps no configurada</h2>
           <p className="text-muted-foreground text-sm">
             Añade <code className="bg-surface-2 px-1 rounded">VITE_GOOGLE_MAPS_API_KEY</code> a tu archivo <code>.env</code>
@@ -145,7 +342,7 @@ export function MapViewPage() {
     <APIProvider apiKey={API_KEY} libraries={['places']}>
       <div className="flex h-full">
         {/* Panel lateral */}
-        <div className="w-80 flex flex-col border-r border-border" style={{ background: '#0d0d16' }}>
+        <div className="w-80 flex flex-col border-r border-border" style={{ background: 'var(--sidebar)' }}>
           {/* Búsqueda */}
           <div className="p-4 border-b border-border">
             <h2 className="font-serif text-xl mb-3">Mapa</h2>
@@ -161,6 +358,19 @@ export function MapViewPage() {
                 <Search size={16} />
               </Button>
             </div>
+
+            {/* Ver/ocultar el recorrido del itinerario en el mapa */}
+            {routeStops.length >= 2 && (
+              <Button
+                variant={showRoute ? 'default' : 'outline'}
+                size="sm"
+                className="w-full mt-2 gap-1.5 text-xs"
+                onClick={() => setShowRoute(v => !v)}
+                style={showRoute ? { background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' } : undefined}
+              >
+                <Route size={14} /> {showRoute ? 'Ocultar recorrido' : 'Ver recorrido del viaje'}
+              </Button>
+            )}
           </div>
 
           {/* Resultados de búsqueda */}
@@ -176,14 +386,14 @@ export function MapViewPage() {
                 {searchResults.map(place => (
                   <button
                     key={place.place_id}
-                    onClick={() => setSelectedPlace(place)}
+                    onClick={() => selectPlace(place)}
                     className="w-full text-left px-4 py-2.5 hover:bg-secondary transition-colors border-b border-border/50 last:border-0"
                   >
                     <p className="text-sm font-medium line-clamp-1">{place.name}</p>
                     <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{place.formatted_address}</p>
                     {place.rating && (
-                      <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: '#c9a84c' }}>
-                        <Star size={10} fill="#c9a84c" />
+                      <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: 'var(--primary)' }}>
+                        <Star size={10} fill="var(--primary)" />
                         {place.rating}
                       </p>
                     )}
@@ -193,6 +403,38 @@ export function MapViewPage() {
             </div>
           )}
 
+          {showRoute ? (
+            /* Paradas del recorrido del itinerario */
+            <ScrollArea className="flex-1">
+              <div className="px-4 py-3 border-b border-border sticky top-0 z-10" style={{ background: 'var(--sidebar)' }}>
+                <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                  Recorrido · {routePoints.length} paradas
+                </span>
+              </div>
+              <ol>
+                {routePoints.map((p, i) => (
+                  <li key={p.key} className="flex items-start gap-3 px-4 py-3 border-b border-border/30">
+                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                      style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}>
+                      {i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium line-clamp-1">
+                        {p.label}{p.kind === 'origin' ? ' · salida' : p.kind === 'destination' ? ' · llegada' : ''}
+                      </p>
+                      <p className="text-xs text-muted-foreground line-clamp-1">{p.location}</p>
+                      {p.date && (
+                        <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                          {format(parseISO(p.date), 'EEE dd MMM', { locale: es })}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </ScrollArea>
+          ) : (
+          <>
           {/* Filtro categorías */}
           <div className="px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2 flex-wrap">
@@ -200,9 +442,9 @@ export function MapViewPage() {
                 onClick={() => setCategoryFilter('all')}
                 className="text-xs px-2 py-0.5 rounded-full border transition-all"
                 style={{
-                  borderColor: categoryFilter === 'all' ? '#c9a84c' : '#2a2a3a',
-                  color: categoryFilter === 'all' ? '#c9a84c' : '#a89b8a',
-                  background: categoryFilter === 'all' ? 'rgba(201,168,76,0.1)' : 'transparent',
+                  borderColor: categoryFilter === 'all' ? 'var(--primary)' : 'var(--border)',
+                  color: categoryFilter === 'all' ? 'var(--primary)' : 'var(--muted-foreground)',
+                  background: categoryFilter === 'all' ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
                 }}
               >
                 Todos
@@ -213,8 +455,8 @@ export function MapViewPage() {
                   onClick={() => setCategoryFilter(k => k === key ? 'all' : key)}
                   className="text-xs px-2 py-0.5 rounded-full border transition-all"
                   style={{
-                    borderColor: categoryFilter === key ? PLACE_CATEGORY_COLORS[key] : '#2a2a3a',
-                    color: categoryFilter === key ? PLACE_CATEGORY_COLORS[key] : '#a89b8a',
+                    borderColor: categoryFilter === key ? PLACE_CATEGORY_COLORS[key] : 'var(--border)',
+                    color: categoryFilter === key ? PLACE_CATEGORY_COLORS[key] : 'var(--muted-foreground)',
                     background: categoryFilter === key ? `${PLACE_CATEGORY_COLORS[key]}18` : 'transparent',
                   }}
                 >
@@ -241,7 +483,7 @@ export function MapViewPage() {
                   return (
                     <div key={cat}>
                       <div className="px-4 py-2 sticky top-0 z-10"
-                        style={{ background: '#0d0d16' }}>
+                        style={{ background: 'var(--sidebar)' }}>
                         <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                           {label}
                         </span>
@@ -259,8 +501,8 @@ export function MapViewPage() {
                                 <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{place.address}</p>
                               )}
                               {place.rating && (
-                                <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: '#c9a84c' }}>
-                                  <Star size={9} fill="#c9a84c" />
+                                <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: 'var(--primary)' }}>
+                                  <Star size={9} fill="var(--primary)" />
                                   {place.rating}
                                 </p>
                               )}
@@ -278,6 +520,8 @@ export function MapViewPage() {
               </div>
             )}
           </ScrollArea>
+          </>
+          )}
         </div>
 
         {/* Mapa */}
@@ -287,10 +531,13 @@ export function MapViewPage() {
             defaultZoom={12}
             mapId="wanderlog-map"
             onIdle={(e) => setMapInstance(e.map)}
-            styles={MAPS_DARK_STYLE}
+            colorScheme={ColorScheme.FOLLOW_SYSTEM}
             disableDefaultUI={false}
             className="w-full h-full"
           >
+            {/* Recorrido del itinerario dibujado en el mapa */}
+            {showRoute && routeStops.length >= 2 && <MapDirections stops={routeStops} />}
+
             {/* Marcadores de favoritos */}
             {filteredFavorites?.map(place => (
               <AdvancedMarker
@@ -315,17 +562,28 @@ export function MapViewPage() {
               </AdvancedMarker>
             ))}
 
-            {/* Marcador de lugar seleccionado en búsqueda */}
-            {selectedPlace && (
-              <AdvancedMarker
-                position={{
-                  lat: selectedPlace.geometry.location.lat(),
-                  lng: selectedPlace.geometry.location.lng(),
-                }}
-              >
-                <Pin background="#c9a84c" glyphColor="#0a0a0f" borderColor="#e4c97a" />
-              </AdvancedMarker>
-            )}
+            {/* Marcadores de resultados de búsqueda */}
+            {searchResults.map(place => {
+              const isSel = selectedPlace?.place_id === place.place_id
+              return (
+                <AdvancedMarker
+                  key={place.place_id}
+                  position={{
+                    lat: place.geometry.location.lat(),
+                    lng: place.geometry.location.lng(),
+                  }}
+                  zIndex={isSel ? 10 : 1}
+                  onClick={() => selectPlace(place)}
+                >
+                  <Pin
+                    background={isSel ? '#6366f1' : '#a5b4fc'}
+                    glyphColor="#ffffff"
+                    borderColor={isSel ? '#818cf8' : '#c7d2fe'}
+                    scale={isSel ? 1.15 : 0.95}
+                  />
+                </AdvancedMarker>
+              )
+            })}
 
             {/* InfoWindow de favorito seleccionado */}
             {selectedFavorite && (
@@ -333,16 +591,16 @@ export function MapViewPage() {
                 position={{ lat: selectedFavorite.lat, lng: selectedFavorite.lng }}
                 onCloseClick={() => setSelectedFavorite(null)}
               >
-                <div className="p-3 min-w-[200px]" style={{ background: '#12121a', borderRadius: '8px' }}>
+                <div className="p-3 min-w-[200px]" style={{ background: 'var(--card)', borderRadius: '8px' }}>
                   <p className="font-medium text-sm mb-1">{selectedFavorite.name}</p>
                   {selectedFavorite.address && (
                     <p className="text-xs text-gray-400 mb-2">{selectedFavorite.address}</p>
                   )}
                   <div className="flex gap-2 mt-2">
                     <button
-                      onClick={() => setAddToItineraryState({ place: selectedFavorite, open: true })}
+                      onClick={() => setAddToItineraryState({ open: true, place: { name: selectedFavorite.name, address: selectedFavorite.address, link: selectedFavorite.link, place_id: selectedFavorite.id } })}
                       className="text-xs px-2 py-1 rounded flex items-center gap-1"
-                      style={{ background: 'rgba(201,168,76,0.2)', color: '#c9a84c' }}
+                      style={{ background: 'color-mix(in srgb, var(--primary) 20%, transparent)', color: 'var(--primary)' }}
                     >
                       <Plus size={10} />
                       Itinerario
@@ -380,7 +638,7 @@ export function MapViewPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
                 className="absolute bottom-6 left-6 right-6 sm:left-auto sm:right-6 sm:w-80 rounded-xl p-4 shadow-2xl"
-                style={{ background: '#12121a', border: '1px solid rgba(201,168,76,0.2)' }}
+                style={{ background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--primary) 20%, transparent)' }}
               >
                 <button
                   onClick={() => { setSelectedPlace(null); setSearchResults([]) }}
@@ -398,8 +656,8 @@ export function MapViewPage() {
                 <h3 className="font-serif text-lg font-medium pr-6">{selectedPlace.name}</h3>
                 <p className="text-xs text-muted-foreground mt-1">{selectedPlace.formatted_address}</p>
                 {selectedPlace.rating && (
-                  <p className="text-xs flex items-center gap-1 mt-1.5" style={{ color: '#c9a84c' }}>
-                    <Star size={11} fill="#c9a84c" />
+                  <p className="text-xs flex items-center gap-1 mt-1.5" style={{ color: 'var(--primary)' }}>
+                    <Star size={11} fill="var(--primary)" />
                     {selectedPlace.rating} / 5
                   </p>
                 )}
@@ -407,22 +665,34 @@ export function MapViewPage() {
                   <Button
                     size="sm"
                     className="flex-1 gap-1.5 text-xs"
-                    style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
+                    style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
                     onClick={() => handleSaveFavorite(selectedPlace)}
                     disabled={saveFavorite.isPending}
                   >
                     <Bookmark size={12} />
-                    Guardar favorito
+                    Favorito
                   </Button>
-                  {selectedPlace.url && (
-                    <Button size="sm" variant="ghost" className="gap-1.5 text-xs" asChild>
-                      <a href={selectedPlace.url} target="_blank" rel="noreferrer">
-                        <ExternalLink size={12} />
-                        Google Maps
-                      </a>
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5 text-xs"
+                    onClick={() => setAddToItineraryState({ open: true, place: { name: selectedPlace.name, address: selectedPlace.formatted_address, link: selectedPlace.url ?? null, place_id: null } })}
+                  >
+                    <Calendar size={12} />
+                    Itinerario
+                  </Button>
                 </div>
+                {selectedPlace.url && (
+                  <a
+                    href={selectedPlace.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ExternalLink size={12} />
+                    Ver en Google Maps
+                  </a>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -434,7 +704,7 @@ export function MapViewPage() {
         open={addToItineraryState?.open ?? false}
         onOpenChange={() => setAddToItineraryState(null)}
       >
-        <DialogContent style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <DialogHeader>
             <DialogTitle className="font-serif">Añadir al itinerario</DialogTitle>
           </DialogHeader>
@@ -444,14 +714,13 @@ export function MapViewPage() {
             </p>
             <div className="space-y-1.5">
               <Label>Día</Label>
-              <Select value={selectedDay} onValueChange={setSelectedDay}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar día..." /></SelectTrigger>
-                <SelectContent>
-                  {days?.map(d => (
-                    <SelectItem key={d.id} value={d.id}>{formatDate(d.date, 'EEEE, dd MMM yyyy')}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <DatePicker
+                value={selectedDate}
+                onChange={setSelectedDate}
+                placeholder="Elige un día del viaje"
+                fromDate={trip ? parseISO(trip.start_date) : undefined}
+                toDate={trip ? parseISO(trip.end_date) : undefined}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Hora (opcional)</Label>
@@ -461,9 +730,9 @@ export function MapViewPage() {
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setAddToItineraryState(null)}>Cancelar</Button>
             <Button
-              disabled={!selectedDay || createActivity.isPending}
+              disabled={!selectedDate || createActivity.isPending}
               onClick={handleAddToItinerary}
-              style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
+              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
             >
               <Calendar size={14} className="mr-2" />
               Añadir al itinerario

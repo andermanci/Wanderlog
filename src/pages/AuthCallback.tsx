@@ -19,7 +19,7 @@ export function AuthCallback() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 rounded-full border-2 animate-spin"
-          style={{ borderColor: '#c9a84c', borderTopColor: 'transparent' }} />
+          style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
         <span className="text-muted-foreground font-serif text-lg">Autenticando...</span>
       </div>
     </div>

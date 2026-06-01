@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useForm, type Resolver } from 'react-hook-form'
+import { useForm, Controller, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Upload, X, Loader2 } from 'lucide-react'
@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { DatePicker } from '@/components/ui/date-picker'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { useCreateTrip, useUpdateTrip } from '@/lib/queries/trips'
@@ -46,7 +47,7 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
 
-  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, setValue, control, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
     defaultValues: { status: 'planning' },
   })
@@ -73,16 +74,30 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
 
   async function handleImageUpload(file: File) {
     if (!user) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La imagen supera 5 MB. Elige una más ligera.')
+      return
+    }
     setUploading(true)
     try {
       const ext = file.name.split('.').pop()
       const path = `${user.id}/${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from('trip-covers').upload(path, file, { upsert: true })
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 30000)
+      )
+      const { error } = await Promise.race([
+        supabase.storage.from('trip-covers').upload(path, file, { upsert: true }),
+        timeout,
+      ])
       if (error) throw error
       const { data } = supabase.storage.from('trip-covers').getPublicUrl(path)
       setCoverUrl(data.publicUrl)
-    } catch {
-      toast.error('Error al subir la imagen')
+    } catch (err) {
+      console.error('[TripFormDialog] upload error:', err)
+      const msg = err instanceof Error && err.message === 'timeout'
+        ? 'La subida tardó demasiado. Comprueba tu conexión.'
+        : 'Error al subir la imagen'
+      toast.error(msg)
     } finally {
       setUploading(false)
     }
@@ -115,7 +130,7 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
         <DialogHeader>
           <DialogTitle className="font-serif text-2xl">{trip ? 'Editar viaje' : 'Nuevo viaje'}</DialogTitle>
         </DialogHeader>
@@ -126,7 +141,7 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
             <Label className="text-sm text-muted-foreground mb-2 block">Foto de portada</Label>
             <div
               className="relative h-32 rounded-lg overflow-hidden cursor-pointer flex items-center justify-center border border-dashed border-border hover:border-primary transition-colors"
-              style={{ background: '#1a1a26' }}
+              style={{ background: 'var(--secondary)' }}
               onClick={() => fileRef.current?.click()}
             >
               {coverUrl
@@ -184,12 +199,24 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Fecha inicio *</Label>
-              <Input type="date" {...register('start_date')} />
+              <Controller
+                control={control}
+                name="start_date"
+                render={({ field }) => (
+                  <DatePicker value={field.value} onChange={field.onChange} placeholder="Fecha inicio" />
+                )}
+              />
               {errors.start_date && <p className="text-xs text-destructive">{errors.start_date.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label>Fecha fin *</Label>
-              <Input type="date" {...register('end_date')} />
+              <Controller
+                control={control}
+                name="end_date"
+                render={({ field }) => (
+                  <DatePicker value={field.value} onChange={field.onChange} placeholder="Fecha fin" />
+                )}
+              />
               {errors.end_date && <p className="text-xs text-destructive">{errors.end_date.message}</p>}
             </div>
           </div>
@@ -217,9 +244,9 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
           {/* Tags */}
           <div className="space-y-1.5">
             <Label>Etiquetas</Label>
-            <div className="flex flex-wrap gap-1.5 p-2 rounded-md border border-input min-h-[42px]" style={{ background: '#1a1a26' }}>
+            <div className="flex flex-wrap gap-1.5 p-2 rounded-md border border-input min-h-[42px]" style={{ background: 'var(--secondary)' }}>
               {tags.map(tag => (
-                <Badge key={tag} className="gap-1" style={{ background: 'rgba(201,168,76,0.15)', color: '#c9a84c', border: '1px solid rgba(201,168,76,0.3)' }}>
+                <Badge key={tag} className="gap-1" style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)', border: '1px solid color-mix(in srgb, var(--primary) 30%, transparent)' }}>
                   {tag}
                   <button type="button" onClick={() => setTags(t => t.filter(x => x !== tag))}>
                     <X size={10} />
@@ -240,7 +267,7 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
           <DialogFooter className="gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={isSubmitting || uploading}
-              style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}>
+              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
               {isSubmitting ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
               {trip ? 'Guardar cambios' : 'Crear viaje'}
             </Button>

@@ -63,15 +63,15 @@ export function SettingsPage() {
         {/* Perfil */}
         <section className="mb-8">
           <div className="flex items-center gap-2 mb-4">
-            <User size={18} style={{ color: '#c9a84c' }} />
+            <User size={18} style={{ color: 'var(--primary)' }} />
             <h2 className="font-serif text-xl">Perfil</h2>
           </div>
 
-          <div className="p-6 rounded-xl" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+          <div className="p-6 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
             <div className="flex items-center gap-4 mb-6">
               <Avatar className="w-16 h-16 ring-2 ring-border">
                 <AvatarImage src={profile?.avatar_url ?? undefined} />
-                <AvatarFallback style={{ background: '#1a1a26', color: '#c9a84c', fontSize: '1.5rem' }}>
+                <AvatarFallback style={{ background: 'var(--secondary)', color: 'var(--primary)', fontSize: '1.5rem' }}>
                   {profile?.full_name?.[0] ?? user?.email?.[0] ?? 'U'}
                 </AvatarFallback>
               </Avatar>
@@ -96,7 +96,7 @@ export function SettingsPage() {
               </div>
 
               <Button type="submit" disabled={saving}
-                style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}>
+                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
                 {saving && <Loader2 size={14} className="animate-spin mr-2" />}
                 Guardar cambios
               </Button>
@@ -109,11 +109,11 @@ export function SettingsPage() {
         {/* Preferencias */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <Globe size={18} style={{ color: '#c9a84c' }} />
+            <Globe size={18} style={{ color: 'var(--primary)' }} />
             <h2 className="font-serif text-xl">Preferencias</h2>
           </div>
 
-          <div className="p-6 rounded-xl space-y-4" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+          <div className="p-6 rounded-xl space-y-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
             <div className="space-y-1.5">
               <Label>Moneda por defecto</Label>
               <Select
@@ -133,7 +133,7 @@ export function SettingsPage() {
             <Button
               onClick={handleSubmit(onSubmit)}
               disabled={saving}
-              style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
+              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
             >
               {saving && <Loader2 size={14} className="animate-spin mr-2" />}
               Guardar preferencias
@@ -145,7 +145,7 @@ export function SettingsPage() {
 
         {/* Información */}
         <section>
-          <div className="p-6 rounded-xl" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+          <div className="p-6 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
             <p className="text-xs text-muted-foreground text-center">
               Wanderlog · Tu diario de viajes personal<br />
               Todos tus datos son privados y protegidos con RLS en Supabase

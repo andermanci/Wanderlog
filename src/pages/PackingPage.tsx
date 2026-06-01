@@ -108,7 +108,7 @@ export function PackingPage() {
           variant="outline"
           className="gap-2 text-sm"
           onClick={() => setShowTemplates(s => !s)}
-          style={{ borderColor: '#2a2a3a' }}
+          style={{ borderColor: 'var(--border)' }}
         >
           <Copy size={14} />
           Plantillas
@@ -117,10 +117,10 @@ export function PackingPage() {
 
       {/* Progreso */}
       {totalItems > 0 && (
-        <div className="mb-6 p-4 rounded-xl" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <div className="mb-6 p-4 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm text-muted-foreground">Progreso del equipaje</span>
-            <span className="text-sm font-medium" style={{ color: '#c9a84c' }}>{Math.round(pct)}%</span>
+            <span className="text-sm font-medium" style={{ color: 'var(--primary)' }}>{Math.round(pct)}%</span>
           </div>
           <Progress value={pct} className="h-2" />
         </div>
@@ -135,7 +135,7 @@ export function PackingPage() {
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden mb-6"
           >
-            <div className="p-4 rounded-xl" style={{ background: '#12121a', border: '1px solid rgba(201,168,76,0.2)' }}>
+            <div className="p-4 rounded-xl" style={{ background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--primary) 20%, transparent)' }}>
               <p className="text-sm font-medium mb-3">Aplicar plantilla</p>
               <div className="flex gap-2 flex-wrap">
                 {PACKING_TEMPLATES.map(t => (
@@ -144,7 +144,7 @@ export function PackingPage() {
                     size="sm"
                     variant="outline"
                     className="text-xs"
-                    style={{ borderColor: '#2a2a3a' }}
+                    style={{ borderColor: 'var(--border)' }}
                     onClick={() => applyTemplate(t)}
                     disabled={bulkCreate.isPending}
                   >
@@ -179,7 +179,7 @@ export function PackingPage() {
         <Button
           onClick={addItem}
           disabled={!newName.trim() || createItem.isPending}
-          style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
+          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
         >
           {createItem.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
         </Button>
@@ -188,7 +188,7 @@ export function PackingPage() {
       {isLoading ? (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-32" style={{ background: '#1a1a26' }} />
+            <Skeleton key={i} className="h-32" style={{ background: 'var(--secondary)' }} />
           ))}
         </div>
       ) : !items?.length ? (
@@ -204,7 +204,7 @@ export function PackingPage() {
             const checkedCat = catItems.filter(i => i.is_checked).length
             return (
               <div key={cat} className="rounded-xl overflow-hidden"
-                style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                 <button
                   onClick={() => setCollapsedCats(prev => {
                     const next = new Set(prev)
@@ -241,7 +241,7 @@ export function PackingPage() {
                                 toggleItem.mutate({ id: item.id, is_checked: !!checked, tripId: tripId! })
                               }
                               className="flex-shrink-0"
-                              style={{ borderColor: item.is_checked ? '#c9a84c' : '#2a2a3a' }}
+                              style={{ borderColor: item.is_checked ? 'var(--primary)' : 'var(--border)' }}
                             />
                             <span className={`flex-1 text-sm transition-all ${item.is_checked ? 'line-through text-muted-foreground' : ''}`}>
                               {item.name}

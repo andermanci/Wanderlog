@@ -4,7 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Plus, Receipt, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Receipt, Trash2, Loader2, Landmark } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -23,7 +23,7 @@ import { EXPENSE_CATEGORIES, formatCurrency, formatDate } from '@/lib/utils'
 import type { Expense } from '@/types/database'
 
 const CHART_COLORS = [
-  '#c9a84c', '#6366f1', '#22c55e', '#f97316',
+  'var(--primary)', '#6366f1', '#22c55e', '#f97316',
   '#06b6d4', '#a855f7', '#ec4899', '#14b8a6',
 ]
 
@@ -76,7 +76,7 @@ export function ExpensesPage() {
         </div>
         <Button
           onClick={() => setFormOpen(true)}
-          style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
+          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
           className="gap-2"
         >
           <Plus size={16} />
@@ -86,7 +86,7 @@ export function ExpensesPage() {
 
       {/* Resumen presupuesto */}
       {budget > 0 && (
-        <div className="p-5 rounded-xl mb-6" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <div className="p-5 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium">Presupuesto total</span>
             <span className="text-sm text-muted-foreground">{formatCurrency(total)} / {formatCurrency(budget)}</span>
@@ -105,15 +105,15 @@ export function ExpensesPage() {
 
       {/* Totales rápidos */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="p-4 rounded-xl text-center" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
-          <p className="text-2xl font-serif font-medium" style={{ color: '#c9a84c' }}>{formatCurrency(total)}</p>
+        <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <p className="text-2xl font-serif font-medium" style={{ color: 'var(--primary)' }}>{formatCurrency(total)}</p>
           <p className="text-xs text-muted-foreground mt-1">Total gastado</p>
         </div>
-        <div className="p-4 rounded-xl text-center" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <p className="text-2xl font-serif font-medium">{expenses?.length ?? 0}</p>
           <p className="text-xs text-muted-foreground mt-1">Transacciones</p>
         </div>
-        <div className="p-4 rounded-xl text-center" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <p className="text-2xl font-serif font-medium">
             {expenses?.length ? formatCurrency(total / expenses.length) : '—'}
           </p>
@@ -123,25 +123,25 @@ export function ExpensesPage() {
 
       {/* Gráfico */}
       {chartData.length > 0 && (
-        <div className="p-5 rounded-xl mb-6" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <div className="p-5 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <h2 className="font-serif text-lg mb-4">Por categoría</h2>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="name"
-                tick={{ fill: '#a89b8a', fontSize: 11 }}
+                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: '#a89b8a', fontSize: 11 }}
+                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => `${v}€`}
               />
               <Tooltip
-                contentStyle={{ background: '#1a1a26', border: '1px solid #2a2a3a', borderRadius: '8px', color: '#f5f0e8' }}
+                contentStyle={{ background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--foreground)' }}
                 formatter={(value: unknown) => [formatCurrency(Number(value)), 'Gasto']}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
@@ -159,7 +159,7 @@ export function ExpensesPage() {
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-14" style={{ background: '#1a1a26' }} />
+            <Skeleton key={i} className="h-14" style={{ background: 'var(--secondary)' }} />
           ))}
         </div>
       ) : !expenses?.length ? (
@@ -177,7 +177,7 @@ export function ExpensesPage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.03 }}
               className="group flex items-center gap-4 p-3 rounded-lg"
-              style={{ background: '#12121a', border: '1px solid #2a2a3a' }}
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
             >
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
@@ -189,13 +189,21 @@ export function ExpensesPage() {
                 {expense.category[0]}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium line-clamp-1">{expense.description}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium line-clamp-1">{expense.description}</p>
+                  {expense.source === 'revolut' && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0 gap-1"
+                      style={{ borderColor: 'color-mix(in srgb, var(--primary) 30%, transparent)', color: 'var(--primary)' }}>
+                      <Landmark size={9} /> Revolut
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {formatDate(expense.date)} · {expense.category}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-medium text-sm" style={{ color: '#c9a84c' }}>
+                <span className="font-medium text-sm" style={{ color: 'var(--primary)' }}>
                   {formatCurrency(expense.amount, expense.currency)}
                 </span>
                 <Button
@@ -213,7 +221,7 @@ export function ExpensesPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">Nuevo gasto</DialogTitle>
           </DialogHeader>
@@ -259,7 +267,7 @@ export function ExpensesPage() {
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={isSubmitting}
-                style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}>
+                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
                 {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
                 Añadir gasto
               </Button>

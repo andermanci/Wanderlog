@@ -91,7 +91,7 @@ export function Dashboard() {
               </Select>
               <Button
                 onClick={() => { setEditTrip(null); setFormOpen(true) }}
-                style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
+                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
                 className="gap-2 font-medium"
               >
                 <Plus size={16} />
@@ -112,9 +112,9 @@ export function Dashboard() {
                     onClick={() => setStatusFilter(prev => prev === key ? 'all' : key)}
                     className="text-xs px-3 py-1 rounded-full border transition-all"
                     style={{
-                      borderColor: statusFilter === key ? '#c9a84c' : '#2a2a3a',
-                      color: statusFilter === key ? '#c9a84c' : '#a89b8a',
-                      background: statusFilter === key ? 'rgba(201,168,76,0.1)' : 'transparent',
+                      borderColor: statusFilter === key ? 'var(--primary)' : 'var(--border)',
+                      color: statusFilter === key ? 'var(--primary)' : 'var(--muted-foreground)',
+                      background: statusFilter === key ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
                     }}
                   >
                     {label} · {count}
@@ -128,11 +128,11 @@ export function Dashboard() {
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="rounded-xl overflow-hidden" style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
-                  <Skeleton className="h-52 w-full" style={{ background: '#1a1a26' }} />
+                <div key={i} className="rounded-xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                  <Skeleton className="h-52 w-full" style={{ background: 'var(--secondary)' }} />
                   <div className="p-4 space-y-2">
-                    <Skeleton className="h-5 w-3/4" style={{ background: '#1a1a26' }} />
-                    <Skeleton className="h-4 w-1/2" style={{ background: '#1a1a26' }} />
+                    <Skeleton className="h-5 w-3/4" style={{ background: 'var(--secondary)' }} />
+                    <Skeleton className="h-4 w-1/2" style={{ background: 'var(--secondary)' }} />
                   </div>
                 </div>
               ))}
@@ -144,8 +144,8 @@ export function Dashboard() {
               className="flex flex-col items-center justify-center py-24 text-center"
             >
               <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
-                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)' }}>
-                <MapPin size={32} style={{ color: '#c9a84c' }} />
+                style={{ background: 'color-mix(in srgb, var(--primary) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--primary) 15%, transparent)' }}>
+                <MapPin size={32} style={{ color: 'var(--primary)' }} />
               </div>
               <h3 className="font-serif text-2xl text-foreground mb-2">
                 {search || statusFilter !== 'all' ? 'Sin resultados' : 'Tu primera aventura te espera'}
@@ -159,7 +159,7 @@ export function Dashboard() {
                 <Button
                   className="mt-6 gap-2"
                   onClick={() => { setEditTrip(null); setFormOpen(true) }}
-                  style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
+                  style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
                 >
                   <Plus size={16} />
                   Crear primer viaje
@@ -188,10 +188,10 @@ export function Dashboard() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           className="hidden lg:flex flex-col w-72 border-l border-border p-4 h-full"
-          style={{ background: '#0d0d16' }}
+          style={{ background: 'var(--sidebar)' }}
         >
           <div className="flex items-center gap-2 mb-4">
-            <Bell size={16} style={{ color: '#c9a84c' }} />
+            <Bell size={16} style={{ color: 'var(--primary)' }} />
             <h2 className="font-serif text-lg">Próximos avisos</h2>
           </div>
           <ScrollArea className="flex-1">
@@ -202,7 +202,7 @@ export function Dashboard() {
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   className="p-3 rounded-lg"
-                  style={{ background: '#12121a', border: '1px solid #2a2a3a' }}
+                  style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
                 >
                   <p className="text-sm font-medium text-foreground line-clamp-1">{r.title}</p>
                   {r.trips && (
@@ -211,7 +211,7 @@ export function Dashboard() {
                       {r.trips.destination}
                     </p>
                   )}
-                  <p className="text-xs mt-1 flex items-center gap-1" style={{ color: '#c9a84c' }}>
+                  <p className="text-xs mt-1 flex items-center gap-1" style={{ color: 'var(--primary)' }}>
                     <Calendar size={10} />
                     {format(parseISO(r.remind_at), "dd MMM · HH:mm", { locale: es })}
                   </p>
@@ -230,7 +230,7 @@ export function Dashboard() {
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar viaje?</AlertDialogTitle>
             <AlertDialogDescription>

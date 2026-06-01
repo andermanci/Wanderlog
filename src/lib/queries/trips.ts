@@ -44,14 +44,24 @@ export function useTrip(id: string) {
 
 export function useCreateTrip() {
   const qc = useQueryClient()
-  const { user } = useAuthStore()
   return useMutation({
     mutationFn: async (values: Omit<Trip, 'id' | 'user_id' | 'created_at'>) => {
-      const { data, error } = await supabase
+      // getSession es rápido (no hace red salvo que el token esté caducado,
+      // y entonces refresca vía processLock sin colgarse).
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) throw new Error('SESSION_EXPIRED')
+
+      // Timeout duro: si la petición se queda colgada, fallamos en vez de
+      // dejar el spinner girando para siempre.
+      const insert = supabase
         .from('trips')
-        .insert({ ...values, user_id: user!.id })
+        .insert({ ...values, user_id: session.user.id })
         .select()
         .single()
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 15000)
+      )
+      const { data, error } = await Promise.race([insert, timeout])
       if (error) throw error
       return data
     },
@@ -59,7 +69,17 @@ export function useCreateTrip() {
       qc.invalidateQueries({ queryKey: tripKeys.lists() })
       toast.success('Viaje creado correctamente')
     },
-    onError: () => toast.error('Error al crear el viaje'),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : ''
+      const code = (err as { code?: string })?.code
+      if (msg === 'SESSION_EXPIRED' || code === '42501') {
+        toast.error('Tu sesión ha caducado. Recarga la página o vuelve a iniciar sesión.')
+      } else if (msg === 'TIMEOUT') {
+        toast.error('La operación tardó demasiado. Comprueba tu conexión e inténtalo de nuevo.')
+      } else {
+        toast.error('Error al crear el viaje')
+      }
+    },
   })
 }
 

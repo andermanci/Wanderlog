@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { MapPin, Calendar, Tag, Trash2, Pencil } from 'lucide-react'
+import { MapPin, Calendar, Tag, Trash2, Pencil, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn, formatDate, countdownLabel, STATUS_LABELS, STATUS_COLORS, daysUntil } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
 import type { Trip } from '@/types/database'
 
 interface TripCardProps {
@@ -21,10 +22,12 @@ const FALLBACK_IMAGES = [
 ]
 
 export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
+  const { user } = useAuthStore()
   const imageUrl = trip.cover_image_url || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length]
   const days = daysUntil(trip.start_date)
   const isUpcoming = days >= 0 && trip.status !== 'completed'
   const statusColor = STATUS_COLORS[trip.status]
+  const isShared = !!user && trip.user_id !== user.id
 
   return (
     <motion.div
@@ -32,7 +35,7 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
       className="group relative rounded-xl overflow-hidden cursor-pointer"
-      style={{ border: '1px solid rgba(201, 168, 76, 0.1)' }}
+      style={{ border: '1px solid color-mix(in srgb, var(--primary) 10%, transparent)' }}
     >
       <Link to={`/trips/${trip.id}`} className="block">
         {/* Imagen de fondo */}
@@ -45,19 +48,24 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
           <div className="card-overlay absolute inset-0" />
 
           {/* Status badge */}
-          <div className="absolute top-3 left-3">
+          <div className="absolute top-3 left-3 flex items-center gap-1.5">
             <span
               className="text-xs px-2 py-0.5 rounded-full font-medium"
               style={{ background: `${statusColor}22`, color: statusColor, border: `1px solid ${statusColor}44` }}
             >
               {STATUS_LABELS[trip.status]}
             </span>
+            {isShared && (
+              <span className="glass text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 text-white/90">
+                <Users size={11} /> Compartido
+              </span>
+            )}
           </div>
 
           {/* Countdown */}
           {isUpcoming && (
             <div className="absolute top-3 right-3 glass rounded-lg px-2.5 py-1">
-              <span className="text-xs font-medium" style={{ color: '#c9a84c' }}>
+              <span className="text-xs font-medium" style={{ color: 'var(--primary)' }}>
                 {countdownLabel(trip.start_date)}
               </span>
             </div>
@@ -65,11 +73,11 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
         </div>
 
         {/* Contenido */}
-        <div className="p-4" style={{ background: '#12121a' }}>
+        <div className="p-4" style={{ background: 'var(--card)' }}>
           <h3 className="font-serif text-xl font-medium text-foreground mb-1 line-clamp-1">{trip.name}</h3>
 
           <div className="flex items-center gap-1.5 text-muted-foreground text-sm mb-3">
-            <MapPin size={13} className="flex-shrink-0" style={{ color: '#c9a84c' }} />
+            <MapPin size={13} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
             <span className="truncate">{trip.destination}</span>
           </div>
 
@@ -85,7 +93,7 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
               <Tag size={11} className="text-muted-foreground flex-shrink-0" />
               {trip.tags.slice(0, 3).map(tag => (
                 <Badge key={tag} variant="outline" className="text-xs py-0 px-1.5 h-5"
-                  style={{ borderColor: 'rgba(201,168,76,0.3)', color: '#c9a84c' }}>
+                  style={{ borderColor: 'color-mix(in srgb, var(--primary) 30%, transparent)', color: 'var(--primary)' }}>
                   {tag}
                 </Badge>
               ))}
@@ -110,14 +118,16 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
         >
           <Pencil size={12} />
         </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="w-7 h-7 glass rounded-md text-destructive hover:text-destructive"
-          onClick={(e) => { e.preventDefault(); onDelete(trip) }}
-        >
-          <Trash2 size={12} />
-        </Button>
+        {!isShared && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="w-7 h-7 glass rounded-md text-destructive hover:text-destructive"
+            onClick={(e) => { e.preventDefault(); onDelete(trip) }}
+          >
+            <Trash2 size={12} />
+          </Button>
+        )}
       </div>
     </motion.div>
   )

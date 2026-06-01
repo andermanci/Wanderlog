@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -8,7 +8,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import {
   SortableContext, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { Plus, ChevronDown, Pencil } from 'lucide-react'
+import { Plus, ChevronDown, Pencil, Route } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -19,12 +19,15 @@ import {
 } from '@/components/ui/alert-dialog'
 import { ActivityBlock } from '@/components/itinerary/ActivityBlock'
 import { ActivityFormDialog } from '@/components/itinerary/ActivityFormDialog'
+import { ActivityDetailDialog } from '@/components/itinerary/ActivityDetailDialog'
 import {
   useItineraryDays, useActivities, useUpsertDays,
   useDeleteActivity, useReorderActivities, useUpdateDayNotes,
 } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
+import { useTripAttachments } from '@/lib/queries/attachments'
 import { formatDate } from '@/lib/utils'
+import { buildRoutePoints } from '@/lib/route'
 import type { Activity, ItineraryDay } from '@/types/database'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -34,6 +37,7 @@ export function ItineraryPage() {
   const { data: trip } = useTrip(tripId!)
   const { data: days, isLoading: loadingDays } = useItineraryDays(tripId!)
   const { data: activities, isLoading: loadingActs } = useActivities(tripId!)
+  const { data: tripAttachments } = useTripAttachments(tripId!)
   const upsertDays = useUpsertDays()
   const deleteActivity = useDeleteActivity()
   const reorderActivities = useReorderActivities()
@@ -43,6 +47,7 @@ export function ItineraryPage() {
   const [editActivity, setEditActivity] = useState<Activity | null>(null)
   const [defaultDayId, setDefaultDayId] = useState<string>()
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
+  const [detailActivity, setDetailActivity] = useState<Activity | null>(null)
   const [editingNotes, setEditingNotes] = useState<string | null>(null)
   const [notesValue, setNotesValue] = useState('')
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
@@ -51,7 +56,7 @@ export function ItineraryPage() {
 
   // Auto-generar días desde start_date hasta end_date del viaje
   useEffect(() => {
-    if (!trip || !days) return
+    if (!trip || !days || loadingDays) return
     if (days.length > 0) return
 
     const dateRange = eachDayOfInterval({
@@ -64,7 +69,8 @@ export function ItineraryPage() {
       notes: null,
     }))
     upsertDays.mutate(newDays)
-  }, [trip, days])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip, days, loadingDays])
 
   const activitiesByDay = useMemo(() => {
     const map = new Map<string, Activity[]>()
@@ -74,6 +80,12 @@ export function ItineraryPage() {
     })
     return map
   }, [activities])
+
+  // ¿Hay al menos 2 paradas para mostrar el botón de recorrido?
+  const hasRoute = useMemo(
+    () => !!activities && !!days && buildRoutePoints(activities, days).length >= 2,
+    [activities, days],
+  )
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -132,22 +144,32 @@ export function ItineraryPage() {
             </p>
           )}
         </div>
-        <Button
-          onClick={() => { setEditActivity(null); setDefaultDayId(days?.[0]?.id); setFormOpen(true) }}
-          style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
-          className="gap-2"
-        >
-          <Plus size={16} />
-          Añadir actividad
-        </Button>
+        <div className="flex items-center gap-2">
+          {hasRoute && (
+            <Button variant="outline" className="gap-2" asChild>
+              <Link to={`/trips/${tripId}/map?route=1`}>
+                <Route size={16} />
+                Ver recorrido
+              </Link>
+            </Button>
+          )}
+          <Button
+            onClick={() => { setEditActivity(null); setDefaultDayId(days?.[0]?.id); setFormOpen(true) }}
+            style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+            className="gap-2"
+          >
+            <Plus size={16} />
+            Añadir actividad
+          </Button>
+        </div>
       </div>
 
       {loading ? (
         <div className="space-y-6">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="space-y-3">
-              <Skeleton className="h-8 w-40" style={{ background: '#1a1a26' }} />
-              <Skeleton className="h-20 w-full" style={{ background: '#1a1a26' }} />
+              <Skeleton className="h-8 w-40" style={{ background: 'var(--secondary)' }} />
+              <Skeleton className="h-20 w-full" style={{ background: 'var(--secondary)' }} />
             </div>
           ))}
         </div>
@@ -172,11 +194,11 @@ export function ItineraryPage() {
                     onClick={() => toggleDay(day.id)}
                   >
                     <div className="w-10 h-10 rounded-full flex flex-col items-center justify-center flex-shrink-0"
-                      style={{ background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.3)' }}>
-                      <span className="text-xs font-bold" style={{ color: '#c9a84c', lineHeight: 1 }}>
+                      style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', border: '1px solid color-mix(in srgb, var(--primary) 30%, transparent)' }}>
+                      <span className="text-xs font-bold" style={{ color: 'var(--primary)', lineHeight: 1 }}>
                         {format(parseISO(day.date), 'dd')}
                       </span>
-                      <span className="text-xs" style={{ color: '#c9a84c', lineHeight: 1, fontSize: '9px' }}>
+                      <span className="text-xs" style={{ color: 'var(--primary)', lineHeight: 1, fontSize: '9px' }}>
                         {format(parseISO(day.date), 'MMM', { locale: es }).toUpperCase()}
                       </span>
                     </div>
@@ -226,7 +248,7 @@ export function ItineraryPage() {
                               />
                               <div className="flex flex-col gap-1">
                                 <Button size="sm" className="text-xs h-7"
-                                  style={{ background: '#c9a84c', color: '#0a0a0f' }}
+                                  style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
                                   onClick={() => {
                                     updateDayNotes.mutate({ id: day.id, notes: notesValue, tripId: tripId! })
                                     setEditingNotes(null)
@@ -266,8 +288,10 @@ export function ItineraryPage() {
                                 <ActivityBlock
                                   key={activity.id}
                                   activity={activity}
+                                  attachments={tripAttachments?.filter(a => a.activity_id === activity.id)}
                                   onEdit={(a) => { setEditActivity(a); setFormOpen(true) }}
                                   onDelete={setDeleteTarget}
+                                  onOpen={setDetailActivity}
                                 />
                               ))
                             )}
@@ -290,6 +314,14 @@ export function ItineraryPage() {
         </DndContext>
       )}
 
+      <ActivityDetailDialog
+        open={!!detailActivity}
+        onClose={() => setDetailActivity(null)}
+        activity={detailActivity}
+        attachments={tripAttachments?.filter(a => a.activity_id === detailActivity?.id)}
+        onEdit={(a) => { setEditActivity(a); setFormOpen(true) }}
+      />
+
       <ActivityFormDialog
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditActivity(null) }}
@@ -300,7 +332,7 @@ export function ItineraryPage() {
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar actividad?</AlertDialogTitle>
             <AlertDialogDescription>

@@ -94,7 +94,7 @@ export function RemindersPage() {
         </div>
         <Button
           onClick={() => setFormOpen(true)}
-          style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}
+          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
           className="gap-2"
         >
           <Plus size={16} />
@@ -108,10 +108,10 @@ export function RemindersPage() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center justify-between p-4 rounded-xl mb-6"
-          style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)' }}
+          style={{ background: 'color-mix(in srgb, var(--primary) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--primary) 20%, transparent)' }}
         >
           <div className="flex items-center gap-3">
-            <Bell size={18} style={{ color: '#c9a84c' }} />
+            <Bell size={18} style={{ color: 'var(--primary)' }} />
             <div>
               <p className="text-sm font-medium">Activa las notificaciones</p>
               <p className="text-xs text-muted-foreground">Recibe avisos en el navegador cuando llegue la hora</p>
@@ -120,7 +120,7 @@ export function RemindersPage() {
           <Button
             size="sm"
             onClick={requestNotifPermission}
-            style={{ background: '#c9a84c', color: '#0a0a0f' }}
+            style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
             className="text-xs"
           >
             Activar
@@ -131,7 +131,7 @@ export function RemindersPage() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" style={{ background: '#1a1a26' }} />
+            <Skeleton key={i} className="h-16 w-full" style={{ background: 'var(--secondary)' }} />
           ))}
         </div>
       ) : !reminders?.length ? (
@@ -166,7 +166,7 @@ export function RemindersPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">Nuevo recordatorio</DialogTitle>
           </DialogHeader>
@@ -195,7 +195,7 @@ export function RemindersPage() {
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={isSubmitting}
-                style={{ background: 'linear-gradient(135deg, #c9a84c, #e4c97a)', color: '#0a0a0f' }}>
+                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
                 {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
                 Crear
               </Button>
@@ -205,7 +205,7 @@ export function RemindersPage() {
       </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent style={{ background: '#12121a', border: '1px solid #2a2a3a' }}>
+        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar recordatorio?</AlertDialogTitle>
             <AlertDialogDescription>Se eliminará <strong>{deleteTarget?.title}</strong>.</AlertDialogDescription>
@@ -235,9 +235,9 @@ function ReminderRow({ reminder, index, onDelete }: { reminder: Reminder; index:
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.04 }}
       className="group flex items-center gap-4 p-4 rounded-xl"
-      style={{ background: '#12121a', border: '1px solid #2a2a3a' }}
+      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
     >
-      <Bell size={16} style={{ color: '#c9a84c', flexShrink: 0 }} />
+      <Bell size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm">{reminder.title}</p>
         <p className="text-xs text-muted-foreground mt-0.5">

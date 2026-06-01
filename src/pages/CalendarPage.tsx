@@ -12,7 +12,7 @@ import { generateICS } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
 
 const TRIP_COLORS = [
-  '#c9a84c', '#6366f1', '#22c55e', '#f97316', '#06b6d4',
+  'var(--primary)', '#6366f1', '#22c55e', '#f97316', '#06b6d4',
   '#a855f7', '#ec4899', '#14b8a6',
 ]
 
@@ -29,7 +29,7 @@ export function CalendarPage() {
       end: trip.end_date,
       backgroundColor: TRIP_COLORS[i % TRIP_COLORS.length],
       borderColor: TRIP_COLORS[i % TRIP_COLORS.length],
-      textColor: '#0a0a0f',
+      textColor: '#ffffff',
       extendedProps: { trip },
       url: `/trips/${trip.id}`,
     }))
@@ -66,7 +66,7 @@ export function CalendarPage() {
           variant="outline"
           className="gap-2 text-sm"
           onClick={handleExportICS}
-          style={{ borderColor: '#2a2a3a' }}
+          style={{ borderColor: 'var(--border)' }}
         >
           <Download size={14} />
           Exportar .ics
@@ -77,7 +77,7 @@ export function CalendarPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className="rounded-xl overflow-hidden p-4"
-        style={{ background: '#12121a', border: '1px solid #2a2a3a' }}
+        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
       >
         <FullCalendar
           ref={calRef}

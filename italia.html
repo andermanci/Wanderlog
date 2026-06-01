@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Itinerario Italia · 9–24 agosto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,400&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#2b2118;
+    --paper:#f6efe3;
+    --paper-2:#fbf7ee;
+    --terra:#9c3b1b;
+    --terra-soft:#c66a3e;
+    --olive:#5e6b3a;
+    --gold:#b8862f;
+    --sea:#2f6b6e;
+    --line:#d8cab0;
+    --shadow:rgba(60,40,20,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Archivo',system-ui,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.6;
+    font-size:16px;
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(184,134,47,.06), transparent 40%),
+      radial-gradient(circle at 88% 92%, rgba(47,107,110,.06), transparent 40%);
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px 80px}
+
+  /* HERO */
+  header.hero{
+    text-align:center;
+    padding:70px 24px 50px;
+    position:relative;
+  }
+  .hero .kicker{
+    font-family:'Archivo';
+    letter-spacing:.42em;
+    text-transform:uppercase;
+    font-size:12px;
+    font-weight:600;
+    color:var(--terra);
+    margin-bottom:18px;
+  }
+  .hero h1{
+    font-family:'Fraunces',serif;
+    font-weight:900;
+    font-size:clamp(42px,8vw,82px);
+    line-height:.95;
+    letter-spacing:-.02em;
+    color:var(--ink);
+  }
+  .hero h1 em{font-style:italic;color:var(--terra)}
+  .hero .dates{
+    margin-top:22px;
+    font-family:'Fraunces',serif;
+    font-style:italic;
+    font-size:clamp(18px,3vw,24px);
+    color:var(--olive);
+  }
+  .hero .route{
+    margin-top:10px;
+    font-size:14px;
+    letter-spacing:.08em;
+    color:#7a6b56;
+  }
+  .rule{
+    width:64px;height:3px;background:var(--terra);
+    margin:32px auto 0;border-radius:2px;
+  }
+
+  /* SECTION TITLES */
+  h2.sec{
+    font-family:'Fraunces',serif;
+    font-weight:900;
+    font-size:clamp(26px,4vw,38px);
+    letter-spacing:-.01em;
+    margin:64px 0 8px;
+    color:var(--ink);
+    display:flex;align-items:baseline;gap:14px;
+  }
+  h2.sec .num{
+    font-family:'Archivo';
+    font-size:13px;font-weight:700;letter-spacing:.2em;
+    color:var(--terra);
+    border:1.5px solid var(--terra);
+    border-radius:50%;
+    width:34px;height:34px;flex:0 0 34px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .sec-sub{color:#7a6b56;margin-bottom:24px;font-size:15px}
+
+  /* RECOMMENDATION BOX */
+  .reco{
+    background:linear-gradient(135deg,#2f6b6e,#26565a);
+    color:#f4ece0;
+    border-radius:18px;
+    padding:34px 34px;
+    margin:42px 0;
+    box-shadow:0 18px 40px -18px rgba(47,107,110,.7);
+    position:relative;overflow:hidden;
+  }
+  .reco::before{
+    content:"★";
+    position:absolute;top:-20px;right:6px;
+    font-size:150px;opacity:.08;color:#fff;
+  }
+  .reco .tag{
+    font-size:11px;letter-spacing:.3em;text-transform:uppercase;
+    font-weight:700;color:#9fd3d0;margin-bottom:10px;
+  }
+  .reco h3{
+    font-family:'Fraunces',serif;font-weight:900;
+    font-size:26px;margin-bottom:14px;line-height:1.1;
+  }
+  .reco p{font-size:15px;color:#e6ddcf;margin-bottom:12px}
+  .reco .opts{display:flex;gap:16px;flex-wrap:wrap;margin-top:18px}
+  .reco .opt{
+    flex:1;min-width:220px;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:12px;padding:16px 18px;
+  }
+  .reco .opt.win{
+    background:rgba(255,255,255,.16);
+    border-color:#9fd3d0;
+  }
+  .reco .opt h4{font-family:'Archivo';font-size:15px;margin-bottom:6px}
+  .reco .opt .badge{
+    display:inline-block;font-size:10px;letter-spacing:.15em;
+    background:#b8862f;color:#2b2118;font-weight:700;
+    padding:2px 8px;border-radius:20px;margin-bottom:8px;text-transform:uppercase;
+  }
+  .reco .opt small{color:#cfe4e2;font-size:13px;display:block}
+
+  /* TABLES */
+  .tablecard{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:0 10px 24px -16px var(--shadow);
+    margin:20px 0 8px;
+  }
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead th{
+    background:var(--ink);color:var(--paper);
+    text-align:left;padding:13px 16px;
+    font-family:'Archivo';font-weight:600;
+    letter-spacing:.04em;font-size:12.5px;text-transform:uppercase;
+  }
+  tbody td{padding:11px 16px;border-top:1px solid var(--line);vertical-align:top}
+  tbody tr:nth-child(even){background:rgba(216,202,176,.18)}
+  tbody tr:hover{background:rgba(198,106,62,.10)}
+  td .price{font-weight:700;color:var(--terra);white-space:nowrap}
+  .tot td{background:var(--gold)!important;color:#2b2118;font-weight:700}
+
+  /* DAY CARDS */
+  .day{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-left:5px solid var(--terra);
+    border-radius:12px;
+    padding:22px 26px;
+    margin:18px 0;
+    box-shadow:0 8px 22px -16px var(--shadow);
+  }
+  .day .dhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:6px}
+  .day .ddate{
+    font-family:'Archivo';font-weight:700;font-size:12px;
+    letter-spacing:.12em;text-transform:uppercase;
+    background:var(--terra);color:#fff;
+    padding:4px 11px;border-radius:20px;
+  }
+  .day .dtitle{
+    font-family:'Fraunces',serif;font-weight:600;font-size:21px;
+    color:var(--ink);
+  }
+  .day .leg{
+    font-size:13px;color:var(--sea);font-weight:600;
+    margin:2px 0 12px;
+  }
+  .day ul{list-style:none;margin:8px 0 0}
+  .day li{position:relative;padding-left:20px;margin-bottom:6px;font-size:14.5px}
+  .day li::before{
+    content:"";position:absolute;left:2px;top:9px;
+    width:7px;height:7px;border-radius:50%;
+    background:var(--olive);
+  }
+  .day li b{color:var(--ink)}
+  .day .note{
+    margin-top:12px;font-size:13.5px;font-style:italic;
+    color:#7a6b56;border-top:1px dashed var(--line);padding-top:10px;
+  }
+  .day.sea-day{border-left-color:var(--sea)}
+  .day.sea-day .ddate{background:var(--sea)}
+  .day.drive{border-left-color:var(--gold)}
+  .day.drive .ddate{background:var(--gold);color:#2b2118}
+
+  /* NOTES / FLAGS */
+  .flag{
+    background:#fff4e8;border:1px solid #e7c9a4;
+    border-radius:12px;padding:18px 22px;margin:16px 0;
+    font-size:14.5px;
+  }
+  .flag.warn{background:#fdeceb;border-color:#e6a89f}
+  .flag .ft{font-weight:700;color:var(--terra);display:block;margin-bottom:4px;font-family:'Archivo'}
+  .flag.warn .ft{color:#b5301c}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:680px){.grid2{grid-template-columns:1fr}}
+
+  .tips{list-style:none}
+  .tips li{padding:12px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+  .tips li:last-child{border:0}
+  .tips b{font-family:'Archivo';color:var(--terra)}
+
+  footer{
+    text-align:center;margin-top:70px;
+    font-family:'Fraunces',serif;font-style:italic;
+    font-size:26px;color:var(--terra);
+  }
+  footer .src{
+    display:block;margin-top:18px;font-family:'Archivo';font-style:normal;
+    font-size:12px;color:#9a8a72;line-height:1.5;
+  }
+
+  @media print{
+    body{background:#fff;font-size:12px}
+    .reco{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .day,.tablecard,.flag{box-shadow:none;break-inside:avoid}
+    h2.sec{break-after:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="kicker">Viaje por carretera · 16 días</div>
+  <h1>Italia<br><em>de costa a costa</em></h1>
+  <div class="dates">9 – 24 de agosto</div>
+  <div class="route">Alfàs del Pi → Milán → Venecia → Florencia → Roma → Cinque Terre → Donosti</div>
+  <div class="rule"></div>
+</header>
+
+<div class="wrap">
+
+  <!-- RESUMEN -->
+  <h2 class="sec"><span class="num">01</span>Resumen del viaje</h2>
+  <p class="sec-sub">13 noches en Italia, con entrada por la Riviera francesa y vuelta partida en dos jornadas.</p>
+
+  <div class="tablecard">
+    <table>
+      <thead><tr><th>Fechas</th><th>Base</th><th>Noches</th><th>Lo principal</th></tr></thead>
+      <tbody>
+        <tr><td>9 ago</td><td>Narbona (Francia)</td><td>1</td><td>Etapa de carretera</td></tr>
+        <tr><td>10 ago</td><td>Niza</td><td>1</td><td>Marsella + Niza</td></tr>
+        <tr><td>11–12 ago</td><td>Milán</td><td>2</td><td>Mónaco de camino · Lago Como</td></tr>
+        <tr><td>13–14 ago</td><td>Venecia</td><td>2</td><td>Verona de camino · Murano y Burano</td></tr>
+        <tr><td>15–17 ago</td><td>Florencia</td><td>3</td><td>Bolonia de camino · Siena y Lucca</td></tr>
+        <tr><td>18–20 ago</td><td>Roma</td><td><b>3</b></td><td>Coliseo · Vaticano · centro</td></tr>
+        <tr><td>21–22 ago</td><td>Cinque Terre</td><td><b>2</b></td><td>Pisa de camino · pueblos y costa</td></tr>
+        <tr><td>23 ago</td><td>Ciudad francesa</td><td>1</td><td>Etapa de carretera</td></tr>
+        <tr><td>24 ago</td><td>Donosti</td><td>—</td><td>Llegada</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sec-sub" style="margin-top:14px">Reparto recomendado entre Roma y Cinque Terre (ver abajo). Si preferís más ciudad que costa, pasaría a 4 noches en Roma y 1 en Cinque Terre.</p>
+
+  <!-- RECOMENDACIÓN -->
+  <h2 class="sec"><span class="num">02</span>Roma o costa: mi recomendación</h2>
+  <div class="reco">
+    <div class="tag">Vuestra duda</div>
+    <h3>3 noches en Roma + 2 en Cinque Terre</h3>
+    <p>Roma en 3 noches (≈2,5 días) es ajustado pero suficiente para lo esencial: Coliseo/Foro, Vaticano y el centro histórico. A esas alturas llegaréis con mucha ciudad acumulada, así que rematar con dos noches de costa —baños, calma y atardecer en Manarola— es un cierre perfecto antes de los dos días de vuelta en coche.</p>
+    <div class="opts">
+      <div class="opt win">
+        <span class="badge">Recomendada</span>
+        <h4>3 Roma + 2 Cinque Terre</h4>
+        <small>Salís de Roma el 21. Más descanso y costa al final. Cinque Terre con tiempo para bañarse y hacer algún sendero.</small>
+      </div>
+      <div class="opt">
+        <h4>4 Roma + 1 Cinque Terre</h4>
+        <small>Salís de Roma el 22. Mejor solo si Roma os preocupa y la costa os da algo igual (la tendréis también al inicio y en la vuelta). 1 día basta para ver los 5 pueblos en tren/barco.</small>
+      </div>
+    </div>
+  </div>
+  <div class="flag warn">
+    <span class="ft">Ojo: San Gimignano no está en Cinque Terre</span>
+    San Gimignano es un pueblo medieval de la Toscana (tierra adentro, famoso por sus torres), no en la costa. No encaja con "más costa". Lo dejo como posible parada toscana combinada con Siena, no en la zona de Cinque Terre.
+  </div>
+
+  <!-- DÍA A DÍA -->
+  <h2 class="sec"><span class="num">03</span>Día a día</h2>
+
+  <div class="day drive">
+    <div class="dhead"><span class="ddate">Sáb 9 ago</span><span class="dtitle">Alfàs del Pi → Narbona</span></div>
+    <div class="leg">≈ 715 km · 7 h aprox. (AP-7 por Valencia, Barcelona y la frontera)</div>
+    <ul>
+      <li>Salir por la mañana temprano; es la etapa más larga del viaje.</li>
+      <li>Narbona es buen punto de parada: catedral, casco antiguo y mercado cubierto (Les Halles).</li>
+    </ul>
+    <div class="note">Alternativa de noche: Montpellier o Nimes, muy cerca y también bonitas.</div>
+  </div>
+
+  <div class="day sea-day">
+    <div class="dhead"><span class="ddate">Dom 10 ago</span><span class="dtitle">Narbona → Marsella → Niza</span></div>
+    <div class="leg">Narbona–Marsella ≈ 195 km (2 h) · Marsella–Niza ≈ 200 km (2 h 15)</div>
+    <ul>
+      <li><b>Marsella (media mañana/mediodía):</b> Vieux-Port, Notre-Dame de la Garde (vistas), barrio de Le Panier.</li>
+      <li><b>Niza (tarde y noche):</b> Promenade des Anglais, casco viejo (Vieux Nice), mercado de Cours Saleya, Colina del Castillo al atardecer.</li>
+    </ul>
+    <div class="note">Día con bastante coche pero ruta lógica hacia el este. Marsella podéis dejarla para la vuelta si preferís un día 10 más tranquilo.</div>
+  </div>
+
+  <div class="day">
+    <div class="dhead"><span class="ddate">Lun 11 ago</span><span class="dtitle">Niza → Mónaco → Milán</span></div>
+    <div class="leg">Niza–Mónaco ≈ 22 km (30 min) · Mónaco–Milán ≈ 290 km (3 h)</div>
+    <ul>
+      <li><b>Mónaco (parada de mañana):</b> Montecarlo y su casino, Palacio del Príncipe (cambio de guardia 11:55), puerto de yates y trazado del circuito de F1.</li>
+      <li>Continuar a Milán; llegada por la tarde. Paseo por el <b>Duomo</b>, la <b>Galleria Vittorio Emanuele II</b> y cena por la zona.</li>
+    </ul>
+    <div class="note">Mónaco encaja mejor aquí (queda de camino al este) que en la vuelta.</div>
+  </div>
+
+  <div class="day">
+    <div class="dhead"><span class="ddate">Mar 12 ago</span><span class="dtitle">Excursión al Lago de Como</span></div>
+    <div class="leg">Milán–Como ≈ 50 km (1 h) · día completo</div>
+    <ul>
+      <li>Conducir a <b>Como</b> y tomar el ferry a <b>Bellagio</b> ("la perla del lago"); opción de seguir a Varenna o Menaggio con el pase de día.</li>
+      <li>Jardines de <b>Villa Carlotta</b> o <b>Villa del Balbianello</b> si os apetece visita.</li>
+      <li>Vuelta a Milán por la tarde-noche.</li>
+    </ul>
+    <div class="note">Si os quedan ganas de Duomo por dentro o subir a las terrazas, hacedlo el día 11 por la tarde o el 13 a primera hora antes de salir.</div>
+  </div>
+
+  <div class="day">
+    <div class="dhead"><span class="ddate">Mié 13 ago</span><span class="dtitle">Milán → Verona (parada) → Venecia</span></div>
+    <div class="leg">Milán–Verona ≈ 160 km (1 h 45) · Verona–Venecia ≈ 120 km (1 h 20)</div>
+    <ul>
+      <li><b>Verona (unas horas):</b> Arena romana, Casa di Giulietta (balcón), Piazza delle Erbe.</li>
+      <li>Continuar a Venecia. <b>Aparcad en Mestre, Tronchetto o Piazzale Roma</b>: en Venecia no se circula en coche.</li>
+    </ul>
+    <div class="note">En agosto está activo el Festival de Ópera en la Arena de Verona, por si os tienta una función (aunque pasáis de día).</div>
+  </div>
+
+  <div class="day sea-day">
+    <div class="dhead"><span class="ddate">Jue 14 ago</span><span class="dtitle">Venecia: Murano y Burano</span></div>
+    <div class="leg">En vaporetto · día centrado en la laguna</div>
+    <ul>
+      <li><b>Murano:</b> isla del cristal, con demostraciones de soplado de vidrio.</li>
+      <li><b>Burano:</b> casas de colores y encaje; la más fotogénica.</li>
+      <li>Resto: Plaza de San Marcos, Rialto y paseo por Dorsoduro/Cannaregio (el día 13 al llegar y el 14 por la tarde).</li>
+    </ul>
+    <div class="note">Comprad el pase de vaporetto de 48 h (35 €): rentable y os cubre las islas.</div>
+  </div>
+
+  <div class="day">
+    <div class="dhead"><span class="ddate">Vie 15 ago</span><span class="dtitle">Venecia → Bolonia (parada) → Florencia</span></div>
+    <div class="leg">Venecia–Bolonia ≈ 155 km (1 h 45) · Bolonia–Florencia ≈ 105 km (1 h 10)</div>
+    <ul>
+      <li><b>Bolonia (parada/comida):</b> Piazza Maggiore, torres Asinelli y Garisenda, pórticos (UNESCO) y, sobre todo, comer bien (tagliatelle al ragù, tortellini).</li>
+      <li>Llegada a Florencia. Dejad el coche en el hotel: el centro es ZTL.</li>
+    </ul>
+    <div class="note">15 de agosto = <b>Ferragosto</b>, festivo nacional: muchas tiendas y algún restaurante cierran y hay bastante gente. Para conducir no es problema.</div>
+  </div>
+
+  <div class="day">
+    <div class="dhead"><span class="ddate">Sáb 16 ago</span><span class="dtitle">Florencia + medio día en Siena</span></div>
+    <div class="leg">Florencia–Siena ≈ 75 km (1 h 15)</div>
+    <ul>
+      <li><b>Mañana en Florencia:</b> Duomo y cúpula de Brunelleschi, Ponte Vecchio, Piazza della Signoria.</li>
+      <li><b>Tarde en Siena:</b> Piazza del Campo, Duomo gótico, Torre del Mangia.</li>
+    </ul>
+    <div class="note">Si os animáis, San Gimignano queda de camino a/desde Siena y se ve en 1–2 h.</div>
+  </div>
+
+  <div class="day">
+    <div class="dhead"><span class="ddate">Dom 17 ago</span><span class="dtitle">Florencia + medio día en Lucca</span></div>
+    <div class="leg">Florencia–Lucca ≈ 80 km (1 h 15)</div>
+    <ul>
+      <li><b>Florencia:</b> Galería Uffizi y/o Galería de la Academia (el David). <b>Reservad sí o sí.</b></li>
+      <li><b>Lucca:</b> paseo por las murallas renacentistas (en bici mejor), Piazza dell'Anfiteatro, Torre Guinigi.</li>
+    </ul>
+    <div class="note">Con dos medios días fuera, Florencia queda algo justa. Alternativa: ver Lucca el día 21/22 (está a 25 km de Pisa, de camino a Cinque Terre) y ganar medio día aquí.</div>
+  </div>
+
+  <div class="day">
+    <div class="dhead"><span class="ddate">Lun 18 ago</span><span class="dtitle">Florencia → Roma</span></div>
+    <div class="leg">≈ 280 km · 3 h (A1)</div>
+    <ul>
+      <li>Aparcad fuera del centro (cerca de una parada de metro) y moveos en transporte público; Roma tiene ZTL muy estricta.</li>
+      <li><b>Tarde:</b> Fontana di Trevi, Panteón, Piazza Navona.</li>
+    </ul>
+  </div>
+
+  <div class="day">
+    <div class="dhead"><span class="ddate">Mar 19 ago</span><span class="dtitle">Roma antigua</span></div>
+    <div class="leg">A pie / metro</div>
+    <ul>
+      <li><b>Coliseo + Foro Romano + Palatino</b> (entrada conjunta). Reservar online obligatorio.</li>
+      <li>Piazza Venezia y Altare della Patria; final del día en Trastevere para cenar.</li>
+    </ul>
+  </div>
+
+  <div class="day">
+    <div class="dhead"><span class="ddate">Mié 20 ago</span><span class="dtitle">Vaticano</span></div>
+    <div class="leg">A pie / metro</div>
+    <ul>
+      <li><b>Museos Vaticanos + Capilla Sixtina</b> (reservar con antelación).</li>
+      <li><b>Basílica de San Pedro</b> (gratis) y subida a la cúpula. Castel Sant'Angelo si da tiempo.</li>
+    </ul>
+    <div class="note">Si elegís 4 noches en Roma, el día extra (21) es ideal para la Galería Borghese (reserva obligatoria) o simplemente bajar el ritmo.</div>
+  </div>
+
+  <div class="day sea-day">
+    <div class="dhead"><span class="ddate">Jue 21 ago</span><span class="dtitle">Roma → Pisa (parada) → Cinque Terre</span></div>
+    <div class="leg">Roma–Pisa ≈ 335 km (3 h 30) · Pisa–Cinque Terre ≈ 75 km (1 h)</div>
+    <ul>
+      <li><b>Pisa:</b> Torre Inclinada y Piazza dei Miracoli (Catedral, Baptisterio).</li>
+      <li>Llegada a Cinque Terre. Aparcad en <b>La Spezia</b>: en los pueblos no se circula en coche.</li>
+    </ul>
+    <div class="note">Dormir en Manarola o Riomaggiore es lo más cómodo y bonito.</div>
+  </div>
+
+  <div class="day sea-day">
+    <div class="dhead"><span class="ddate">Vie 22 ago</span><span class="dtitle">Cinque Terre</span></div>
+    <div class="leg">Tren y barco entre pueblos (Cinque Terre Card)</div>
+    <ul>
+      <li>Los cinco pueblos: Monterosso (playa), Vernazza (el más bonito), Corniglia (en alto), Manarola y Riomaggiore.</li>
+      <li>Algún sendero (Monterosso–Vernazza es el más espectacular), baño y atardecer en Manarola.</li>
+    </ul>
+  </div>
+
+  <div class="day drive">
+    <div class="dhead"><span class="ddate">Sáb 23 ago</span><span class="dtitle">Cinque Terre → Francia (noche)</span></div>
+    <div class="leg">Hasta Aix/Montpellier ≈ 370–470 km · 4–4 h 30</div>
+    <ul>
+      <li>Vuelta por la costa. Para equilibrar las dos etapas, dormid hacia <b>Aix-en-Provence o Montpellier</b>.</li>
+      <li>Si os apetece más costa, podéis volver a parar en Niza/Mónaco (pero la etapa del día 24 se alarga bastante).</li>
+    </ul>
+  </div>
+
+  <div class="day drive">
+    <div class="dhead"><span class="ddate">Dom 24 ago</span><span class="dtitle">Francia → Donosti</span></div>
+    <div class="leg">Montpellier–Donosti ≈ 600 km (6 h) · Aix–Donosti ≈ 750 km (7 h 30)</div>
+    <ul>
+      <li>Salida temprano. Posible parada en Carcasona (ciudadela medieval) o de nuevo Narbona.</li>
+    </ul>
+  </div>
+
+  <!-- TRAYECTOS -->
+  <h2 class="sec"><span class="num">04</span>Trayectos y tiempos</h2>
+  <p class="sec-sub">Distancias por autopista (no en línea recta). Aproximadas: conviene confirmarlas en el navegador según el alojamiento exacto.</p>
+  <div class="tablecard">
+    <table>
+      <thead><tr><th>Trayecto</th><th>Distancia</th><th>Tiempo</th><th>Peajes aprox.</th></tr></thead>
+      <tbody>
+        <tr><td>Alfàs del Pi → Narbona</td><td>≈ 715 km</td><td>7 h</td><td>~55 €</td></tr>
+        <tr><td>Narbona → Marsella</td><td>≈ 195 km</td><td>2 h</td><td>~18 €</td></tr>
+        <tr><td>Marsella → Niza</td><td>≈ 200 km</td><td>2 h 15</td><td>~17 €</td></tr>
+        <tr><td>Niza → Mónaco</td><td>≈ 22 km</td><td>30 min</td><td>Gratis</td></tr>
+        <tr><td>Mónaco → Milán</td><td>≈ 290 km</td><td>3 h</td><td>~25 €</td></tr>
+        <tr><td>Milán → Lago Como (Como)</td><td>≈ 50 km</td><td>1 h</td><td>~3 €</td></tr>
+        <tr><td>Milán → Verona</td><td>≈ 160 km</td><td>1 h 45</td><td>~12 €</td></tr>
+        <tr><td>Verona → Venecia (Mestre)</td><td>≈ 120 km</td><td>1 h 20</td><td>~10 €</td></tr>
+        <tr><td>Venecia → Bolonia</td><td>≈ 155 km</td><td>1 h 45</td><td>~13 €</td></tr>
+        <tr><td>Bolonia → Florencia</td><td>≈ 105 km</td><td>1 h 10</td><td>~9 €</td></tr>
+        <tr><td>Florencia → Siena</td><td>≈ 75 km</td><td>1 h 15</td><td>~8 €</td></tr>
+        <tr><td>Florencia → Lucca</td><td>≈ 80 km</td><td>1 h 15</td><td>~7 €</td></tr>
+        <tr><td>Florencia → Roma</td><td>≈ 280 km</td><td>3 h</td><td>~22 €</td></tr>
+        <tr><td>Roma → Pisa</td><td>≈ 335 km</td><td>3 h 30</td><td>~27 €</td></tr>
+        <tr><td>Pisa → Cinque Terre (La Spezia)</td><td>≈ 75 km</td><td>1 h</td><td>~6 €</td></tr>
+        <tr><td>Cinque Terre → Montpellier</td><td>≈ 470 km</td><td>4 h 30</td><td>~40 €</td></tr>
+        <tr><td>Montpellier → Donosti</td><td>≈ 600 km</td><td>6 h</td><td>~45 €</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PRECIOS -->
+  <h2 class="sec"><span class="num">05</span>Entradas y transportes</h2>
+  <p class="sec-sub">Precios orientativos 2025 (tarifa adulta). Reservad online lo marcado, sobre todo en agosto.</p>
+
+  <h3 style="font-family:'Fraunces',serif;font-size:20px;margin:22px 0 6px;color:var(--terra)">Milán y Lago de Como</h3>
+  <div class="tablecard"><table>
+    <thead><tr><th>Atracción</th><th>Precio</th><th>Notas</th></tr></thead>
+    <tbody>
+      <tr><td>Duomo — catedral + museo</td><td class="price">10 €</td><td>Online mismo precio</td></tr>
+      <tr><td>Duomo — combo con terrazas (ascensor)</td><td class="price">26 €</td><td>Escaleras 22 €</td></tr>
+      <tr><td>La Última Cena</td><td class="price">15 € +2 €</td><td>Reservar con semanas/meses</td></tr>
+      <tr><td>Ferry Como → Bellagio</td><td class="price">9–12 €</td><td>Pase de día Centro Lago 15 €</td></tr>
+      <tr><td>Villa Carlotta / Balbianello</td><td class="price">12–13 €</td><td>Jardines</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="font-family:'Fraunces',serif;font-size:20px;margin:22px 0 6px;color:var(--terra)">Verona y Venecia</h3>
+  <div class="tablecard"><table>
+    <thead><tr><th>Atracción</th><th>Precio</th><th>Notas</th></tr></thead>
+    <tbody>
+      <tr><td>Arena de Verona (visita diurna)</td><td class="price">10 €</td><td>Ópera Festival 30–200 €</td></tr>
+      <tr><td>Casa di Giulietta</td><td class="price">6 €</td><td>Patio exterior gratis</td></tr>
+      <tr><td>Vaporetto — pase 48 h</td><td class="price">35 €</td><td>Recomendado (incluye islas)</td></tr>
+      <tr><td>Vaporetto — pase 72 h</td><td class="price">45 €</td><td>Billete suelto 9,50 €</td></tr>
+      <tr><td>Palacio Ducal</td><td class="price">30 €</td><td>Online recomendado</td></tr>
+      <tr><td>Campanile San Marcos</td><td class="price">10 €</td><td>Basílica 3 € (sin cola 6 €)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="font-family:'Fraunces',serif;font-size:20px;margin:22px 0 6px;color:var(--terra)">Florencia, Toscana y Pisa</h3>
+  <div class="tablecard"><table>
+    <thead><tr><th>Atracción</th><th>Precio</th><th>Notas</th></tr></thead>
+    <tbody>
+      <tr><td>Galería Uffizi</td><td class="price">25 €</td><td>+4 € reserva · obligatorio reservar</td></tr>
+      <tr><td>Galería de la Academia (David)</td><td class="price">16 €</td><td>+4 € reserva · obligatorio reservar</td></tr>
+      <tr><td>Cúpula de Brunelleschi (Duomo)</td><td class="price">30 €</td><td>Incluye campanile + museo</td></tr>
+      <tr><td>Torre del Mangia (Siena)</td><td class="price">10 €</td><td>Duomo de Siena aparte</td></tr>
+      <tr><td>Torre Guinigi (Lucca)</td><td class="price">5 €</td><td>Murallas gratis</td></tr>
+      <tr><td>Torre de Pisa (subir)</td><td class="price">25 €</td><td>Combo con monumentos 33 €</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="font-family:'Fraunces',serif;font-size:20px;margin:22px 0 6px;color:var(--terra)">Roma y Cinque Terre</h3>
+  <div class="tablecard"><table>
+    <thead><tr><th>Atracción</th><th>Precio</th><th>Notas</th></tr></thead>
+    <tbody>
+      <tr><td>Coliseo + Foro + Palatino (24 h)</td><td class="price">18 €</td><td>Reservar 30 días antes</td></tr>
+      <tr><td>Coliseo Full Experience (arena+subterráneo)</td><td class="price">24 €</td><td>48 h · muy recomendado</td></tr>
+      <tr><td>Museos Vaticanos + Sixtina</td><td class="price">20 € +5 €</td><td>Online 60 días antes</td></tr>
+      <tr><td>Cúpula de San Pedro</td><td class="price">10 €</td><td>Escaleras 8 € · Basílica gratis</td></tr>
+      <tr><td>Galería Borghese</td><td class="price">15 € +2 €</td><td>Reserva obligatoria</td></tr>
+      <tr><td>Cinque Terre Card Treno (2 días)</td><td class="price">33 €</td><td>Tren ilimitado + senderos</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- PRESUPUESTO -->
+  <h2 class="sec"><span class="num">06</span>Presupuesto orientativo</h2>
+  <p class="sec-sub">Por persona, coche para 2, sin alojamiento ni comidas.</p>
+  <div class="tablecard"><table>
+    <thead><tr><th>Concepto</th><th>Mínimo</th><th>Completo</th></tr></thead>
+    <tbody>
+      <tr><td>Peajes (ida y vuelta)</td><td>~290 €</td><td>~330 €</td></tr>
+      <tr><td>Combustible (≈ 3.700 km)</td><td>~300 €</td><td>~340 €</td></tr>
+      <tr><td>Parkings</td><td>~100 €</td><td>~160 €</td></tr>
+      <tr><td>Entradas y museos (por persona)</td><td>~190 €</td><td>~290 €</td></tr>
+      <tr><td>Transporte local (por persona)</td><td>~80 €</td><td>~120 €</td></tr>
+      <tr class="tot"><td>Total por persona (coche 2 pers.)</td><td>~615 €</td><td>~820 €</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- CONSEJOS -->
+  <h2 class="sec"><span class="num">07</span>Notas prácticas</h2>
+  <div class="grid2">
+    <div class="flag warn">
+      <span class="ft">Viajáis en agosto (temporada alta)</span>
+      Calor, mucha gente y precios altos. Reservad alojamiento y entradas (Coliseo, Vaticano, Uffizi, Academia, Torre de Pisa) cuanto antes. Cinque Terre y la Riviera estarán muy llenos.
+    </div>
+    <div class="flag">
+      <span class="ft">Ferragosto · 15 de agosto</span>
+      Festivo grande en Italia: comercios y algún restaurante cierran y hay turismo nacional. Lo pasáis conduciendo a Florencia, así que poco problema, pero tenedlo en cuenta.
+    </div>
+    <div class="flag warn">
+      <span class="ft">ZTL — Zonas de tráfico limitado</span>
+      No confundir con restricciones medioambientales. Las ZTL prohíben el acceso a TODOS los coches (salvo residentes) en los cascos históricos: Florencia, Roma, Verona, Siena, Lucca, Bolonia. Multas de 80–100 € por cámara. Aparcad fuera.
+    </div>
+    <div class="flag">
+      <span class="ft">Milán: Área C y vuestro coche (2019, Euro 6)</span>
+      Sin problema medioambiental. Solo pagaréis el Área C (7,50 €/día) si entráis al centro en día laborable; fines de semana es gratis. En Venecia y Cinque Terre el coche se deja fuera (Mestre/Tronchetto y La Spezia).
+    </div>
+  </div>
+
+  <ul class="tips" style="margin-top:8px">
+    <li><b>Documentación.</b> DNI/pasaporte, carnet de conducir, seguro del coche (carta verde) y tarjeta sanitaria europea.</li>
+    <li><b>Iglesias y Vaticano.</b> Hombros y rodillas cubiertos; llevad un pañuelo o camiseta de recambio.</li>
+    <li><b>Apps útiles.</b> Google Maps, Waze, Trenitalia (trenes Cinque Terre), GetYourGuide/Tiqets (entradas).</li>
+    <li><b>Flexibilidad costa.</b> Marsella/Mónaco/Niza podéis repartirlos entre la ida y la vuelta según el ánimo; la única regla es no dejar la última etapa a Donosti demasiado larga.</li>
+  </ul>
+
+  <footer>
+    Buon viaggio!
+    <span class="src">Distancias y tiempos por autopista, aproximados (no en línea recta) · Precios de entradas orientativos 2025 · Conviene confirmar horarios y tarifas en las webs oficiales antes de salir.</span>
+  </footer>
+
+</div>
+</body>
+</html>
