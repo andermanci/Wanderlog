@@ -52,9 +52,9 @@ export function Dashboard() {
   const greeting = hour < 12 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches'
 
   return (
-    <div className="flex h-full">
+    <div className="flex lg:h-full">
       {/* Main */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 lg:overflow-auto">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
           {/* Header */}
           <motion.div

@@ -24,7 +24,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden" style={{ background: 'var(--background)' }}>
+    <div className="min-h-dvh flex relative overflow-hidden" style={{ background: 'var(--background)' }}>
       {/* Fondo editorial cálido: manchas suaves del acento + trama de puntos */}
       <div
         className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full blur-3xl"

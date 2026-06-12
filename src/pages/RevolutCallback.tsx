@@ -23,7 +23,7 @@ export function RevolutCallback() {
   }, [tripId, gcError, navigate])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-dvh flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4 text-center px-6">
         <Loader2 size={40} className="animate-spin" style={{ color: 'var(--primary)' }} />
         <p className="text-muted-foreground">Conectando con Revolut…</p>
