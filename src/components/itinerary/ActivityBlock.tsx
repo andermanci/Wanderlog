@@ -50,8 +50,9 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
     <div
       ref={setNodeRef}
       style={blockStyle}
+      onClick={() => onOpen?.(activity)}
       className={cn(
-        'group flex gap-3 p-3 transition-colors',
+        'group flex gap-3 p-3 transition-all cursor-pointer hover:brightness-[1.03] hover:shadow-md',
         isDragging ? 'shadow-2xl z-50' : '',
       )}
     >
@@ -59,6 +60,7 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
       <button
         {...attributes}
         {...listeners}
+        onClick={(e) => e.stopPropagation()}
         className="flex-shrink-0 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5"
       >
         <GripVertical size={14} />
@@ -71,13 +73,9 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <button
-              type="button"
-              onClick={() => onOpen?.(activity)}
-              className="font-medium text-sm text-foreground line-clamp-1 text-left hover:text-primary transition-colors"
-            >
+            <p className="font-medium text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors">
               {activity.title}
-            </button>
+            </p>
 
             <div className="flex items-center gap-3 mt-1 flex-wrap">
               {(activity.start_time || activity.end_time) && (
@@ -143,19 +141,19 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
           <div className="flex gap-1 opacity-60 hover:opacity-100 transition-opacity flex-shrink-0">
             {activity.external_link && (
               <Button size="icon" variant="ghost" className="w-6 h-6" asChild>
-                <a href={activity.external_link} target="_blank" rel="noreferrer">
+                <a href={activity.external_link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
                   <ExternalLink size={11} />
                 </a>
               </Button>
             )}
-            <Button size="icon" variant="ghost" className="w-6 h-6" onClick={() => onEdit(activity)}>
+            <Button size="icon" variant="ghost" className="w-6 h-6" onClick={(e) => { e.stopPropagation(); onEdit(activity) }}>
               <Pencil size={11} />
             </Button>
             <Button
               size="icon"
               variant="ghost"
               className="w-6 h-6 text-destructive hover:text-destructive"
-              onClick={() => onDelete(activity)}
+              onClick={(e) => { e.stopPropagation(); onDelete(activity) }}
             >
               <Trash2 size={11} />
             </Button>

@@ -164,6 +164,15 @@
   border: 1px solid var(--border);
 }
 
+/* Variante siempre oscura: para controles que van SOBRE fotos
+   (el contenido debe ser blanco, independientemente del tema). */
+.glass-dark {
+  background: rgba(20, 14, 10, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
 /* Texto con gradiente de marca */
 .text-gold-gradient {
   background: var(--gradient-primary);

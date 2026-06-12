@@ -112,13 +112,13 @@ export function TripDetail() {
               size="icon"
               variant="ghost"
               onClick={() => setShareOpen(true)}
-              className="glass rounded-lg w-9 h-9 text-white hover:text-white"
+              className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white"
               title="Compartir viaje"
             >
               <UserPlus size={16} />
             </Button>
           ) : (
-            <span className="glass rounded-lg px-2.5 h-9 flex items-center gap-1.5 text-white/80 text-xs" title="Compartido contigo">
+            <span className="glass-dark rounded-lg px-2.5 h-9 flex items-center gap-1.5 text-white/90 text-xs" title="Compartido contigo">
               <Users size={14} /> Compartido
             </span>
           )}
@@ -126,7 +126,7 @@ export function TripDetail() {
             size="icon"
             variant="ghost"
             onClick={() => setEditOpen(true)}
-            className="glass rounded-lg w-9 h-9 text-white hover:text-white"
+            className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white"
             title="Editar viaje"
           >
             <Pencil size={16} />

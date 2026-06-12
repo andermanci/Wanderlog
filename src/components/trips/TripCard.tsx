@@ -52,12 +52,12 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
           <div className="absolute top-3 left-3 flex items-center gap-1.5">
             <span
               className="text-xs px-2 py-0.5 rounded-full font-medium"
-              style={{ background: `${statusColor}22`, color: statusColor, border: `1px solid ${statusColor}44` }}
+              style={{ background: 'rgba(20,14,10,0.5)', color: statusColor, border: `1px solid ${statusColor}66`, backdropFilter: 'blur(6px)' }}
             >
               {STATUS_LABELS[status]}
             </span>
             {isShared && (
-              <span className="glass text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 text-white/90">
+              <span className="glass-dark text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 text-white/90">
                 <Users size={11} /> Compartido
               </span>
             )}
@@ -65,8 +65,8 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
 
           {/* Countdown */}
           {isUpcoming && (
-            <div className="absolute top-3 right-3 glass rounded-lg px-2.5 py-1">
-              <span className="text-xs font-medium" style={{ color: 'var(--primary)' }}>
+            <div className="absolute bottom-3 left-3 glass-dark rounded-lg px-2.5 py-1">
+              <span className="text-xs font-medium text-white/95">
                 {countdownLabel(trip.start_date)}
               </span>
             </div>
