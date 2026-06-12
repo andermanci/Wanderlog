@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -18,8 +18,6 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { ActivityBlock } from '@/components/itinerary/ActivityBlock'
-import { ActivityFormDialog } from '@/components/itinerary/ActivityFormDialog'
-import { ActivityDetailDialog } from '@/components/itinerary/ActivityDetailDialog'
 import { DayJournalDialog } from '@/components/itinerary/DayJournalDialog'
 import { useJournalPhotos } from '@/lib/queries/journal'
 import {
@@ -36,6 +34,7 @@ import { es } from 'date-fns/locale'
 
 export function ItineraryPage() {
   const { tripId } = useParams<{ tripId: string }>()
+  const navigate = useNavigate()
   const { data: trip } = useTrip(tripId!)
   const { data: days, isLoading: loadingDays } = useItineraryDays(tripId!)
   const { data: activities, isLoading: loadingActs } = useActivities(tripId!)
@@ -45,11 +44,7 @@ export function ItineraryPage() {
   const reorderActivities = useReorderActivities()
   const updateDayNotes = useUpdateDayNotes()
 
-  const [formOpen, setFormOpen] = useState(false)
-  const [editActivity, setEditActivity] = useState<Activity | null>(null)
-  const [defaultDayId, setDefaultDayId] = useState<string>()
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
-  const [detailActivity, setDetailActivity] = useState<Activity | null>(null)
   const [journalDay, setJournalDay] = useState<ItineraryDay | null>(null)
   const { data: journalPhotos } = useJournalPhotos(tripId!)
   const [editingNotes, setEditingNotes] = useState<string | null>(null)
@@ -167,7 +162,7 @@ export function ItineraryPage() {
             </Button>
           )}
           <Button
-            onClick={() => { setEditActivity(null); setDefaultDayId(days?.[0]?.id); setFormOpen(true) }}
+            onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}
             style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
             className="gap-2"
           >
@@ -242,9 +237,7 @@ export function ItineraryPage() {
                       className="w-7 h-7"
                       onClick={(e) => {
                         e.stopPropagation()
-                        setEditActivity(null)
-                        setDefaultDayId(day.id)
-                        setFormOpen(true)
+                        navigate(`/trips/${tripId}/itinerary/new?day=${day.id}`)
                       }}
                     >
                       <Plus size={14} />
@@ -308,7 +301,7 @@ export function ItineraryPage() {
                             {dayActs.length === 0 ? (
                               <div
                                 className="flex items-center justify-center h-16 rounded-lg border border-dashed border-border text-muted-foreground text-sm cursor-pointer hover:border-primary transition-colors"
-                                onClick={() => { setEditActivity(null); setDefaultDayId(day.id); setFormOpen(true) }}
+                                onClick={() => navigate(`/trips/${tripId}/itinerary/new?day=${day.id}`)}
                               >
                                 <Plus size={14} className="mr-2" />
                                 Añadir actividad para este día
@@ -319,9 +312,9 @@ export function ItineraryPage() {
                                   key={activity.id}
                                   activity={activity}
                                   attachments={tripAttachments?.filter(a => a.activity_id === activity.id)}
-                                  onEdit={(a) => { setEditActivity(a); setFormOpen(true) }}
+                                  onEdit={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}/edit`)}
                                   onDelete={setDeleteTarget}
-                                  onOpen={setDetailActivity}
+                                  onOpen={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}`)}
                                 />
                               ))
                             )}
@@ -349,23 +342,6 @@ export function ItineraryPage() {
         onClose={() => setJournalDay(null)}
         tripId={tripId!}
         day={journalDay}
-      />
-
-      <ActivityDetailDialog
-        open={!!detailActivity}
-        onClose={() => setDetailActivity(null)}
-        activity={detailActivity}
-        attachments={tripAttachments?.filter(a => a.activity_id === detailActivity?.id)}
-        onEdit={(a) => { setEditActivity(a); setFormOpen(true) }}
-      />
-
-      <ActivityFormDialog
-        open={formOpen}
-        onClose={() => { setFormOpen(false); setEditActivity(null) }}
-        tripId={tripId!}
-        days={days ?? []}
-        activity={editActivity}
-        defaultDayId={defaultDayId}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
