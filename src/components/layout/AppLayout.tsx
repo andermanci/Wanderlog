@@ -1,10 +1,20 @@
-import { Outlet, useParams } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { Outlet, useParams, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 export function AppLayout() {
   const { tripId } = useParams<{ tripId: string }>()
+  const location = useLocation()
+  const mainRef = useRef<HTMLElement>(null)
+
+  // El contenedor de scroll conserva la posición entre rutas: al navegar
+  // (p. ej. dashboard scrolleado → viaje) la página nueva aparecía ya
+  // desplazada, con los breadcrumbs fuera de vista. Reset al cambiar de ruta.
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 })
+  }, [location.pathname])
 
   return (
     <TooltipProvider>
@@ -19,7 +29,7 @@ export function AppLayout() {
           <Sidebar tripId={tripId} />
         </div>
         {/* pb extra en móvil para no quedar tapado por la navegación inferior */}
-        <main className="flex-1 overflow-auto pb-16 md:pb-0">
+        <main ref={mainRef} className="flex-1 overflow-auto pb-16 md:pb-0">
           <Outlet />
         </main>
         {/* Navegación inferior solo en móvil */}
