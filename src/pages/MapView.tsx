@@ -291,6 +291,7 @@ export function MapViewPage() {
   // Selecciona un resultado y centra el mapa en él.
   const selectPlace = useCallback((place: PlaceResult) => {
     setSelectedPlace(place)
+    setPanelOpen(false) // en móvil, cierra la hoja para ver el mapa
     if (mapInstance) {
       mapInstance.panTo({ lat: place.geometry.location.lat(), lng: place.geometry.location.lng() })
       mapInstance.setZoom(16)
@@ -426,7 +427,7 @@ export function MapViewPage() {
                 variant={showRoute ? 'default' : 'outline'}
                 size="sm"
                 className="w-full mt-2 gap-1.5 text-xs"
-                onClick={() => setShowRoute(v => !v)}
+                onClick={() => { const nv = !showRoute; setShowRoute(nv); if (nv) setPanelOpen(false) }}
                 style={showRoute ? { background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' } : undefined}
               >
                 <Route size={14} /> {showRoute ? 'Ocultar recorrido' : 'Ver recorrido del viaje'}
@@ -552,7 +553,7 @@ export function MapViewPage() {
                       {items.map(place => (
                         <button
                           key={place.id}
-                          onClick={() => setSelectedFavorite(place)}
+                          onClick={() => { setSelectedFavorite(place); setPanelOpen(false) }}
                           className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors border-b border-border/30"
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -768,7 +769,7 @@ export function MapViewPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="absolute bottom-6 left-6 right-6 sm:left-auto sm:right-6 sm:w-80 rounded-xl p-4 shadow-2xl"
+                className="absolute bottom-6 left-4 right-4 sm:left-auto sm:right-6 sm:w-80 rounded-xl p-4 shadow-2xl z-20"
                 style={{ background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--primary) 20%, transparent)' }}
               >
                 <button
