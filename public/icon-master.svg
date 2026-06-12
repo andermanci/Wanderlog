@@ -6,7 +6,7 @@
     </linearGradient>
   </defs>
   <!-- Fondo a sangre completa: los launchers aplican su propia máscara -->
-  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#bg)"/>
   <!-- Brújula -->
   <circle cx="256" cy="256" r="148" fill="none" stroke="#fdf6ec" stroke-width="20"/>
   <!-- Marcas cardinales -->
