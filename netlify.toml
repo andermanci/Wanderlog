@@ -4,6 +4,12 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  # Las variables VITE_ se incrustan en el bundle del cliente por diseño
+  # (anon key protegida por RLS; Maps key restringida por referrer). Sin
+  # esto, el escáner de secretos de Netlify las marca como filtración.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_GOOGLE_MAPS_API_KEY"
+
 # SPA fallback: cualquier ruta sirve index.html y React Router resuelve.
 # Sin esto, recargar /dashboard, /trips/:id/map o /auth/callback da 404.
 [[redirects]]

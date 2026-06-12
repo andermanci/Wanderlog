@@ -26,3 +26,6 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Configuración local de Claude Code (contiene comandos con claves)
+.claude/
