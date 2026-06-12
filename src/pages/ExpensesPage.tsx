@@ -20,7 +20,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useExpenses, useCreateExpense, useDeleteExpense } from '@/lib/queries/expenses'
 import { useTrip } from '@/lib/queries/trips'
 import { TripHeader } from '@/components/trips/TripHeader'
-import { EXPENSE_CATEGORIES, formatCurrency, formatDate } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
+import { EXPENSE_CATEGORIES, formatCurrency, formatDate, sumByCurrency } from '@/lib/utils'
 import type { Expense } from '@/types/database'
 
 const CHART_COLORS = [
@@ -42,6 +43,7 @@ export function ExpensesPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const { data: trip } = useTrip(tripId!)
   const { data: expenses, isLoading } = useExpenses(tripId!)
+  const { profile } = useAuthStore()
   const createExpense = useCreateExpense()
   const deleteExpense = useDeleteExpense()
 
@@ -52,19 +54,25 @@ export function ExpensesPage() {
     defaultValues: { category: 'Otros', currency: 'EUR', date: new Date().toISOString().slice(0, 10) },
   })
 
-  const total = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
+  // Las divisas no se mezclan: totales separados por divisa. El presupuesto
+  // y las gráficas usan la divisa principal del usuario.
+  const mainCurrency = profile?.default_currency ?? 'EUR'
+  const totalsByCurrency = sumByCurrency(expenses ?? [])
+  const total = totalsByCurrency[mainCurrency] ?? 0
+  const otherTotals = Object.entries(totalsByCurrency).filter(([c]) => c !== mainCurrency)
+  const mainExpenses = (expenses ?? []).filter(e => e.currency === mainCurrency)
   const budget = trip?.budget_total ?? 0
   const pct = budget > 0 ? Math.min((total / budget) * 100, 100) : 0
 
-  // Datos agrupados por categoría para el gráfico
+  // Datos agrupados por categoría para el gráfico (divisa principal)
   const chartData = EXPENSE_CATEGORIES.map(cat => ({
     name: cat,
-    value: expenses?.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0) ?? 0,
+    value: mainExpenses.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0),
   })).filter(d => d.value > 0)
 
-  // Gasto por día (ordenado por fecha)
+  // Gasto por día (divisa principal, ordenado por fecha)
   const byDay = Object.entries(
-    (expenses ?? []).reduce<Record<string, number>>((acc, e) => {
+    mainExpenses.reduce<Record<string, number>>((acc, e) => {
       acc[e.date] = (acc[e.date] ?? 0) + e.amount
       return acc
     }, {})
@@ -101,25 +109,35 @@ export function ExpensesPage() {
         <div className="p-5 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium">Presupuesto total</span>
-            <span className="text-sm text-muted-foreground">{formatCurrency(total)} / {formatCurrency(budget)}</span>
+            <span className="text-sm text-muted-foreground">{formatCurrency(total, mainCurrency)} / {formatCurrency(budget, mainCurrency)}</span>
           </div>
           <Progress value={pct} className="h-2" />
           <div className="flex justify-between mt-2">
             <span className="text-xs text-muted-foreground">{pct.toFixed(0)}% utilizado</span>
             <span className={`text-xs font-medium ${total > budget ? 'text-destructive' : 'text-green-400'}`}>
               {total > budget
-                ? `Excedido ${formatCurrency(total - budget)}`
-                : `Disponible: ${formatCurrency(budget - total)}`}
+                ? `Excedido ${formatCurrency(total - budget, mainCurrency)}`
+                : `Disponible: ${formatCurrency(budget - total, mainCurrency)}`}
             </span>
           </div>
+          {otherTotals.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              No incluye los gastos en otras divisas: {otherTotals.map(([c, v]) => formatCurrency(v, c)).join(' · ')}
+            </p>
+          )}
         </div>
       )}
 
       {/* Totales rápidos */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-          <p className="text-2xl font-serif font-medium" style={{ color: 'var(--primary)' }}>{formatCurrency(total)}</p>
+          <p className="text-2xl font-serif font-medium" style={{ color: 'var(--primary)' }}>{formatCurrency(total, mainCurrency)}</p>
           <p className="text-xs text-muted-foreground mt-1">Total gastado</p>
+          {otherTotals.length > 0 && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              + {otherTotals.map(([c, v]) => formatCurrency(v, c)).join(' · ')}
+            </p>
+          )}
         </div>
         <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <p className="text-2xl font-serif font-medium">{expenses?.length ?? 0}</p>
@@ -127,7 +145,7 @@ export function ExpensesPage() {
         </div>
         <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <p className="text-2xl font-serif font-medium">
-            {expenses?.length ? formatCurrency(total / expenses.length) : '—'}
+            {mainExpenses.length ? formatCurrency(total / mainExpenses.length, mainCurrency) : '—'}
           </p>
           <p className="text-xs text-muted-foreground mt-1">Media por gasto</p>
         </div>
@@ -171,7 +189,7 @@ export function ExpensesPage() {
         <div className="p-5 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-serif text-lg">Por día</h2>
-            <span className="text-sm text-muted-foreground">Media: <span style={{ color: 'var(--primary)' }}>{formatCurrency(avgPerDay)}</span>/día</span>
+            <span className="text-sm text-muted-foreground">Media: <span style={{ color: 'var(--primary)' }}>{formatCurrency(avgPerDay, mainCurrency)}</span>/día</span>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={dayChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>

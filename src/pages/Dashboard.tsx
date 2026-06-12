@@ -19,7 +19,7 @@ import { useTrips, useDeleteTrip } from '@/lib/queries/trips'
 import { usePendingReminders } from '@/lib/queries/reminders'
 import { useTodayActivities } from '@/lib/queries/itinerary'
 import { useAuthStore } from '@/store/authStore'
-import { formatDate, STATUS_LABELS, ACTIVITY_COLORS, ACTIVITY_LABELS } from '@/lib/utils'
+import { formatDate, STATUS_LABELS, ACTIVITY_COLORS, ACTIVITY_LABELS, effectiveStatus } from '@/lib/utils'
 import type { Trip } from '@/types/database'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -43,7 +43,7 @@ export function Dashboard() {
       const matchSearch = t.name.toLowerCase().includes(search.toLowerCase()) ||
         t.destination.toLowerCase().includes(search.toLowerCase()) ||
         t.tags.some(tag => tag.toLowerCase().includes(search.toLowerCase()))
-      const matchStatus = statusFilter === 'all' || t.status === statusFilter
+      const matchStatus = statusFilter === 'all' || effectiveStatus(t) === statusFilter
       return matchSearch && matchStatus
     })
   }, [trips, search, statusFilter])
@@ -152,7 +152,7 @@ export function Dashboard() {
           {trips && trips.length > 0 && (
             <div className="flex gap-3 mb-6 flex-wrap">
               {Object.entries(STATUS_LABELS).map(([key, label]) => {
-                const count = trips.filter(t => t.status === key).length
+                const count = trips.filter(t => effectiveStatus(t) === key).length
                 if (!count) return null
                 return (
                   <button

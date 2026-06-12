@@ -20,7 +20,7 @@ import { usePackingItems } from '@/lib/queries/packing'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
 import { ShareTripDialog } from '@/components/trips/ShareTripDialog'
 import { useAuthStore } from '@/store/authStore'
-import { formatDate, formatCurrency, STATUS_LABELS, STATUS_COLORS, countdownLabel } from '@/lib/utils'
+import { formatDate, formatCurrency, STATUS_LABELS, STATUS_COLORS, countdownLabel, sumByCurrency, effectiveStatus } from '@/lib/utils'
 
 const QUICK_LINKS = [
   { label: 'Itinerario', icon: Calendar, path: 'itinerary' },
@@ -39,12 +39,15 @@ export function TripDetail() {
   const { data: activities } = useActivities(tripId!)
   const { data: days } = useItineraryDays(tripId!)
   const { data: packing } = usePackingItems(tripId!)
-  const { user } = useAuthStore()
+  const { user, profile } = useAuthStore()
   const [editOpen, setEditOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const isOwner = !!trip && trip.user_id === user?.id
 
-  const totalGastos = expenses?.reduce((sum, e) => sum + e.amount, 0) ?? 0
+  const mainCurrency = profile?.default_currency ?? 'EUR'
+  const totalsByCurrency = sumByCurrency(expenses ?? [])
+  const totalGastos = totalsByCurrency[mainCurrency] ?? 0
+  const otherTotals = Object.entries(totalsByCurrency).filter(([c]) => c !== mainCurrency)
   const presupuesto = trip?.budget_total ?? 0
   const pct = presupuesto > 0 ? Math.min((totalGastos / presupuesto) * 100, 100) : 0
 
@@ -76,7 +79,8 @@ export function TripDetail() {
     </div>
   )
 
-  const statusColor = STATUS_COLORS[trip.status]
+  const status = effectiveStatus(trip)
+  const statusColor = STATUS_COLORS[status]
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
@@ -107,7 +111,7 @@ export function TripDetail() {
                 className="text-xs px-2 py-0.5 rounded-full font-medium mb-2 inline-block"
                 style={{ background: `${statusColor}22`, color: statusColor, border: `1px solid ${statusColor}44` }}
               >
-                {STATUS_LABELS[trip.status]}
+                {STATUS_LABELS[status]}
               </span>
               <h1 className="font-serif text-4xl font-medium text-white">{trip.name}</h1>
               <div className="flex items-center gap-1.5 text-white/70 text-sm mt-1">
@@ -223,7 +227,7 @@ export function TripDetail() {
               <span className="font-medium">Presupuesto</span>
             </div>
             <span className="text-sm text-muted-foreground">
-              {formatCurrency(totalGastos)} de {formatCurrency(presupuesto)}
+              {formatCurrency(totalGastos, mainCurrency)} de {formatCurrency(presupuesto, mainCurrency)}
             </span>
           </div>
           <Progress value={pct} className="h-2" />
@@ -231,10 +235,15 @@ export function TripDetail() {
             <span>{pct.toFixed(0)}% utilizado</span>
             <span className={totalGastos > presupuesto ? 'text-destructive' : 'text-green-400'}>
               {totalGastos > presupuesto
-                ? `Excedido ${formatCurrency(totalGastos - presupuesto)}`
-                : `Restante: ${formatCurrency(presupuesto - totalGastos)}`}
+                ? `Excedido ${formatCurrency(totalGastos - presupuesto, mainCurrency)}`
+                : `Restante: ${formatCurrency(presupuesto - totalGastos, mainCurrency)}`}
             </span>
           </div>
+          {otherTotals.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Además, en otras divisas: {otherTotals.map(([c, v]) => formatCurrency(v, c)).join(' · ')}
+            </p>
+          )}
         </div>
       )}
 

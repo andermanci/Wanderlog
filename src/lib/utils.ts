@@ -29,6 +29,23 @@ export function formatCurrency(amount: number, currency = 'EUR'): string {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(amount)
 }
 
+// Suma importes agrupados por divisa (no se pueden sumar EUR + JPY a pelo).
+export function sumByCurrency(items: Array<{ amount: number; currency: string }>): Record<string, number> {
+  return items.reduce<Record<string, number>>((acc, it) => {
+    acc[it.currency] = (acc[it.currency] ?? 0) + it.amount
+    return acc
+  }, {})
+}
+
+// Estado real del viaje derivado de las fechas: "en curso" y "completado" se
+// calculan solos; "planificando/confirmado" se respetan mientras no empiece.
+export function effectiveStatus(trip: { start_date: string; end_date: string; status: string }): string {
+  const today = format(new Date(), 'yyyy-MM-dd')
+  if (trip.end_date < today) return 'completed'
+  if (trip.start_date <= today && today <= trip.end_date) return 'in_progress'
+  return trip.status === 'completed' ? 'completed' : trip.status
+}
+
 export function generateICS(events: ICSEvent[]): string {
   const lines = [
     'BEGIN:VCALENDAR',

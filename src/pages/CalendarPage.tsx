@@ -9,7 +9,7 @@ import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTrips } from '@/lib/queries/trips'
 import { generateICS } from '@/lib/utils'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, addDays } from 'date-fns'
 
 const TRIP_COLORS = [
   'var(--primary)', '#6366f1', '#22c55e', '#f97316', '#06b6d4',
@@ -26,7 +26,8 @@ export function CalendarPage() {
       id: trip.id,
       title: `✈ ${trip.name}`,
       start: trip.start_date,
-      end: trip.end_date,
+      // FullCalendar trata `end` como exclusivo: +1 día para pintar el último día.
+      end: format(addDays(parseISO(trip.end_date), 1), 'yyyy-MM-dd'),
       backgroundColor: TRIP_COLORS[i % TRIP_COLORS.length],
       borderColor: TRIP_COLORS[i % TRIP_COLORS.length],
       textColor: '#ffffff',

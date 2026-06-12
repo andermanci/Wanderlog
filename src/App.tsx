@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { Toaster } from '@/components/ui/sonner'
 
 import { useAuthListener } from '@/hooks/useAuth'
@@ -24,13 +26,18 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5,
-      // Mantén los datos en caché 1 h aunque la vista se desmonte, para que
-      // volver al dashboard desde un viaje muestre los datos al instante
-      // (y refresque en segundo plano) en vez de recargar desde cero.
-      gcTime: 1000 * 60 * 60,
+      // gcTime largo + persistencia en localStorage: el itinerario, los
+      // documentos y los gastos siguen visibles sin conexión (modo viaje).
+      gcTime: 1000 * 60 * 60 * 24 * 7,
       retry: 1,
     },
   },
+})
+
+// Persiste la caché de queries en localStorage para uso offline.
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
+  key: 'wanderlog-cache',
 })
 
 function AuthListener() {
@@ -40,7 +47,10 @@ function AuthListener() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 * 7 }}
+    >
       <BrowserRouter>
         <AuthListener />
         <Routes>
@@ -84,6 +94,6 @@ export default function App() {
           }}
         />
       </BrowserRouter>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   )
 }

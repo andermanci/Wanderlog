@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { MapPin, Calendar, Tag, Trash2, Pencil, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { cn, formatDate, countdownLabel, STATUS_LABELS, STATUS_COLORS, daysUntil } from '@/lib/utils'
+import { cn, formatDate, countdownLabel, STATUS_LABELS, STATUS_COLORS, daysUntil, effectiveStatus } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import type { Trip } from '@/types/database'
 
@@ -25,8 +25,9 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
   const { user } = useAuthStore()
   const imageUrl = trip.cover_image_url || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length]
   const days = daysUntil(trip.start_date)
-  const isUpcoming = days >= 0 && trip.status !== 'completed'
-  const statusColor = STATUS_COLORS[trip.status]
+  const status = effectiveStatus(trip)
+  const isUpcoming = days >= 0 && status !== 'completed'
+  const statusColor = STATUS_COLORS[status]
   const isShared = !!user && trip.user_id !== user.id
 
   return (
@@ -53,7 +54,7 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
               className="text-xs px-2 py-0.5 rounded-full font-medium"
               style={{ background: `${statusColor}22`, color: statusColor, border: `1px solid ${statusColor}44` }}
             >
-              {STATUS_LABELS[trip.status]}
+              {STATUS_LABELS[status]}
             </span>
             {isShared && (
               <span className="glass text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 text-white/90">
