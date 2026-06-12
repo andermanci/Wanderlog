@@ -8,7 +8,12 @@ export function AppLayout() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-dvh overflow-hidden bg-background">
+      {/* pt de safe-area: en PWA standalone el contenido se extiende tras la
+          barra de estado del móvil (notch); así nada queda tapado por ella */}
+      <div
+        className="flex h-dvh overflow-hidden bg-background"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         {/* Sidebar solo en escritorio */}
         <div className="hidden md:flex h-full">
           <Sidebar tripId={tripId} />
