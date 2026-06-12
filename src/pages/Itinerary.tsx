@@ -20,6 +20,7 @@ import {
 import { ActivityBlock } from '@/components/itinerary/ActivityBlock'
 import { DayJournalDialog } from '@/components/itinerary/DayJournalDialog'
 import { useJournalPhotos } from '@/lib/queries/journal'
+import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
 import {
   useItineraryDays, useActivities, useUpsertDays,
   useDeleteActivity, useReorderActivities, useUpdateDayNotes,
@@ -47,6 +48,7 @@ export function ItineraryPage() {
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
   const [journalDay, setJournalDay] = useState<ItineraryDay | null>(null)
   const { data: journalPhotos } = useJournalPhotos(tripId!)
+  const { data: weather } = useTripWeather(trip, days, activities)
   const [editingNotes, setEditingNotes] = useState<string | null>(null)
   const [notesValue, setNotesValue] = useState('')
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
@@ -216,6 +218,16 @@ export function ItineraryPage() {
                       <h2 className="font-serif text-lg font-medium capitalize">{dateLabel}</h2>
                       <p className="text-xs text-muted-foreground">Día {dayIdx + 1} · {dayActs.length} actividades</p>
                     </div>
+                    {weather?.[day.date] && (
+                      <span
+                        className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0"
+                        title="Previsión del día"
+                      >
+                        <span className="text-base leading-none">{weatherIcon(weather[day.date].code)}</span>
+                        <span className="font-medium text-foreground">{weather[day.date].tmax}°</span>
+                        <span className="opacity-60">/ {weather[day.date].tmin}°</span>
+                      </span>
+                    )}
                     <Button
                       size="icon"
                       variant="ghost"

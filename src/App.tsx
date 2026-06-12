@@ -19,6 +19,7 @@ import { TripDetail } from '@/pages/TripDetail'
 import { ItineraryPage } from '@/pages/Itinerary'
 import { ActivityFormPage } from '@/pages/ActivityFormPage'
 import { ActivityDetailPage } from '@/pages/ActivityDetailPage'
+import { TripMemoryPage } from '@/pages/TripMemoryPage'
 import { MapViewPage } from '@/pages/MapView'
 import { DocumentsPage } from '@/pages/Documents'
 import { CalendarPage } from '@/pages/CalendarPage'
@@ -94,6 +95,7 @@ export default function App() {
               <Route path="/trips/:tripId/itinerary/new" element={<ActivityFormPage />} />
               <Route path="/trips/:tripId/itinerary/:activityId" element={<ActivityDetailPage />} />
               <Route path="/trips/:tripId/itinerary/:activityId/edit" element={<ActivityFormPage />} />
+              <Route path="/trips/:tripId/memory" element={<TripMemoryPage />} />
               <Route path="/trips/:tripId/map" element={<MapViewPage />} />
               <Route path="/trips/:tripId/documents" element={<DocumentsPage />} />
               <Route path="/trips/:tripId/reminders" element={<RemindersPage />} />

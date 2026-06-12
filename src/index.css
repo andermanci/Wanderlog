@@ -182,6 +182,13 @@
   );
 }
 
+/* Impresión: solo el contenido (p. ej. Recuerdo del viaje → PDF) */
+@media print {
+  aside, nav, .no-print { display: none !important; }
+  main { overflow: visible !important; }
+  body { background: #fff; }
+}
+
 /* Scrollbar personalizado */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

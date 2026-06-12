@@ -25,16 +25,24 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex relative overflow-hidden" style={{ background: 'var(--background)' }}>
-      {/* Background imagen editorial */}
-      <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1600&q=80')] bg-cover bg-center opacity-20" />
-      <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-background/60 to-black/90" />
-
-      {/* Patron decorativo */}
-      <div className="absolute inset-0 opacity-5"
+      {/* Fondo editorial cálido: manchas suaves del acento + trama de puntos */}
+      <div
+        className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full blur-3xl"
+        style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)' }}
+      />
+      <div
+        className="absolute -bottom-40 -right-32 w-[560px] h-[560px] rounded-full blur-3xl"
+        style={{ background: 'color-mix(in srgb, var(--chart-4) 16%, transparent)' }}
+      />
+      <div
+        className="absolute top-1/3 right-1/4 w-72 h-72 rounded-full blur-3xl"
+        style={{ background: 'color-mix(in srgb, var(--chart-2) 10%, transparent)' }}
+      />
+      <div className="absolute inset-0 opacity-[0.07]"
         style={{
           backgroundImage: `radial-gradient(circle at 25% 25%, var(--primary) 1px, transparent 1px),
             radial-gradient(circle at 75% 75%, var(--primary) 1px, transparent 1px)`,
-          backgroundSize: '80px 80px',
+          backgroundSize: '72px 72px',
         }}
       />
 
