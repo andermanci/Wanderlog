@@ -3,7 +3,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { User, Globe, Loader2 } from 'lucide-react'
+import { User, Globe, Loader2, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
+import { useSignOut } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 
 const schema = z.object({
@@ -25,6 +26,7 @@ const CURRENCIES = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'MXN', 'ARS', 'COP', 'BRL
 
 export function SettingsPage() {
   const { profile, user, setProfile } = useAuthStore()
+  const signOut = useSignOut()
   const [saving, setSaving] = useState(false)
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormValues>({
@@ -142,6 +144,18 @@ export function SettingsPage() {
         </section>
 
         <Separator className="my-8" />
+
+        {/* Sesión */}
+        <section className="mb-8">
+          <Button
+            variant="outline"
+            className="w-full gap-2 text-destructive hover:text-destructive"
+            onClick={signOut}
+          >
+            <LogOut size={15} />
+            Cerrar sesión
+          </Button>
+        </section>
 
         {/* Información */}
         <section>

@@ -201,7 +201,7 @@ export function ExpensesPage() {
       {/* Totales rápidos */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-          <p className="text-2xl font-serif font-medium" style={{ color: 'var(--primary)' }}>{formatCurrency(total, mainCurrency)}</p>
+          <p className="text-lg sm:text-2xl font-serif font-medium truncate" style={{ color: 'var(--primary)' }}>{formatCurrency(total, mainCurrency)}</p>
           <p className="text-xs text-muted-foreground mt-1">Total gastado</p>
           {otherTotals.length > 0 && (
             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -210,11 +210,11 @@ export function ExpensesPage() {
           )}
         </div>
         <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-          <p className="text-2xl font-serif font-medium">{expenses?.length ?? 0}</p>
+          <p className="text-lg sm:text-2xl font-serif font-medium">{expenses?.length ?? 0}</p>
           <p className="text-xs text-muted-foreground mt-1">Transacciones</p>
         </div>
         <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-          <p className="text-2xl font-serif font-medium">
+          <p className="text-lg sm:text-2xl font-serif font-medium truncate">
             {mainExpenses.length ? formatCurrency(total / mainExpenses.length, mainCurrency) : '—'}
           </p>
           <p className="text-xs text-muted-foreground mt-1">Media por gasto</p>

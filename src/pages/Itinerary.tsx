@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
 } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
 import {
@@ -53,7 +53,11 @@ export function ItineraryPage() {
   const [notesValue, setNotesValue] = useState('')
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  // En táctil: mantener pulsado ~250 ms para arrastrar (no pelea con el scroll).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  )
 
   // Auto-generar días desde start_date hasta end_date del viaje
   useEffect(() => {
@@ -149,7 +153,7 @@ export function ItineraryPage() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       <TripHeader tripId={tripId!} section="Itinerario" />
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <div>
           <h1 className="font-serif text-2xl font-medium">Itinerario</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Plan día a día</p>

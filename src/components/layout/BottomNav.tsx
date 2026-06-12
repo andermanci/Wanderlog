@@ -16,14 +16,14 @@ export function BottomNav({ tripId }: BottomNavProps) {
 
   const items = tripId
     ? [
-        { to: `/trips/${tripId}`, icon: Home, label: 'Resumen' },
+        { to: `/trips/${tripId}`, icon: Home, label: 'Resumen', exact: true },
         { to: `/trips/${tripId}/itinerary`, icon: Calendar, label: 'Itinerario' },
         { to: `/trips/${tripId}/map`, icon: Map, label: 'Mapa' },
         { to: `/trips/${tripId}/documents`, icon: FileText, label: 'Docs' },
         { to: `/trips/${tripId}/expenses`, icon: Receipt, label: 'Gastos' },
       ]
     : [
-        { to: '/dashboard', icon: LayoutDashboard, label: 'Viajes' },
+        { to: '/dashboard', icon: LayoutDashboard, label: 'Viajes', exact: true },
         { to: '/calendar', icon: Calendar, label: 'Calendario' },
         { to: '/settings', icon: Settings, label: 'Ajustes' },
       ]
@@ -36,8 +36,11 @@ export function BottomNav({ tripId }: BottomNavProps) {
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      {items.map(({ to, icon: Icon, label }) => {
-        const active = location.pathname === to
+      {items.map(({ to, icon: Icon, label, exact }) => {
+        // Las sub-rutas (p. ej. detalle de actividad) mantienen activa su sección.
+        const active = exact
+          ? location.pathname === to
+          : location.pathname === to || location.pathname.startsWith(to + '/')
         return (
           <NavLink
             key={to}
