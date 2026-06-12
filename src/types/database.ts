@@ -205,7 +205,7 @@ export type Database = {
         Row: {
           id: string
           trip_id: string
-          category: 'flight' | 'train' | 'bus' | 'hotel' | 'car_rental' | 'transfer' | 'tour' | 'ticket' | 'insurance' | 'other'
+          category: 'flight' | 'train' | 'bus' | 'hotel' | 'car_rental' | 'transfer' | 'tour' | 'ticket' | 'insurance' | 'other' | 'passport' | 'dni' | 'visa' | 'driving_license' | 'health_card'
           title: string
           confirmation_number: string | null
           locator: string | null
@@ -224,7 +224,7 @@ export type Database = {
         Insert: {
           id?: string
           trip_id: string
-          category: 'flight' | 'train' | 'bus' | 'hotel' | 'car_rental' | 'transfer' | 'tour' | 'ticket' | 'insurance' | 'other'
+          category: 'flight' | 'train' | 'bus' | 'hotel' | 'car_rental' | 'transfer' | 'tour' | 'ticket' | 'insurance' | 'other' | 'passport' | 'dni' | 'visa' | 'driving_license' | 'health_card'
           title: string
           confirmation_number?: string | null
           locator?: string | null
@@ -243,7 +243,7 @@ export type Database = {
         Update: {
           id?: string
           trip_id?: string
-          category?: 'flight' | 'train' | 'bus' | 'hotel' | 'car_rental' | 'transfer' | 'tour' | 'ticket' | 'insurance' | 'other'
+          category?: 'flight' | 'train' | 'bus' | 'hotel' | 'car_rental' | 'transfer' | 'tour' | 'ticket' | 'insurance' | 'other' | 'passport' | 'dni' | 'visa' | 'driving_license' | 'health_card'
           title?: string
           confirmation_number?: string | null
           locator?: string | null

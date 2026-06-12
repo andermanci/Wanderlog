@@ -4,7 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, Calendar, MapPin } from 'lucide-react'
+import { Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, Calendar, MapPin, IdCard, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,13 +23,14 @@ import { useTripAttachments, useDeleteAttachment } from '@/lib/queries/attachmen
 import { useActivities } from '@/lib/queries/itinerary'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { useAuthStore } from '@/store/authStore'
-import { formatDate, DOCUMENT_LABELS } from '@/lib/utils'
+import { formatDate, DOCUMENT_LABELS, PERSONAL_DOC_CATEGORIES } from '@/lib/utils'
 import type { Document, ActivityAttachment } from '@/types/database'
+import { parseISO, addMonths } from 'date-fns'
 import { toast } from 'sonner'
 
 const schema = z.object({
   title: z.string().min(1, 'Título obligatorio'),
-  category: z.enum(['flight','train','bus','hotel','car_rental','transfer','tour','ticket','insurance','other']),
+  category: z.enum(['flight','train','bus','hotel','car_rental','transfer','tour','ticket','insurance','other','passport','dni','visa','driving_license','health_card']),
   confirmation_number: z.string().optional(),
   locator: z.string().optional(),
   provider: z.string().optional(),
@@ -46,9 +47,19 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 const CATEGORY_ICONS: Record<string, string> = {
+  passport: '🛂', dni: '🪪', visa: '📋', driving_license: '🚘', health_card: '⚕️',
   flight: '✈️', train: '🚆', bus: '🚌', hotel: '🏨',
   car_rental: '🚗', transfer: '🚖', tour: '🎭',
   ticket: '🎟️', insurance: '🛡️', other: '📄',
+}
+
+// Para la documentación personal, datetime_end actúa como fecha de caducidad.
+function expiryState(doc: Document): 'expired' | 'soon' | null {
+  if (!PERSONAL_DOC_CATEGORIES.includes(doc.category) || !doc.datetime_end) return null
+  const end = parseISO(doc.datetime_end)
+  if (end < new Date()) return 'expired'
+  if (end < addMonths(new Date(), 6)) return 'soon'
+  return null
 }
 
 export function DocumentsPage() {
@@ -147,11 +158,15 @@ export function DocumentsPage() {
     setFormOpen(false)
   }
 
-  // Agrupar por categoría
-  const grouped = documents?.reduce<Record<string, Document[]>>((acc, doc) => {
+  // Agrupar por categoría, separando documentación personal de reservas
+  const groupBy = (docs: Document[]) => docs.reduce<Record<string, Document[]>>((acc, doc) => {
     acc[doc.category] = [...(acc[doc.category] ?? []), doc]
     return acc
   }, {})
+  const personalDocs = (documents ?? []).filter(d => PERSONAL_DOC_CATEGORIES.includes(d.category))
+  const bookingDocs = (documents ?? []).filter(d => !PERSONAL_DOC_CATEGORIES.includes(d.category))
+  const groupedPersonal = groupBy(personalDocs)
+  const grouped = groupBy(bookingDocs)
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
@@ -192,10 +207,35 @@ export function DocumentsPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {personalDocs.length > 0 && (
+            <>
+              <div className="flex items-center gap-2">
+                <IdCard size={16} style={{ color: 'var(--primary)' }} />
+                <h2 className="font-serif text-xl font-medium">Documentación personal</h2>
+                <span className="text-xs text-muted-foreground">identidad y permisos</span>
+              </div>
+              {Object.entries(groupedPersonal).map(([cat, docs]) => (
+                <div key={cat}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">{CATEGORY_ICONS[cat]}</span>
+                    <h3 className="font-serif text-lg font-medium">{DOCUMENT_LABELS[cat]}</h3>
+                    <Badge variant="outline" className="text-xs">{docs.length}</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {docs.map((doc, i) => (
+                      <DocRow key={doc.id} doc={doc} i={i} onEdit={openEdit} onDelete={setDeleteTarget} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <Separator />
+            </>
+          )}
+
           <div className="flex items-center gap-2">
             <FileText size={16} style={{ color: 'var(--primary)' }} />
-            <h2 className="font-serif text-xl font-medium">Del viaje</h2>
-            <span className="text-xs text-muted-foreground">DNI, reservas y confirmaciones</span>
+            <h2 className="font-serif text-xl font-medium">Reservas y billetes</h2>
+            <span className="text-xs text-muted-foreground">vuelos, hoteles y confirmaciones</span>
           </div>
           {Object.entries(grouped ?? {}).map(([cat, docs]) => (
             <div key={cat}>
@@ -206,69 +246,7 @@ export function DocumentsPage() {
               </div>
               <div className="space-y-2">
                 {docs.map((doc, i) => (
-                  <motion.div
-                    key={doc.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="group flex items-start gap-4 p-4 rounded-xl"
-                    style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                  >
-                    <span className="text-2xl flex-shrink-0">{CATEGORY_ICONS[doc.category]}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium">{doc.title}</p>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                            {doc.provider && (
-                              <span className="text-xs text-muted-foreground">{doc.provider}</span>
-                            )}
-                            {doc.locator && (
-                              <span className="text-xs font-mono px-1.5 py-0.5 rounded"
-                                style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
-                                {doc.locator}
-                              </span>
-                            )}
-                            {doc.confirmation_number && (
-                              <span className="text-xs text-muted-foreground">#{doc.confirmation_number}</span>
-                            )}
-                          </div>
-                          {(doc.origin || doc.destination) && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {doc.origin}{doc.origin && doc.destination ? ' → ' : ''}{doc.destination}
-                              {doc.seat && <span className="ml-2">Asiento: {doc.seat}</span>}
-                            </p>
-                          )}
-                          {doc.datetime_start && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {formatDate(doc.datetime_start, 'dd MMM yyyy · HH:mm')}
-                              {doc.datetime_end && ` — ${formatDate(doc.datetime_end, 'dd MMM yyyy · HH:mm')}`}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-1 opacity-60 hover:opacity-100 transition-opacity flex-shrink-0">
-                          {doc.file_url && (
-                            <Button size="icon" variant="ghost" className="w-7 h-7" asChild>
-                              <a href={doc.file_url} target="_blank" rel="noreferrer"><File size={12} /></a>
-                            </Button>
-                          )}
-                          {doc.link && (
-                            <Button size="icon" variant="ghost" className="w-7 h-7" asChild>
-                              <a href={doc.link} target="_blank" rel="noreferrer"><ExternalLink size={12} /></a>
-                            </Button>
-                          )}
-                          <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => openEdit(doc)}>
-                            <Pencil size={12} />
-                          </Button>
-                          <Button size="icon" variant="ghost"
-                            className="w-7 h-7 text-destructive hover:text-destructive"
-                            onClick={() => setDeleteTarget(doc)}>
-                            <Trash2 size={12} />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
+                  <DocRow key={doc.id} doc={doc} i={i} onEdit={openEdit} onDelete={setDeleteTarget} />
                 ))}
               </div>
             </div>
@@ -392,7 +370,7 @@ export function DocumentsPage() {
                 <Input type="datetime-local" {...register('datetime_start')} />
               </div>
               <div className="space-y-1.5">
-                <Label>Fecha/hora fin</Label>
+                <Label>{PERSONAL_DOC_CATEGORIES.includes(watch('category')) ? 'Caducidad' : 'Fecha/hora fin'}</Label>
                 <Input type="datetime-local" {...register('datetime_end')} />
               </div>
             </div>
@@ -490,5 +468,91 @@ export function DocumentsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+function DocRow({ doc, i, onEdit, onDelete }: {
+  doc: Document
+  i: number
+  onEdit: (d: Document) => void
+  onDelete: (d: Document) => void
+}) {
+  const expiry = expiryState(doc)
+  return (
+    <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="group flex items-start gap-4 p-4 rounded-xl"
+                    style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                  >
+                    <span className="text-2xl flex-shrink-0">{CATEGORY_ICONS[doc.category]}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium">{doc.title}</p>
+                            {expiry && (
+                              <span
+                                className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full font-medium"
+                                style={expiry === 'expired'
+                                  ? { background: 'color-mix(in srgb, var(--destructive) 14%, transparent)', color: 'var(--destructive)' }
+                                  : { background: 'rgba(217,119,6,0.14)', color: '#b45309' }}
+                              >
+                                <AlertTriangle size={10} />
+                                {expiry === 'expired' ? 'Caducado' : 'Caduca pronto'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                            {doc.provider && (
+                              <span className="text-xs text-muted-foreground">{doc.provider}</span>
+                            )}
+                            {doc.locator && (
+                              <span className="text-xs font-mono px-1.5 py-0.5 rounded"
+                                style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
+                                {doc.locator}
+                              </span>
+                            )}
+                            {doc.confirmation_number && (
+                              <span className="text-xs text-muted-foreground">#{doc.confirmation_number}</span>
+                            )}
+                          </div>
+                          {(doc.origin || doc.destination) && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {doc.origin}{doc.origin && doc.destination ? ' → ' : ''}{doc.destination}
+                              {doc.seat && <span className="ml-2">Asiento: {doc.seat}</span>}
+                            </p>
+                          )}
+                          {doc.datetime_start && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {formatDate(doc.datetime_start, 'dd MMM yyyy · HH:mm')}
+                              {doc.datetime_end && ` — ${formatDate(doc.datetime_end, 'dd MMM yyyy · HH:mm')}`}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-1 opacity-60 hover:opacity-100 transition-opacity flex-shrink-0">
+                          {doc.file_url && (
+                            <Button size="icon" variant="ghost" className="w-7 h-7" asChild>
+                              <a href={doc.file_url} target="_blank" rel="noreferrer"><File size={12} /></a>
+                            </Button>
+                          )}
+                          {doc.link && (
+                            <Button size="icon" variant="ghost" className="w-7 h-7" asChild>
+                              <a href={doc.link} target="_blank" rel="noreferrer"><ExternalLink size={12} /></a>
+                            </Button>
+                          )}
+                          <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => onEdit(doc)}>
+                            <Pencil size={12} />
+                          </Button>
+                          <Button size="icon" variant="ghost"
+                            className="w-7 h-7 text-destructive hover:text-destructive"
+                            onClick={() => onDelete(doc)}>
+                            <Trash2 size={12} />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
   )
 }

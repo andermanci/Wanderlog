@@ -100,6 +100,11 @@ export const ACTIVITY_LABELS: Record<string, string> = {
 }
 
 export const DOCUMENT_LABELS: Record<string, string> = {
+  passport: 'Pasaporte',
+  dni: 'DNI',
+  visa: 'Visado',
+  driving_license: 'Carnet de conducir',
+  health_card: 'Tarjeta sanitaria',
   flight: 'Vuelo',
   train: 'Tren',
   bus: 'Bus',
@@ -111,6 +116,9 @@ export const DOCUMENT_LABELS: Record<string, string> = {
   insurance: 'Seguro',
   other: 'Otro',
 }
+
+// Documentación personal (identidad), separada de las reservas del viaje.
+export const PERSONAL_DOC_CATEGORIES = ['passport', 'dni', 'visa', 'driving_license', 'health_card']
 
 export const PLACE_CATEGORY_LABELS: Record<string, string> = {
   restaurant: 'Restaurante',
