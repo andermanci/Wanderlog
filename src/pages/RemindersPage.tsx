@@ -116,7 +116,7 @@ export function RemindersPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section="Avisos" />
       <div className="flex items-center justify-between mb-6">
         <div>

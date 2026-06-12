@@ -27,7 +27,7 @@ export function TripMemoryPage() {
 
   if (isLoading || !trip) {
     return (
-      <div className="max-w-3xl mx-auto px-6 py-8 space-y-4">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-4">
         <Skeleton className="h-56 w-full rounded-2xl" style={{ background: 'var(--secondary)' }} />
         <Skeleton className="h-8 w-1/2" style={{ background: 'var(--secondary)' }} />
       </div>
@@ -49,7 +49,7 @@ export function TripMemoryPage() {
     d.journal || (photosByDay.get(d.id)?.length ?? 0) > 0 || (actsByDay.get(d.id)?.length ?? 0) > 0)
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       {/* Barra superior (no se imprime) */}
       <div className="no-print flex items-center justify-between mb-6">
         <Button variant="ghost" size="sm" className="gap-1.5" asChild>

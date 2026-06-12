@@ -58,7 +58,7 @@ export function ActivityDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-2xl mx-auto px-6 py-8 space-y-4">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-4">
         <Skeleton className="h-10 w-2/3" style={{ background: 'var(--secondary)' }} />
         <Skeleton className="h-48 w-full" style={{ background: 'var(--secondary)' }} />
       </div>
@@ -67,7 +67,7 @@ export function ActivityDetailPage() {
 
   if (!activity) {
     return (
-      <div className="max-w-2xl mx-auto px-6 py-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
         <TripHeader tripId={tripId!} section="Actividad" />
         <p className="text-muted-foreground py-12 text-center">Actividad no encontrada.</p>
       </div>
@@ -79,7 +79,7 @@ export function ActivityDetailPage() {
   const mapsQuery = activity.address ? encodeURIComponent(activity.address) : null
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section="Actividad" />
 
       {/* Cabecera */}

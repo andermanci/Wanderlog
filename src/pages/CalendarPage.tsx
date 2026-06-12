@@ -57,7 +57,7 @@ export function CalendarPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="font-serif text-3xl font-medium">Calendario</h1>

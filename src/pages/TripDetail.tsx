@@ -84,7 +84,7 @@ export function TripDetail() {
   const statusColor = STATUS_COLORS[status]
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-muted-foreground -mb-4">
         <Link to="/dashboard" className="hover:text-foreground transition-colors">Viajes</Link>
@@ -105,52 +105,56 @@ export function TripDetail() {
         }
         <div className="card-overlay absolute inset-0" />
 
-        <div className="absolute bottom-0 left-0 right-0 p-6">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <span
-                className="text-xs px-2 py-0.5 rounded-full font-medium mb-2 inline-block"
-                style={{ background: `${statusColor}22`, color: statusColor, border: `1px solid ${statusColor}44` }}
-              >
-                {STATUS_LABELS[status]}
-              </span>
-              <h1 className="font-serif text-4xl font-medium text-white">{trip.name}</h1>
-              <div className="flex items-center gap-1.5 text-white/70 text-sm mt-1">
-                <MapPin size={14} style={{ color: 'var(--primary)' }} />
-                <span>{trip.destination}</span>
-                <span className="mx-1.5 opacity-30">·</span>
-                <Calendar size={14} />
-                <span>{formatDate(trip.start_date, 'dd MMM')} — {formatDate(trip.end_date, 'dd MMM yyyy')}</span>
-                <span className="mx-1.5 opacity-30">·</span>
-                <span style={{ color: 'var(--primary)' }}>{countdownLabel(trip.start_date)}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {isOwner ? (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setShareOpen(true)}
-                  className="glass rounded-lg w-9 h-9 text-white hover:text-white"
-                  title="Compartir viaje"
-                >
-                  <UserPlus size={16} />
-                </Button>
-              ) : (
-                <span className="glass rounded-lg px-2.5 h-9 flex items-center gap-1.5 text-white/80 text-xs" title="Compartido contigo">
-                  <Users size={14} /> Compartido
-                </span>
-              )}
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setEditOpen(true)}
-                className="glass rounded-lg w-9 h-9 text-white hover:text-white"
-                title="Editar viaje"
-              >
-                <Pencil size={16} />
-              </Button>
-            </div>
+        {/* Acciones: arriba a la derecha, no compiten con el texto */}
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          {isOwner ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setShareOpen(true)}
+              className="glass rounded-lg w-9 h-9 text-white hover:text-white"
+              title="Compartir viaje"
+            >
+              <UserPlus size={16} />
+            </Button>
+          ) : (
+            <span className="glass rounded-lg px-2.5 h-9 flex items-center gap-1.5 text-white/80 text-xs" title="Compartido contigo">
+              <Users size={14} /> Compartido
+            </span>
+          )}
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setEditOpen(true)}
+            className="glass rounded-lg w-9 h-9 text-white hover:text-white"
+            title="Editar viaje"
+          >
+            <Pencil size={16} />
+          </Button>
+        </div>
+
+        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-medium mb-2 inline-block"
+            style={{ background: `${statusColor}22`, color: statusColor, border: `1px solid ${statusColor}44` }}
+          >
+            {STATUS_LABELS[status]}
+          </span>
+          <h1 className="font-serif text-2xl sm:text-4xl font-medium text-white break-words leading-tight">
+            {trip.name}
+          </h1>
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-white/70 text-xs sm:text-sm mt-1.5">
+            <span className="flex items-center gap-1">
+              <MapPin size={13} style={{ color: 'var(--primary)' }} />
+              {trip.destination}
+            </span>
+            <span className="opacity-30">·</span>
+            <span className="flex items-center gap-1">
+              <Calendar size={13} />
+              {formatDate(trip.start_date, 'dd MMM')} — {formatDate(trip.end_date, 'dd MMM yyyy')}
+            </span>
+            <span className="opacity-30">·</span>
+            <span style={{ color: 'var(--primary)' }}>{countdownLabel(trip.start_date)}</span>
           </div>
         </div>
       </motion.div>

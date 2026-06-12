@@ -55,7 +55,7 @@ export function Dashboard() {
     <div className="flex h-full">
       {/* Main */}
       <div className="flex-1 overflow-auto">
-        <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}

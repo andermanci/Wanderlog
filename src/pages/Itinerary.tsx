@@ -151,7 +151,7 @@ export function ItineraryPage() {
   const loading = loadingDays || loadingActs
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section="Itinerario" />
       <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <div>
@@ -218,8 +218,8 @@ export function ItineraryPage() {
                         {format(parseISO(day.date), 'MMM', { locale: es }).toUpperCase()}
                       </span>
                     </div>
-                    <div className="flex-1">
-                      <h2 className="font-serif text-lg font-medium capitalize">{dateLabel}</h2>
+                    <div className="flex-1 min-w-0">
+                      <h2 className="font-serif text-base sm:text-lg font-medium capitalize truncate">{dateLabel}</h2>
                       <p className="text-xs text-muted-foreground">Día {dayIdx + 1} · {dayActs.length} actividades</p>
                     </div>
                     {weather?.[day.date] && (
@@ -229,7 +229,7 @@ export function ItineraryPage() {
                       >
                         <span className="text-base leading-none">{weatherIcon(weather[day.date].code)}</span>
                         <span className="font-medium text-foreground">{weather[day.date].tmax}°</span>
-                        <span className="opacity-60">/ {weather[day.date].tmin}°</span>
+                        <span className="opacity-60 hidden sm:inline">/ {weather[day.date].tmin}°</span>
                       </span>
                     )}
                     <Button
@@ -275,7 +275,7 @@ export function ItineraryPage() {
                         className="overflow-hidden"
                       >
                         {/* Notas del día */}
-                        <div className="mb-3 ml-13" style={{ marginLeft: '52px' }}>
+                        <div className="mb-3 sm:ml-[52px]">
                           {editingNotes === day.id ? (
                             <div className="flex gap-2">
                               <Textarea
@@ -312,7 +312,7 @@ export function ItineraryPage() {
                         </div>
 
                         {/* Actividades */}
-                        <div className="ml-13 space-y-2" style={{ marginLeft: '52px' }}>
+                        <div className="space-y-2 sm:ml-[52px]">
                           <SortableContext items={dayActs.map(a => a.id)} strategy={verticalListSortingStrategy}>
                             {dayActs.length === 0 ? (
                               <div

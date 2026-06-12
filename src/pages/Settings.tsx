@@ -58,7 +58,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto px-6 py-8">
+    <div className="max-w-xl mx-auto px-4 sm:px-6 py-8">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="font-serif text-3xl font-medium mb-8">Ajustes</h1>
 
