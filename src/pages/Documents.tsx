@@ -168,6 +168,15 @@ export function DocumentsPage() {
   const groupedPersonal = groupBy(personalDocs)
   const grouped = groupBy(bookingDocs)
 
+  // Campos del formulario según la categoría seleccionada
+  const cat = watch('category')
+  const isPersonal = PERSONAL_DOC_CATEGORIES.includes(cat)
+  const isTransport = ['flight', 'train', 'bus', 'transfer'].includes(cat)
+  const isStay = ['hotel', 'car_rental'].includes(cat)
+  const isEvent = ['tour', 'ticket'].includes(cat)
+  const isInsurance = cat === 'insurance'
+  const isOther = cat === 'other'
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section="Documentos" />
@@ -334,55 +343,89 @@ export function DocumentsPage() {
               <Input {...register('title')} placeholder="Ej: Vuelo Madrid → París" />
               {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Proveedor</Label>
-                <Input {...register('provider')} placeholder="Iberia, Booking..." />
+            {/* Documentación personal: nº de documento + caducidad */}
+            {isPersonal ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Nº de documento</Label>
+                  <Input {...register('confirmation_number')} placeholder="XX0000000" className="font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Caducidad</Label>
+                  <Input type="datetime-local" {...register('datetime_end')} />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Localizador</Label>
-                <Input {...register('locator')} placeholder="ABC123" className="font-mono" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Nº confirmación</Label>
-                <Input {...register('confirmation_number')} placeholder="000000000" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Teléfono</Label>
-                <Input {...register('phone')} placeholder="+34..." />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Origen</Label>
-                <Input {...register('origin')} placeholder="Madrid" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Destino</Label>
-                <Input {...register('destination')} placeholder="París" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Fecha/hora inicio</Label>
-                <Input type="datetime-local" {...register('datetime_start')} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>{PERSONAL_DOC_CATEGORIES.includes(watch('category')) ? 'Caducidad' : 'Fecha/hora fin'}</Label>
-                <Input type="datetime-local" {...register('datetime_end')} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Asiento</Label>
-              <Input {...register('seat')} placeholder="14A" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Enlace de la reserva (eDreams, Booking…)</Label>
-              <Input {...register('link')} placeholder="https://www.edreams.es/..." />
-              {errors.link && <p className="text-xs text-destructive">{errors.link.message}</p>}
-            </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>{isInsurance ? 'Aseguradora' : 'Proveedor'}</Label>
+                    <Input {...register('provider')} placeholder={isInsurance ? 'Mapfre…' : isStay ? 'Booking, Hertz…' : 'Iberia, Renfe…'} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>{isInsurance ? 'Nº de póliza' : 'Nº confirmación'}</Label>
+                    <Input {...register('confirmation_number')} placeholder="000000000" />
+                  </div>
+                </div>
+
+                {(isTransport || isOther) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Localizador</Label>
+                      <Input {...register('locator')} placeholder="ABC123" className="font-mono" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Asiento</Label>
+                      <Input {...register('seat')} placeholder="14A" />
+                    </div>
+                  </div>
+                )}
+
+                {(isTransport || isOther) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Origen</Label>
+                      <Input {...register('origin')} placeholder="Madrid" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Destino</Label>
+                      <Input {...register('destination')} placeholder="París" />
+                    </div>
+                  </div>
+                )}
+
+                {isEvent ? (
+                  <div className="space-y-1.5">
+                    <Label>Fecha y hora</Label>
+                    <Input type="datetime-local" {...register('datetime_start')} />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>{isStay ? (cat === 'hotel' ? 'Entrada' : 'Recogida') : isInsurance ? 'Inicio cobertura' : 'Fecha/hora inicio'}</Label>
+                      <Input type="datetime-local" {...register('datetime_start')} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>{isStay ? (cat === 'hotel' ? 'Salida' : 'Devolución') : isInsurance ? 'Fin cobertura' : 'Fecha/hora fin'}</Label>
+                      <Input type="datetime-local" {...register('datetime_end')} />
+                    </div>
+                  </div>
+                )}
+
+                {(isStay || isInsurance || isOther) && (
+                  <div className="space-y-1.5">
+                    <Label>{isInsurance ? 'Teléfono de asistencia' : 'Teléfono'}</Label>
+                    <Input {...register('phone')} placeholder="+34..." />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label>Enlace de la reserva (eDreams, Booking…)</Label>
+                  <Input {...register('link')} placeholder="https://www.edreams.es/..." />
+                  {errors.link && <p className="text-xs text-destructive">{errors.link.message}</p>}
+                </div>
+              </>
+            )}
             <div className="space-y-1.5">
               <Label>Adjunto (PDF o imagen)</Label>
               <div
