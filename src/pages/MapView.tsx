@@ -171,6 +171,22 @@ export function MapViewPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showRoute, setShowRoute] = useState(searchParams.get('route') === '1')
 
+
+  // Google Maps cachea el tamaño del contenedor al inicializarse; si el
+  // layout aún no estaba asentado, el mapa queda "encogido" en una esquina.
+  // Empujón de resize al estar listo (y otro tras las animaciones).
+  useEffect(() => {
+    if (!mapInstance) return
+    const kick = () => {
+      const c = mapInstance.getCenter()
+      google.maps.event.trigger(mapInstance, 'resize')
+      if (c) mapInstance.setCenter(c)
+    }
+    const t1 = setTimeout(kick, 60)
+    const t2 = setTimeout(kick, 400)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [mapInstance])
+
   const routePoints = useMemo(
     () => buildRoutePoints(activities ?? [], days ?? []),
     [activities, days],

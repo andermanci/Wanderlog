@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { APIProvider, Map, AdvancedMarker, Pin, ColorScheme } from '@vis.gl/react-google-maps'
 import { Search, MapPin, X } from 'lucide-react'
 import {
@@ -78,6 +78,22 @@ function Inner({ initial, center, onPick, onCancel }: {
   const [pending, setPending] = useState<Pending | null>(initial ? { address: initial } : null)
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null)
   const defaultCenter = center ?? { lat: 40.4168, lng: -3.7038 }
+
+
+  // Google Maps cachea el tamaño del contenedor al inicializarse; si el
+  // layout aún no estaba asentado, el mapa queda "encogido" en una esquina.
+  // Empujón de resize al estar listo (y otro tras las animaciones).
+  useEffect(() => {
+    if (!mapInstance) return
+    const kick = () => {
+      const c = mapInstance.getCenter()
+      google.maps.event.trigger(mapInstance, 'resize')
+      if (c) mapInstance.setCenter(c)
+    }
+    const t1 = setTimeout(kick, 60)
+    const t2 = setTimeout(kick, 400)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [mapInstance])
 
   const search = useCallback(async () => {
     const q = query.trim()
