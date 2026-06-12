@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -8,7 +8,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import {
   SortableContext, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { Plus, ChevronDown, Pencil, Route } from 'lucide-react'
+import { Plus, ChevronDown, Pencil, Route, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -20,6 +20,8 @@ import {
 import { ActivityBlock } from '@/components/itinerary/ActivityBlock'
 import { ActivityFormDialog } from '@/components/itinerary/ActivityFormDialog'
 import { ActivityDetailDialog } from '@/components/itinerary/ActivityDetailDialog'
+import { DayJournalDialog } from '@/components/itinerary/DayJournalDialog'
+import { useJournalPhotos } from '@/lib/queries/journal'
 import {
   useItineraryDays, useActivities, useUpsertDays,
   useDeleteActivity, useReorderActivities, useUpdateDayNotes,
@@ -48,6 +50,8 @@ export function ItineraryPage() {
   const [defaultDayId, setDefaultDayId] = useState<string>()
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
   const [detailActivity, setDetailActivity] = useState<Activity | null>(null)
+  const [journalDay, setJournalDay] = useState<ItineraryDay | null>(null)
+  const { data: journalPhotos } = useJournalPhotos(tripId!)
   const [editingNotes, setEditingNotes] = useState<string | null>(null)
   const [notesValue, setNotesValue] = useState('')
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
@@ -86,6 +90,18 @@ export function ItineraryPage() {
     () => !!activities && !!days && buildRoutePoints(activities, days).length >= 2,
     [activities, days],
   )
+
+  // Si el viaje está en curso, salta directamente al día de hoy.
+  const scrolledToToday = useRef(false)
+  useEffect(() => {
+    if (scrolledToToday.current || !days?.length) return
+    const today = format(new Date(), 'yyyy-MM-dd')
+    if (!days.some(d => d.date === today)) return
+    scrolledToToday.current = true
+    setTimeout(() => {
+      document.getElementById(`day-${today}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 350)
+  }, [days])
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -181,9 +197,11 @@ export function ItineraryPage() {
               return (
                 <motion.div
                   key={day.id}
+                  id={`day-${day.date}`}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: dayIdx * 0.05 }}
+                  style={{ scrollMarginTop: 16 }}
                 >
                   {/* Day header */}
                   <div
@@ -203,6 +221,21 @@ export function ItineraryPage() {
                       <h2 className="font-serif text-lg font-medium capitalize">{dateLabel}</h2>
                       <p className="text-xs text-muted-foreground">Día {dayIdx + 1} · {dayActs.length} actividades</p>
                     </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="w-7 h-7 relative"
+                      title="Diario del día"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setJournalDay(day)
+                      }}
+                    >
+                      <BookOpen size={14} style={(day.journal || journalPhotos?.some(p => p.day_id === day.id)) ? { color: 'var(--primary)' } : undefined} />
+                      {(day.journal || journalPhotos?.some(p => p.day_id === day.id)) && (
+                        <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--primary)' }} />
+                      )}
+                    </Button>
                     <Button
                       size="icon"
                       variant="ghost"
@@ -310,6 +343,13 @@ export function ItineraryPage() {
           </div>
         </DndContext>
       )}
+
+      <DayJournalDialog
+        open={!!journalDay}
+        onClose={() => setJournalDay(null)}
+        tripId={tripId!}
+        day={journalDay}
+      />
 
       <ActivityDetailDialog
         open={!!detailActivity}

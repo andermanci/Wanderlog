@@ -1,8 +1,11 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, useQueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
+import { flushOutbox } from '@/lib/offline'
 
 import { useAuthListener } from '@/hooks/useAuth'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
@@ -45,6 +48,22 @@ function AuthListener() {
   return null
 }
 
+// Sube los cambios hechos sin conexión (gastos, diario) al volver internet.
+function OfflineSync() {
+  const qc = useQueryClient()
+  useEffect(() => {
+    const flush = () => {
+      flushOutbox(qc)
+        .then(n => { if (n > 0) toast.success(`${n} cambio${n > 1 ? 's' : ''} offline sincronizado${n > 1 ? 's' : ''}`) })
+        .catch(() => {})
+    }
+    flush()
+    window.addEventListener('online', flush)
+    return () => window.removeEventListener('online', flush)
+  }, [qc])
+  return null
+}
+
 export default function App() {
   return (
     <PersistQueryClientProvider
@@ -53,6 +72,7 @@ export default function App() {
     >
       <BrowserRouter>
         <AuthListener />
+        <OfflineSync />
         <Routes>
           {/* Públicas */}
           <Route path="/login" element={<LoginPage />} />

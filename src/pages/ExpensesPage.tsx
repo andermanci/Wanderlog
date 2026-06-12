@@ -4,7 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Plus, Receipt, Trash2, Loader2, Landmark } from 'lucide-react'
+import { Plus, Receipt, Trash2, Loader2, Landmark, Zap, CloudOff } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { useExpenses, useCreateExpense, useDeleteExpense } from '@/lib/queries/expenses'
+import { useExpenses, useCreateExpense, useDeleteExpense, type PendingExpense } from '@/lib/queries/expenses'
 import { useTrip } from '@/lib/queries/trips'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { useAuthStore } from '@/store/authStore'
@@ -48,6 +48,26 @@ export function ExpensesPage() {
   const deleteExpense = useDeleteExpense()
 
   const [formOpen, setFormOpen] = useState(false)
+
+  // Gasto rápido: importe + categoría, fecha de hoy, divisa principal.
+  const [quickAmount, setQuickAmount] = useState('')
+  const [quickDesc, setQuickDesc] = useState('')
+  const [quickCat, setQuickCat] = useState('Comida')
+
+  function quickAdd() {
+    const amount = Number(quickAmount.replace(',', '.'))
+    if (!Number.isFinite(amount) || amount <= 0) return
+    createExpense.mutate({
+      trip_id: tripId!,
+      description: quickDesc.trim() || quickCat,
+      category: quickCat,
+      amount,
+      currency: profile?.default_currency ?? 'EUR',
+      date: new Date().toISOString().slice(0, 10),
+    })
+    setQuickAmount('')
+    setQuickDesc('')
+  }
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
@@ -102,6 +122,56 @@ export function ExpensesPage() {
           <Plus size={16} />
           Añadir gasto
         </Button>
+      </div>
+
+      {/* Gasto rápido */}
+      <div className="p-4 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-1.5 mb-3">
+          <Zap size={14} style={{ color: 'var(--primary)' }} />
+          <span className="text-sm font-medium">Gasto rápido</span>
+          <span className="text-xs text-muted-foreground">· hoy, en {profile?.default_currency ?? 'EUR'}</span>
+        </div>
+        <div className="flex gap-2 mb-2">
+          <Input
+            inputMode="decimal"
+            placeholder="0,00"
+            value={quickAmount}
+            onChange={(e) => setQuickAmount(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && quickAdd()}
+            className="w-24 text-base font-medium"
+          />
+          <Input
+            placeholder="¿En qué? (opcional)"
+            value={quickDesc}
+            onChange={(e) => setQuickDesc(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && quickAdd()}
+            className="flex-1 text-sm"
+          />
+          <Button
+            onClick={quickAdd}
+            disabled={createExpense.isPending || !quickAmount.trim()}
+            style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+          >
+            {createExpense.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+          </Button>
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {EXPENSE_CATEGORIES.map(cat => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setQuickCat(cat)}
+              className="text-xs px-2.5 py-1 rounded-full border transition-all"
+              style={{
+                borderColor: quickCat === cat ? 'var(--primary)' : 'var(--border)',
+                color: quickCat === cat ? 'var(--primary)' : 'var(--muted-foreground)',
+                background: quickCat === cat ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'transparent',
+              }}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Resumen presupuesto */}
@@ -243,6 +313,11 @@ export function ExpensesPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium line-clamp-1">{expense.description}</p>
+                  {(expense as PendingExpense)._pending && (
+                    <span title="Pendiente de subir (sin conexión)">
+                      <CloudOff size={12} className="text-muted-foreground flex-shrink-0" />
+                    </span>
+                  )}
                   {expense.source === 'revolut' && (
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0 gap-1"
                       style={{ borderColor: 'color-mix(in srgb, var(--primary) 30%, transparent)', color: 'var(--primary)' }}>

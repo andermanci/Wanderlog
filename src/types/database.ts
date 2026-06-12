@@ -81,18 +81,45 @@ export type Database = {
           trip_id: string
           date: string
           notes: string | null
+          journal: string | null
         }
         Insert: {
           id?: string
           trip_id: string
           date: string
           notes?: string | null
+          journal?: string | null
         }
         Update: {
           id?: string
           trip_id?: string
           date?: string
           notes?: string | null
+          journal?: string | null
+        }
+        Relationships: []
+      }
+      journal_photos: {
+        Row: {
+          id: string
+          trip_id: string
+          day_id: string
+          file_url: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          day_id: string
+          file_url: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          trip_id?: string
+          day_id?: string
+          file_url?: string
+          created_at?: string
         }
         Relationships: []
       }
@@ -492,6 +519,7 @@ export type Expense = Database['public']['Tables']['expenses']['Row']
 export type TripCollaborator = Database['public']['Tables']['trip_collaborators']['Row']
 export type BankConnection = Database['public']['Tables']['bank_connections']['Row']
 export type ActivityAttachment = Database['public']['Tables']['activity_attachments']['Row']
+export type JournalPhoto = Database['public']['Tables']['journal_photos']['Row']
 
 export type TripStatus = Trip['status']
 export type ActivityType = Activity['type']
