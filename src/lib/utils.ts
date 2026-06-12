@@ -148,5 +148,5 @@ export const STATUS_COLORS: Record<string, string> = {
   planning: '#6b7280',
   confirmed: '#3b82f6',
   in_progress: '#22c55e',
-  completed: '#6366f1',
+  completed: '#bf4d22',
 }

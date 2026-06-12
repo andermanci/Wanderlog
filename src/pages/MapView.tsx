@@ -45,7 +45,7 @@ function MapDirections({ stops }: { stops: RoutePoint[] }) {
       map,
       // Los marcadores numerados ya los pinta el mapa; evitamos duplicarlos.
       suppressMarkers: true,
-      polylineOptions: { strokeColor: '#6366f1', strokeWeight: 5, strokeOpacity: 0.9 },
+      polylineOptions: { strokeColor: '#bf4d22', strokeWeight: 5, strokeOpacity: 0.9 },
     })
     setRenderer(r)
     return () => r.setMap(null)
@@ -95,7 +95,7 @@ function MapDirections({ stops }: { stops: RoutePoint[] }) {
           renderer.set('directions', null)
           polyline = new google.maps.Polyline({
             path: uniq, map,
-            strokeColor: '#6366f1', strokeWeight: 4, strokeOpacity: 0.85,
+            strokeColor: '#bf4d22', strokeWeight: 4, strokeOpacity: 0.85,
           })
           const bounds = new google.maps.LatLngBounds()
           uniq.forEach(p => bounds.extend(p))
@@ -609,7 +609,7 @@ export function MapViewPage() {
               >
                 <div
                   className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center shadow-lg cursor-pointer text-[11px] font-bold text-white"
-                  style={{ background: '#6366f1' }}
+                  style={{ background: '#bf4d22' }}
                   title={p.label}
                 >
                   {i + 1}
@@ -683,9 +683,9 @@ export function MapViewPage() {
                   onClick={() => selectPlace(place)}
                 >
                   <Pin
-                    background={isSel ? '#6366f1' : '#a5b4fc'}
+                    background={isSel ? '#bf4d22' : '#eaa285'}
                     glyphColor="#ffffff"
-                    borderColor={isSel ? '#818cf8' : '#c7d2fe'}
+                    borderColor={isSel ? '#e0815a' : '#f3c8b2'}
                     scale={isSel ? 1.15 : 0.95}
                   />
                 </AdvancedMarker>

@@ -186,7 +186,7 @@ function Inner({ initial, center, onPick, onCancel }: {
           >
             {pending?.lat != null && pending.lng != null && (
               <AdvancedMarker position={{ lat: pending.lat, lng: pending.lng }}>
-                <Pin background="#6366f1" glyphColor="#ffffff" borderColor="#818cf8" />
+                <Pin background="#bf4d22" glyphColor="#ffffff" borderColor="#e0815a" />
               </AdvancedMarker>
             )}
           </Map>
