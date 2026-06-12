@@ -10,11 +10,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
 
+export interface LatLng { lat: number; lng: number }
+
 interface LocationPickerProps {
   value?: string
-  onChange: (address: string) => void
+  onChange: (address: string, coords?: LatLng | null) => void
   placeholder?: string
-  center?: { lat: number; lng: number }
+  center?: LatLng
 }
 
 interface Pending { address: string; lat?: number; lng?: number }
@@ -36,7 +38,7 @@ export function LocationPicker({ value, onChange, placeholder = 'Seleccionar ubi
           <span className={value ? '' : 'text-muted-foreground'}>{value || placeholder}</span>
         </Button>
         {value && (
-          <Button type="button" variant="ghost" size="icon" onClick={() => onChange('')} title="Quitar">
+          <Button type="button" variant="ghost" size="icon" onClick={() => onChange('', null)} title="Quitar">
             <X size={14} />
           </Button>
         )}
@@ -55,7 +57,7 @@ export function LocationPicker({ value, onChange, placeholder = 'Seleccionar ubi
             <Inner
               initial={value}
               center={center}
-              onPick={(addr) => { onChange(addr); setOpen(false) }}
+              onPick={(addr, coords) => { onChange(addr, coords); setOpen(false) }}
               onCancel={() => setOpen(false)}
             />
           )}
@@ -67,8 +69,8 @@ export function LocationPicker({ value, onChange, placeholder = 'Seleccionar ubi
 
 function Inner({ initial, center, onPick, onCancel }: {
   initial?: string
-  center?: { lat: number; lng: number }
-  onPick: (address: string) => void
+  center?: LatLng
+  onPick: (address: string, coords?: LatLng | null) => void
   onCancel: () => void
 }) {
   const [query, setQuery] = useState('')
@@ -202,7 +204,10 @@ function Inner({ initial, center, onPick, onCancel }: {
           <Button
             type="button"
             disabled={!pending?.address}
-            onClick={() => pending?.address && onPick(pending.address)}
+            onClick={() => pending?.address && onPick(
+              pending.address,
+              pending.lat != null && pending.lng != null ? { lat: pending.lat, lng: pending.lng } : null,
+            )}
             style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
           >
             Usar esta ubicación

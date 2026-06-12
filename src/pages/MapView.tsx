@@ -6,6 +6,7 @@ import { APIProvider, Map, AdvancedMarker, InfoWindow, Pin, ColorScheme, useMap,
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Star, MapPin, ExternalLink, Bookmark, X, Plus, Calendar, Route,
+  LocateFixed, Loader2, List,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,18 +22,18 @@ import { useFavoritePlaces, useSaveFavoritePlace, useDeleteFavoritePlace } from 
 import { useCreateActivity, useItineraryDays, useUpsertDays, useActivities } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
 import { placeTypeToCategory, getCategoryColor } from '@/lib/maps'
-import { buildRoutePoints } from '@/lib/route'
-import { PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
+import { buildRoutePoints, type RoutePoint } from '@/lib/route'
+import { cn, PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
 import type { FavoritePlace } from '@/types/database'
 import { toast } from 'sonner'
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
 
 // Dibuja la ruta del itinerario sobre el mapa de la app.
-// 1) Resuelve cada parada a coordenadas con Places (omite las que no resuelvan).
+// 1) Usa las coordenadas guardadas de cada parada; geocodifica solo las que falten.
 // 2) Traza la ruta por carretera (Directions) con esas coordenadas.
 // 3) Si no hay ruta por carretera, dibuja una línea aproximada que las conecta.
-function MapDirections({ stops }: { stops: string[] }) {
+function MapDirections({ stops }: { stops: RoutePoint[] }) {
   const map = useMap()
   const routesLib = useMapsLibrary('routes')
   const placesLib = useMapsLibrary('places')
@@ -42,7 +43,8 @@ function MapDirections({ stops }: { stops: string[] }) {
     if (!routesLib || !map) return
     const r = new routesLib.DirectionsRenderer({
       map,
-      suppressMarkers: false,
+      // Los marcadores numerados ya los pinta el mapa; evitamos duplicarlos.
+      suppressMarkers: true,
       polylineOptions: { strokeColor: '#6366f1', strokeWeight: 5, strokeOpacity: 0.9 },
     })
     setRenderer(r)
@@ -55,11 +57,12 @@ function MapDirections({ stops }: { stops: string[] }) {
     let polyline: google.maps.Polyline | null = null
 
     ;(async () => {
-      // 1) Resolver paradas → coordenadas (Places).
-      const resolved = await Promise.all(stops.slice(0, 25).map(async (q) => {
+      // 1) Coordenadas guardadas directamente; Places solo para las que falten.
+      const resolved = await Promise.all(stops.slice(0, 25).map(async (p) => {
+        if (p.lat != null && p.lng != null) return { lat: p.lat, lng: p.lng }
         try {
           const { places } = await placesLib.Place.searchByText({
-            textQuery: q, fields: ['location'], maxResultCount: 1,
+            textQuery: p.location, fields: ['location'], maxResultCount: 1,
           })
           const loc = places?.[0]?.location
           return loc ? { lat: loc.lat(), lng: loc.lng() } : null
@@ -127,6 +130,8 @@ interface PendingPlace {
   address: string | null
   link: string | null
   place_id: string | null
+  lat: number | null
+  lng: number | null
 }
 
 interface AddToItineraryState {
@@ -170,7 +175,31 @@ export function MapViewPage() {
     () => buildRoutePoints(activities ?? [], days ?? []),
     [activities, days],
   )
-  const routeStops = useMemo(() => routePoints.map(p => p.location), [routePoints])
+  // Paradas con coordenadas guardadas: se pintan siempre como pines numerados.
+  const placedPoints = useMemo(
+    () => routePoints.filter(p => p.lat != null && p.lng != null),
+    [routePoints],
+  )
+  const [selectedStop, setSelectedStop] = useState<RoutePoint | null>(null)
+  const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null)
+  const [locating, setLocating] = useState(false)
+  const [panelOpen, setPanelOpen] = useState(false)
+
+  function locateMe() {
+    if (!('geolocation' in navigator)) { toast.error('Tu navegador no soporta geolocalización'); return }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setMyPos(p)
+        mapInstance?.panTo(p)
+        mapInstance?.setZoom(15)
+        setLocating(false)
+      },
+      () => { toast.error('No se pudo obtener tu ubicación'); setLocating(false) },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   // Si llegamos con ?route=1 (desde el itinerario), mostramos la ruta y limpiamos el query.
   useEffect(() => {
@@ -309,6 +338,12 @@ export function MapViewPage() {
       place_id: place.place_id,
       origin: null,
       destination: null,
+      lat: place.lat,
+      lng: place.lng,
+      origin_lat: null,
+      origin_lng: null,
+      destination_lat: null,
+      destination_lng: null,
     })
     setAddToItineraryState(null)
     setSelectedDate('')
@@ -340,9 +375,26 @@ export function MapViewPage() {
 
   return (
     <APIProvider apiKey={API_KEY} libraries={['places']}>
-      <div className="flex h-full">
-        {/* Panel lateral */}
-        <div className="w-80 flex flex-col border-r border-border" style={{ background: 'var(--sidebar)' }}>
+      <div className="flex h-full relative">
+        {/* Panel lateral (escritorio) / hoja inferior (móvil) */}
+        <div
+          className={cn(
+            'flex-col border-border',
+            'md:flex md:static md:w-80 md:border-r md:max-h-none md:rounded-none',
+            panelOpen
+              ? 'flex absolute inset-x-0 bottom-0 z-30 max-h-[60%] border-t rounded-t-2xl shadow-2xl'
+              : 'hidden',
+          )}
+          style={{ background: 'var(--sidebar)' }}
+        >
+          {/* Asa de cierre (solo móvil) */}
+          <button
+            className="md:hidden flex items-center justify-center py-2 text-muted-foreground"
+            onClick={() => setPanelOpen(false)}
+          >
+            <span className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+          </button>
+
           {/* Búsqueda */}
           <div className="p-4 border-b border-border">
             <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-2 flex-wrap">
@@ -369,7 +421,7 @@ export function MapViewPage() {
             </div>
 
             {/* Ver/ocultar el recorrido del itinerario en el mapa */}
-            {routeStops.length >= 2 && (
+            {routePoints.length >= 2 && (
               <Button
                 variant={showRoute ? 'default' : 'outline'}
                 size="sm"
@@ -545,7 +597,53 @@ export function MapViewPage() {
             className="w-full h-full"
           >
             {/* Recorrido del itinerario dibujado en el mapa */}
-            {showRoute && routeStops.length >= 2 && <MapDirections stops={routeStops} />}
+            {showRoute && routePoints.length >= 2 && <MapDirections stops={routePoints} />}
+
+            {/* Paradas del itinerario con ubicación: pines numerados siempre visibles */}
+            {placedPoints.map((p, i) => (
+              <AdvancedMarker
+                key={p.key}
+                position={{ lat: p.lat!, lng: p.lng! }}
+                zIndex={5}
+                onClick={() => setSelectedStop(p)}
+              >
+                <div
+                  className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center shadow-lg cursor-pointer text-[11px] font-bold text-white"
+                  style={{ background: '#6366f1' }}
+                  title={p.label}
+                >
+                  {i + 1}
+                </div>
+              </AdvancedMarker>
+            ))}
+
+            {/* InfoWindow de parada del itinerario */}
+            {selectedStop && selectedStop.lat != null && (
+              <InfoWindow
+                position={{ lat: selectedStop.lat, lng: selectedStop.lng! }}
+                onCloseClick={() => setSelectedStop(null)}
+              >
+                <div className="p-2 min-w-[160px]">
+                  <p className="font-medium text-sm text-gray-900">{selectedStop.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{selectedStop.location}</p>
+                  {selectedStop.date && (
+                    <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                      {format(parseISO(selectedStop.date), 'EEE dd MMM', { locale: es })}
+                    </p>
+                  )}
+                </div>
+              </InfoWindow>
+            )}
+
+            {/* Mi ubicación */}
+            {myPos && (
+              <AdvancedMarker position={myPos} zIndex={20}>
+                <div className="relative">
+                  <span className="absolute inset-0 rounded-full animate-ping" style={{ background: 'rgba(59,130,246,0.4)' }} />
+                  <span className="block w-4 h-4 rounded-full border-2 border-white shadow" style={{ background: '#3b82f6' }} />
+                </div>
+              </AdvancedMarker>
+            )}
 
             {/* Marcadores de favoritos */}
             {filteredFavorites?.map(place => (
@@ -607,7 +705,7 @@ export function MapViewPage() {
                   )}
                   <div className="flex gap-2 mt-2">
                     <button
-                      onClick={() => setAddToItineraryState({ open: true, place: { name: selectedFavorite.name, address: selectedFavorite.address, link: selectedFavorite.link, place_id: selectedFavorite.id } })}
+                      onClick={() => setAddToItineraryState({ open: true, place: { name: selectedFavorite.name, address: selectedFavorite.address, link: selectedFavorite.link, place_id: selectedFavorite.id, lat: selectedFavorite.lat, lng: selectedFavorite.lng } })}
                       className="text-xs px-2 py-1 rounded flex items-center gap-1"
                       style={{ background: 'color-mix(in srgb, var(--primary) 20%, transparent)', color: 'var(--primary)' }}
                     >
@@ -638,6 +736,30 @@ export function MapViewPage() {
               </InfoWindow>
             )}
           </Map>
+
+          {/* Mi ubicación (flotante) */}
+          <Button
+            size="icon"
+            onClick={locateMe}
+            disabled={locating}
+            title="Dónde estoy"
+            className="absolute bottom-20 right-4 md:bottom-6 z-10 rounded-full w-11 h-11 shadow-xl"
+            style={{ background: 'var(--card)', color: 'var(--primary)', border: '1px solid var(--border)' }}
+          >
+            {locating ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
+          </Button>
+
+          {/* Abrir lista/búsqueda (solo móvil) */}
+          {!panelOpen && (
+            <Button
+              onClick={() => setPanelOpen(true)}
+              className="md:hidden absolute bottom-20 left-4 z-10 gap-2 shadow-xl rounded-full"
+              style={{ background: 'var(--card)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
+            >
+              <List size={16} />
+              Buscar y lugares
+            </Button>
+          )}
 
           {/* Panel de lugar desde búsqueda */}
           <AnimatePresence>
@@ -685,7 +807,7 @@ export function MapViewPage() {
                     size="sm"
                     variant="outline"
                     className="flex-1 gap-1.5 text-xs"
-                    onClick={() => setAddToItineraryState({ open: true, place: { name: selectedPlace.name, address: selectedPlace.formatted_address, link: selectedPlace.url ?? null, place_id: null } })}
+                    onClick={() => setAddToItineraryState({ open: true, place: { name: selectedPlace.name, address: selectedPlace.formatted_address, link: selectedPlace.url ?? null, place_id: null, lat: selectedPlace.geometry.location.lat(), lng: selectedPlace.geometry.location.lng() } })}
                   >
                     <Calendar size={12} />
                     Itinerario

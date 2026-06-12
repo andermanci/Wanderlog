@@ -141,6 +141,12 @@ export type Database = {
           place_id: string | null
           origin: string | null
           destination: string | null
+          lat: number | null
+          lng: number | null
+          origin_lat: number | null
+          origin_lng: number | null
+          destination_lat: number | null
+          destination_lng: number | null
           created_at: string
         }
         Insert: {
@@ -160,6 +166,12 @@ export type Database = {
           place_id?: string | null
           origin?: string | null
           destination?: string | null
+          lat?: number | null
+          lng?: number | null
+          origin_lat?: number | null
+          origin_lng?: number | null
+          destination_lat?: number | null
+          destination_lng?: number | null
           created_at?: string
         }
         Update: {
@@ -179,6 +191,12 @@ export type Database = {
           place_id?: string | null
           origin?: string | null
           destination?: string | null
+          lat?: number | null
+          lng?: number | null
+          origin_lat?: number | null
+          origin_lng?: number | null
+          destination_lat?: number | null
+          destination_lng?: number | null
           created_at?: string
         }
         Relationships: []

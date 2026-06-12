@@ -6,6 +6,9 @@ export interface RoutePoint {
   location: string
   date: string
   kind?: 'origin' | 'destination'
+  /** Coordenadas guardadas al elegir la ubicación (si las hay). */
+  lat?: number | null
+  lng?: number | null
 }
 
 // Paradas del recorrido EN ORDEN, solo de actividades con ubicación puesta:
@@ -31,10 +34,10 @@ export function buildRoutePoints(activities: Activity[], days: ItineraryDay[]): 
   for (const a of sorted) {
     const date = dayDate.get(a.day_id) ?? ''
     if (a.type === 'transport') {
-      if (a.origin) push({ key: `${a.id}-o`, label: a.title, location: a.origin, date, kind: 'origin' })
-      if (a.destination) push({ key: `${a.id}-d`, label: a.title, location: a.destination, date, kind: 'destination' })
+      if (a.origin) push({ key: `${a.id}-o`, label: a.title, location: a.origin, date, kind: 'origin', lat: a.origin_lat, lng: a.origin_lng })
+      if (a.destination) push({ key: `${a.id}-d`, label: a.title, location: a.destination, date, kind: 'destination', lat: a.destination_lat, lng: a.destination_lng })
     } else if (a.address) {
-      push({ key: a.id, label: a.title, location: a.address, date })
+      push({ key: a.id, label: a.title, location: a.address, date, lat: a.lat, lng: a.lng })
     }
   }
   return points

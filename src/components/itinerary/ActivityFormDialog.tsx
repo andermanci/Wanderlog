@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { LocationPicker } from '@/components/itinerary/LocationPicker'
+import { LocationPicker, type LatLng } from '@/components/itinerary/LocationPicker'
 import { useCreateActivity, useUpdateActivity } from '@/lib/queries/itinerary'
 import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useAuthStore } from '@/store/authStore'
@@ -57,6 +57,8 @@ export function ActivityFormDialog({
   const deleteAttachment = useDeleteAttachment(tripId)
   const attachFileRef = useRef<HTMLInputElement>(null)
   const [uploadingAtt, setUploadingAtt] = useState(false)
+  // Coordenadas elegidas en el LocationPicker (dirección / origen / destino).
+  const [coords, setCoords] = useState<{ address?: LatLng | null; origin?: LatLng | null; destination?: LatLng | null }>({})
 
   const attachments = (tripAttachments ?? []).filter(a => a.activity_id === activity?.id)
 
@@ -79,6 +81,11 @@ export function ActivityFormDialog({
 
   useEffect(() => {
     if (activity) {
+      setCoords({
+        address: activity.lat != null && activity.lng != null ? { lat: activity.lat, lng: activity.lng } : null,
+        origin: activity.origin_lat != null && activity.origin_lng != null ? { lat: activity.origin_lat, lng: activity.origin_lng } : null,
+        destination: activity.destination_lat != null && activity.destination_lng != null ? { lat: activity.destination_lat, lng: activity.destination_lng } : null,
+      })
       reset({
         title: activity.title,
         type: activity.type,
@@ -94,6 +101,9 @@ export function ActivityFormDialog({
         notes: activity.notes ?? '',
       })
     } else if (prefill) {
+      setCoords({
+        address: prefill.lat != null && prefill.lng != null ? { lat: prefill.lat, lng: prefill.lng } : null,
+      })
       reset({
         type: (prefill.type as FormValues['type']) ?? 'activity',
         day_id: defaultDayId ?? days[0]?.id ?? '',
@@ -107,11 +117,13 @@ export function ActivityFormDialog({
         notes: prefill.notes ?? '',
       })
     } else {
+      setCoords({})
       reset({ type: 'activity', day_id: defaultDayId ?? days[0]?.id ?? '' })
     }
   }, [activity, prefill, defaultDayId, days, reset, open])
 
   async function onSubmit(values: FormValues) {
+    const isTransport = values.type === 'transport'
     const payload = {
       ...values,
       trip_id: tripId,
@@ -127,6 +139,12 @@ export function ActivityFormDialog({
       notes: values.notes ?? null,
       order_index: activity?.order_index ?? 0,
       place_id: activity?.place_id ?? null,
+      lat: !isTransport && values.address ? coords.address?.lat ?? null : null,
+      lng: !isTransport && values.address ? coords.address?.lng ?? null : null,
+      origin_lat: isTransport && values.origin ? coords.origin?.lat ?? null : null,
+      origin_lng: isTransport && values.origin ? coords.origin?.lng ?? null : null,
+      destination_lat: isTransport && values.destination ? coords.destination?.lat ?? null : null,
+      destination_lng: isTransport && values.destination ? coords.destination?.lng ?? null : null,
     }
     if (activity) {
       await updateActivity.mutateAsync({ id: activity.id, ...payload })
@@ -192,7 +210,7 @@ export function ActivityFormDialog({
                 <Label>Origen</Label>
                 <LocationPicker
                   value={watch('origin')}
-                  onChange={(v) => setValue('origin', v, { shouldDirty: true })}
+                  onChange={(v, c) => { setValue('origin', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, origin: c ?? null })) }}
                   placeholder="Punto de salida"
                 />
               </div>
@@ -200,7 +218,7 @@ export function ActivityFormDialog({
                 <Label>Destino</Label>
                 <LocationPicker
                   value={watch('destination')}
-                  onChange={(v) => setValue('destination', v, { shouldDirty: true })}
+                  onChange={(v, c) => { setValue('destination', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, destination: c ?? null })) }}
                   placeholder="Punto de llegada"
                 />
               </div>
@@ -210,7 +228,7 @@ export function ActivityFormDialog({
               <Label>Dirección</Label>
               <LocationPicker
                 value={watch('address')}
-                onChange={(v) => setValue('address', v, { shouldDirty: true })}
+                onChange={(v, c) => { setValue('address', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, address: c ?? null })) }}
                 placeholder="Buscar o elegir en el mapa"
               />
             </div>
