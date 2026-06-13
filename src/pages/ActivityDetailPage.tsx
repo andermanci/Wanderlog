@@ -89,9 +89,9 @@ export function ActivityDetailPage() {
           <Link to={`/trips/${tripId}/itinerary${day ? `?day=${day.date}` : ''}`}><ArrowLeft size={16} /></Link>
         </Button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-serif text-3xl font-medium flex items-center gap-2">
-            <span className="text-2xl">{TYPE_ICONS[activity.type]}</span>
-            {activity.title}
+          <h1 className="font-serif text-2xl sm:text-3xl font-medium flex items-start gap-2 break-words leading-tight">
+            <span className="text-xl sm:text-2xl flex-shrink-0">{TYPE_ICONS[activity.type]}</span>
+            <span className="min-w-0">{activity.title}</span>
           </h1>
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="text-xs px-2 py-0.5 rounded" style={{ background: `${color}18`, color }}>
@@ -123,7 +123,9 @@ export function ActivityDetailPage() {
         </div>
         <div className="flex gap-1.5 flex-shrink-0">
           <Button variant="outline" size="sm" className="gap-1.5" asChild>
-            <Link to={`/trips/${tripId}/itinerary/${activity.id}/edit`}><Pencil size={13} /> Editar</Link>
+            <Link to={`/trips/${tripId}/itinerary/${activity.id}/edit`}>
+              <Pencil size={13} /> <span className="hidden sm:inline">Editar</span>
+            </Link>
           </Button>
           <Button
             variant="ghost" size="icon" className="w-9 h-9 text-destructive hover:text-destructive"
