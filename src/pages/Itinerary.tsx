@@ -8,7 +8,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import {
   SortableContext, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { Plus, ChevronDown, Pencil, Route, BookOpen } from 'lucide-react'
+import { Plus, ChevronDown, Pencil, Route, BookOpen, CornerDownRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -85,6 +85,22 @@ export function ItineraryPage() {
     })
     return map
   }, [activities])
+
+  // Actividades que TERMINAN en otro día (vuelo nocturno, hotel…): se muestran
+  // también en ese día como "continuación", para no perderlas de vista.
+  const arrivalsByDay = useMemo(() => {
+    const map = new Map<string, Activity[]>()
+    activities?.forEach(a => {
+      if (a.end_day_id && a.end_day_id !== a.day_id) {
+        map.set(a.end_day_id, [...(map.get(a.end_day_id) ?? []), a])
+      }
+    })
+    return map
+  }, [activities])
+  const dayDateById = useMemo(
+    () => new Map((days ?? []).map(d => [d.id, d.date])),
+    [days],
+  )
 
   // ¿Hay al menos 2 paradas para mostrar el botón de recorrido?
   const hasRoute = useMemo(
@@ -192,6 +208,7 @@ export function ItineraryPage() {
           <div className="space-y-8">
             {days?.map((day, dayIdx) => {
               const dayActs = activitiesByDay.get(day.id) ?? []
+              const dayArrivals = arrivalsByDay.get(day.id) ?? []
               const collapsed = collapsedDays.has(day.id)
               const dateLabel = format(parseISO(day.date), "EEEE dd 'de' MMMM", { locale: es })
 
@@ -220,7 +237,10 @@ export function ItineraryPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h2 className="font-serif text-base sm:text-lg font-medium capitalize truncate">{dateLabel}</h2>
-                      <p className="text-xs text-muted-foreground">Día {dayIdx + 1} · {dayActs.length} actividades</p>
+                      <p className="text-xs text-muted-foreground">
+                        Día {dayIdx + 1} · {dayActs.length} actividades
+                        {dayArrivals.length > 0 && ` · ${dayArrivals.length} llegada${dayArrivals.length > 1 ? 's' : ''}`}
+                      </p>
                     </div>
                     {weather?.[day.date] && (
                       <span
@@ -310,6 +330,32 @@ export function ItineraryPage() {
                             </button>
                           )}
                         </div>
+
+                        {/* Llegadas del día anterior (continuación, no se repiten enteras) */}
+                        {dayArrivals.length > 0 && (
+                          <div className="space-y-1.5 sm:ml-[52px] mb-2">
+                            {dayArrivals.map(a => {
+                              const depDate = dayDateById.get(a.day_id)
+                              return (
+                                <Link
+                                  key={`arr-${a.id}`}
+                                  to={`/trips/${tripId}/itinerary/${a.id}`}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed text-sm transition-colors hover:border-primary"
+                                  style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--primary) 5%, transparent)' }}
+                                >
+                                  <CornerDownRight size={14} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                                  <span className="flex-1 min-w-0 truncate text-muted-foreground">
+                                    <span className="text-foreground">{a.title}</span>
+                                  </span>
+                                  <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                                    {a.end_time ? `llega ${a.end_time.slice(0, 5)}` : 'llega'}
+                                    {depDate && ` · del ${format(parseISO(depDate), 'dd MMM', { locale: es })}`}
+                                  </span>
+                                </Link>
+                              )
+                            })}
+                          </div>
+                        )}
 
                         {/* Actividades */}
                         <div className="space-y-2 sm:ml-[52px]">

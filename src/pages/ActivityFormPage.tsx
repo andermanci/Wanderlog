@@ -3,17 +3,19 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, ArrowLeft } from 'lucide-react'
+import { Loader2, ArrowLeft, X } from 'lucide-react'
+import { parseISO } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LocationPicker, type LatLng } from '@/components/itinerary/LocationPicker'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { useCreateActivity, useUpdateActivity, useItineraryDays, useActivities } from '@/lib/queries/itinerary'
-import { ACTIVITY_LABELS, formatDate } from '@/lib/utils'
+import { ACTIVITY_LABELS } from '@/lib/utils'
 
 const schema = z.object({
   title: z.string().min(1, 'Título obligatorio'),
@@ -83,7 +85,8 @@ export function ActivityFormPage() {
   }, [activity, isEdit, days, defaultDayId, reset])
 
   async function onSubmit(values: FormValues) {
-    const isTransport = values.type === 'transport'
+    // Vuelo y transporte = movimiento A→B (origen/destino); el resto, dirección.
+    const isTransport = values.type === 'transport' || values.type === 'flight'
     const payload = {
       ...values,
       trip_id: tripId!,
@@ -118,6 +121,13 @@ export function ActivityFormPage() {
   }
 
   const loading = loadingDays || loadingActs
+
+  // El selector de día es un calendario, pero el modelo usa day_id: convertimos
+  // entre fecha (yyyy-MM-dd) y el id del día del viaje.
+  const dayDate = (id?: string) => days?.find(d => d.id === id)?.date ?? ''
+  const dayIdForDate = (date: string) => days?.find(d => d.date === date)?.id ?? ''
+  const firstDate = days?.length ? parseISO(days[0].date) : undefined
+  const lastDate = days?.length ? parseISO(days[days.length - 1].date) : undefined
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
@@ -164,77 +174,89 @@ export function ActivityFormPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Día</Label>
-              <Select value={watch('day_id')} onValueChange={(v) => setValue('day_id', v)}>
-                <SelectTrigger><SelectValue placeholder="Elegir día" /></SelectTrigger>
-                <SelectContent>
-                  {days?.map(d => (
-                    <SelectItem key={d.id} value={d.id}>{formatDate(d.date, 'EEE dd MMM')}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <DatePicker
+                value={dayDate(watch('day_id'))}
+                onChange={(date) => { const id = dayIdForDate(date); if (id) setValue('day_id', id, { shouldValidate: true }) }}
+                fromDate={firstDate}
+                toDate={lastDate}
+                placeholder="Elegir día"
+              />
               {errors.day_id && <p className="text-xs text-destructive">{errors.day_id.message}</p>}
             </div>
           </div>
 
           {(() => {
-            const isMove = watch('type') === 'transport' || watch('type') === 'flight'
+            const t = watch('type')
+            const isMove = t === 'transport' || t === 'flight'
+            const isHotel = t === 'hotel'
+            const startLabel = isMove ? 'Hora salida' : isHotel ? 'Hora entrada' : 'Hora inicio'
+            const endLabel = isMove ? 'Hora llegada' : isHotel ? 'Hora salida' : 'Hora fin'
+            const endDayLabel = isMove ? 'Día de llegada' : isHotel ? 'Día de salida' : 'Día de fin'
+            const depDate = dayDate(watch('day_id'))
             return (
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label>{isMove ? 'Hora salida' : 'Hora inicio'}</Label>
+                    <Label>{startLabel}</Label>
                     <Input type="time" {...register('start_time')} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>{isMove ? 'Hora llegada' : 'Hora fin'}</Label>
+                    <Label>{endLabel}</Label>
                     <Input type="time" {...register('end_time')} />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Día de llegada <span className="text-muted-foreground font-normal">(si termina otro día)</span></Label>
-                  <Select value={watch('end_day_id') || 'same'} onValueChange={(v) => setValue('end_day_id', v === 'same' ? '' : v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="same">Mismo día</SelectItem>
-                      {days?.map(d => (
-                        <SelectItem key={d.id} value={d.id}>{formatDate(d.date, 'EEE dd MMM')}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>{endDayLabel} <span className="text-muted-foreground font-normal">(si termina otro día)</span></Label>
+                  <div className="flex gap-2">
+                    <DatePicker
+                      className="flex-1"
+                      value={dayDate(watch('end_day_id'))}
+                      onChange={(date) => setValue('end_day_id', dayIdForDate(date))}
+                      fromDate={depDate ? parseISO(depDate) : firstDate}
+                      toDate={lastDate}
+                      placeholder="Mismo día"
+                    />
+                    {watch('end_day_id') && (
+                      <Button type="button" variant="ghost" size="icon" className="flex-shrink-0" title="Mismo día"
+                        onClick={() => setValue('end_day_id', '')}>
+                        <X size={15} />
+                      </Button>
+                    )}
+                  </div>
                 </div>
+
+                {isMove ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label>Origen</Label>
+                      <LocationPicker
+                        value={watch('origin')}
+                        onChange={(v, c) => { setValue('origin', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, origin: c ?? null })) }}
+                        placeholder={t === 'flight' ? 'Aeropuerto / ciudad de salida' : 'Punto de salida'}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Destino</Label>
+                      <LocationPicker
+                        value={watch('destination')}
+                        onChange={(v, c) => { setValue('destination', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, destination: c ?? null })) }}
+                        placeholder={t === 'flight' ? 'Aeropuerto / ciudad de llegada' : 'Punto de llegada'}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label>Dirección</Label>
+                    <LocationPicker
+                      value={watch('address')}
+                      onChange={(v, c) => { setValue('address', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, address: c ?? null })) }}
+                      placeholder="Buscar o elegir en el mapa"
+                    />
+                  </div>
+                )}
               </>
             )
           })()}
-
-          {watch('type') === 'transport' ? (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label>Origen</Label>
-                <LocationPicker
-                  value={watch('origin')}
-                  onChange={(v, c) => { setValue('origin', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, origin: c ?? null })) }}
-                  placeholder="Punto de salida"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Destino</Label>
-                <LocationPicker
-                  value={watch('destination')}
-                  onChange={(v, c) => { setValue('destination', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, destination: c ?? null })) }}
-                  placeholder="Punto de llegada"
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <Label>Dirección</Label>
-              <LocationPicker
-                value={watch('address')}
-                onChange={(v, c) => { setValue('address', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, address: c ?? null })) }}
-                placeholder="Buscar o elegir en el mapa"
-              />
-            </div>
-          )}
 
           <div className="space-y-1.5">
             <Label>Descripción</Label>
