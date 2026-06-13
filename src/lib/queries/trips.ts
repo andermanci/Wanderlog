@@ -1,8 +1,40 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
+import { itineraryKeys } from '@/lib/queries/itinerary'
 import type { Trip } from '@/types/database'
 import { toast } from 'sonner'
+
+// Sincroniza los días del itinerario con el rango de fechas del viaje:
+// añade los que falten y borra los que quedan fuera SIN actividades (los que
+// tienen actividades se conservan para no perder datos).
+async function reconcileItineraryDays(tripId: string, startDate: string, endDate: string) {
+  const want = eachDayOfInterval({ start: parseISO(startDate), end: parseISO(endDate) })
+    .map(d => format(d, 'yyyy-MM-dd'))
+  const wantSet = new Set(want)
+
+  const { data: existing } = await supabase
+    .from('itinerary_days').select('id, date').eq('trip_id', tripId)
+  const existingDates = new Set((existing ?? []).map(d => d.date))
+
+  const toAdd = want.filter(d => !existingDates.has(d)).map(date => ({ trip_id: tripId, date, notes: null }))
+  if (toAdd.length) {
+    await supabase.from('itinerary_days').upsert(toAdd, { onConflict: 'trip_id,date' })
+  }
+
+  const outside = (existing ?? []).filter(d => !wantSet.has(d.date))
+  if (outside.length) {
+    const { data: acts } = await supabase
+      .from('activities').select('day_id, end_day_id').eq('trip_id', tripId)
+    const usedDays = new Set<string>()
+    ;(acts ?? []).forEach(a => { usedDays.add(a.day_id); if (a.end_day_id) usedDays.add(a.end_day_id) })
+    const deletable = outside.filter(d => !usedDays.has(d.id)).map(d => d.id)
+    if (deletable.length) await supabase.from('itinerary_days').delete().in('id', deletable)
+    const kept = outside.length - deletable.length
+    if (kept > 0) toast.warning(`${kept} día${kept > 1 ? 's' : ''} fuera del nuevo rango con actividades: se han conservado.`)
+  }
+}
 
 export const tripKeys = {
   all: ['trips'] as const,
@@ -94,11 +126,16 @@ export function useUpdateTrip() {
         .select()
         .single()
       if (error) throw error
+      // Si cambian las fechas, reconciliar los días del itinerario.
+      if (values.start_date && values.end_date) {
+        await reconcileItineraryDays(id, values.start_date, values.end_date)
+      }
       return data
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: tripKeys.lists() })
       qc.invalidateQueries({ queryKey: tripKeys.detail(data.id) })
+      qc.invalidateQueries({ queryKey: itineraryKeys.days(data.id) })
       toast.success('Viaje actualizado')
     },
     onError: () => toast.error('Error al actualizar el viaje'),

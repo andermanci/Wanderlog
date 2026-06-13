@@ -140,6 +140,17 @@ export const PLACE_CATEGORY_COLORS: Record<string, string> = {
   other: '#6b7280',
 }
 
+// Icono por tipo de lugar (compartido por el mapa y la lista de lugares).
+export const PLACE_CATEGORY_ICONS: Record<string, string> = {
+  restaurant: '🍽️',
+  hotel: '🏨',
+  attraction: '🎯',
+  cafe: '☕',
+  bar: '🍺',
+  shop: '🛍️',
+  other: '📍',
+}
+
 export const EXPENSE_CATEGORIES = [
   'Alojamiento', 'Transporte', 'Comida', 'Actividades',
   'Compras', 'Seguros', 'Visados', 'Otros',

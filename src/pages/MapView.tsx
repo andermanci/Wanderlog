@@ -23,7 +23,7 @@ import { useCreateActivity, useItineraryDays, useUpsertDays, useActivities } fro
 import { useTrip } from '@/lib/queries/trips'
 import { placeTypeToCategory, getCategoryColor } from '@/lib/maps'
 import { buildRoutePoints, type RoutePoint } from '@/lib/route'
-import { cn, PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
+import { cn, PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS, PLACE_CATEGORY_ICONS } from '@/lib/utils'
 import type { FavoritePlace } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -157,12 +157,14 @@ export function MapViewPage() {
   const createActivity = useCreateActivity()
   const upsertDays = useUpsertDays()
 
-  // Auto-genera los días del viaje si aún no existen (igual que la página
-  // de Itinerario), para que el desplegable de día tenga opciones.
+  // Genera/rellena los días que falten del rango del viaje.
   useEffect(() => {
-    if (!trip || !days || days.length > 0) return
-    const range = eachDayOfInterval({ start: parseISO(trip.start_date), end: parseISO(trip.end_date) })
-    upsertDays.mutate(range.map(d => ({ trip_id: trip.id, date: format(d, 'yyyy-MM-dd'), notes: null })))
+    if (!trip || !days) return
+    const want = eachDayOfInterval({ start: parseISO(trip.start_date), end: parseISO(trip.end_date) })
+      .map(d => format(d, 'yyyy-MM-dd'))
+    const have = new Set(days.map(d => d.date))
+    const missing = want.filter(d => !have.has(d)).map(date => ({ trip_id: trip.id, date, notes: null }))
+    if (missing.length) upsertDays.mutate(missing)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip, days])
 
@@ -175,6 +177,9 @@ export function MapViewPage() {
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [selectedTime, setSelectedTime] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [collectionFilter, setCollectionFilter] = useState<string>('all')
+  // Colección elegida al guardar un favorito desde la tarjeta del lugar.
+  const [saveCollection, setSaveCollection] = useState<string>('')
   const [searchParams, setSearchParams] = useSearchParams()
   const [showRoute, setShowRoute] = useState(searchParams.get('route') === '1')
 
@@ -405,6 +410,15 @@ export function MapViewPage() {
       if (target) { selectStop(target); return }
     }
 
+    // Enfocar un lugar guardado concreto (desde la sección Lugares).
+    const placeId = searchParams.get('place')
+    if (placeId) {
+      searchParams.delete('place')
+      setSearchParams(searchParams, { replace: true })
+      const fav = favorites?.find(f => f.id === placeId)
+      if (fav) { selectFavorite(fav); mapInstance.setZoom(15); return }
+    }
+
     const pts = [
       ...placedPoints.map(p => ({ lat: p.lat!, lng: p.lng! })),
       ...(favorites ?? []).map(f => ({ lat: f.lat, lng: f.lng })),
@@ -440,10 +454,12 @@ export function MapViewPage() {
       rating: place.rating ?? null,
       notes: null,
       link: place.url ?? null,
+      collection: saveCollection.trim() || null,
     })
     setSelected(null)
     setSearchResults([])
     setSearchInput('')
+    setSaveCollection('')
   }
 
   async function handleAddToItinerary() {
@@ -482,8 +498,13 @@ export function MapViewPage() {
   }
 
   const filteredFavorites = favorites?.filter(f =>
-    categoryFilter === 'all' || f.category === categoryFilter
+    (categoryFilter === 'all' || f.category === categoryFilter) &&
+    (collectionFilter === 'all' || (f.collection?.trim() || '') === collectionFilter)
   )
+  // Colecciones (listas) existentes, para el filtro y el guardado.
+  const placeCollections = Array.from(
+    new Set((favorites ?? []).map(f => f.collection?.trim()).filter(Boolean) as string[])
+  ).sort()
 
   const mapCenter = favorites && favorites.length > 0
     ? { lat: favorites[0].lat, lng: favorites[0].lng }
@@ -655,6 +676,37 @@ export function MapViewPage() {
                 </button>
               ))}
             </div>
+
+            {/* Filtro por lista/colección */}
+            {placeCollections.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-border/50">
+                <button
+                  onClick={() => setCollectionFilter('all')}
+                  className="text-xs px-2.5 py-1 rounded-full border transition-all"
+                  style={{
+                    borderColor: collectionFilter === 'all' ? 'var(--primary)' : 'var(--border)',
+                    color: collectionFilter === 'all' ? 'var(--primary)' : 'var(--muted-foreground)',
+                    background: collectionFilter === 'all' ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
+                  }}
+                >
+                  Todas las listas
+                </button>
+                {placeCollections.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setCollectionFilter(k => k === c ? 'all' : c)}
+                    className="text-xs px-2.5 py-1 rounded-full border transition-all"
+                    style={{
+                      borderColor: collectionFilter === c ? 'var(--primary)' : 'var(--border)',
+                      color: collectionFilter === c ? 'var(--primary)' : 'var(--muted-foreground)',
+                      background: collectionFilter === c ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
+                    }}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Lista de favoritos */}
@@ -848,14 +900,7 @@ export function MapViewPage() {
                     style={{ background: getCategoryColor(place.category) }}
                     title={place.name}
                   >
-                    <span className="text-xs">
-                      {place.category === 'restaurant' ? '🍽️' :
-                        place.category === 'hotel' ? '🏨' :
-                          place.category === 'attraction' ? '🎯' :
-                            place.category === 'cafe' ? '☕' :
-                              place.category === 'bar' ? '🍺' :
-                                place.category === 'shop' ? '🛍️' : '📍'}
-                    </span>
+                    <span className="text-xs">{PLACE_CATEGORY_ICONS[place.category]}</span>
                   </div>
                 </AdvancedMarker>
               )
@@ -950,9 +995,20 @@ export function MapViewPage() {
                           <Star size={11} fill="var(--primary)" /> {p.rating} / 5
                         </p>
                       )}
-                      <div className="flex gap-2 mt-3">
+                      {/* Lista/colección donde guardar (opcional) */}
+                      <Input
+                        list="map-collections"
+                        value={saveCollection}
+                        onChange={(e) => setSaveCollection(e.target.value)}
+                        placeholder="Lista (opcional): Roma, Comida japonesa…"
+                        className="mt-3 text-xs h-8"
+                      />
+                      <datalist id="map-collections">
+                        {placeCollections.map(c => <option key={c} value={c} />)}
+                      </datalist>
+                      <div className="flex gap-2 mt-2">
                         <Button size="sm" className="flex-1 gap-1.5 text-xs" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }} onClick={() => handleSaveFavorite(p)} disabled={saveFavorite.isPending}>
-                          <Bookmark size={12} /> Favorito
+                          <Bookmark size={12} /> Guardar
                         </Button>
                         <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => setAddToItineraryState({ open: true, place: { name: p.name, address: p.formatted_address, link: p.url ?? null, place_id: null, lat, lng } })}>
                           <Calendar size={12} /> Itinerario

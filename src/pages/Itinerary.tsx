@@ -59,21 +59,17 @@ export function ItineraryPage() {
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   )
 
-  // Auto-generar días desde start_date hasta end_date del viaje
+  // Genera/rellena los días que falten del rango del viaje (cubre el alta
+  // inicial y también cuando se alargan las fechas después).
   useEffect(() => {
     if (!trip || !days || loadingDays) return
-    if (days.length > 0) return
-
-    const dateRange = eachDayOfInterval({
+    const want = eachDayOfInterval({
       start: parseISO(trip.start_date),
       end: parseISO(trip.end_date),
-    })
-    const newDays = dateRange.map(d => ({
-      trip_id: trip.id,
-      date: format(d, 'yyyy-MM-dd'),
-      notes: null,
-    }))
-    upsertDays.mutate(newDays)
+    }).map(d => format(d, 'yyyy-MM-dd'))
+    const have = new Set(days.map(d => d.date))
+    const missing = want.filter(d => !have.has(d)).map(date => ({ trip_id: trip.id, date, notes: null }))
+    if (missing.length) upsertDays.mutate(missing)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip, days, loadingDays])
 
