@@ -273,6 +273,8 @@ export function MapViewPage() {
 
   const searchPlaces = useCallback(async () => {
     const q = searchInput.trim()
+    // Oculta el teclado del móvil al lanzar la búsqueda.
+    searchRef.current?.blur()
     if (!q) return
     if (typeof google === 'undefined' || !google.maps?.places) {
       toast.error('El mapa todavía se está cargando. Inténtalo en un momento.')
@@ -696,7 +698,7 @@ export function MapViewPage() {
         <AnimatePresence>
           {panelOpen && (
             <motion.div
-              className="md:hidden absolute inset-x-0 bottom-0 z-30 flex flex-col max-h-[80%] rounded-t-2xl border-t border-border shadow-2xl overflow-hidden"
+              className="md:hidden absolute inset-x-0 bottom-0 z-30 flex flex-col max-h-[75dvh] rounded-t-2xl border-t border-border shadow-2xl overflow-hidden"
               style={{ background: 'var(--sidebar)' }}
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
