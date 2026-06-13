@@ -140,11 +140,11 @@ export function ActivityDetailPage() {
         {/* Transporte: origen → destino + ruta */}
         {isTransport && (
           <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-            <div className="flex items-center gap-2 text-sm">
-              <MapPin size={14} style={{ color: 'var(--primary)' }} />
-              <span>{activity.origin || '—'}</span>
-              <span className="text-muted-foreground">→</span>
-              <span>{activity.destination || '—'}</span>
+            <div className="flex items-start gap-2 text-sm">
+              <MapPin size={14} style={{ color: 'var(--primary)' }} className="flex-shrink-0 mt-0.5" />
+              <span className="min-w-0 break-words">
+                {activity.origin || '—'} <span className="text-muted-foreground">→</span> {activity.destination || '—'}
+              </span>
             </div>
             {activity.origin && activity.destination && (
               <>
@@ -168,13 +168,13 @@ export function ActivityDetailPage() {
         {!isTransport && activity.address && (
           <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
             <div className="flex items-start justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <MapPin size={13} style={{ color: 'var(--primary)' }} />
-                {activity.address}
+              <p className="flex items-start gap-1.5 text-sm text-muted-foreground min-w-0">
+                <MapPin size={13} style={{ color: 'var(--primary)' }} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words min-w-0">{activity.address}</span>
               </p>
               <Button size="sm" variant="outline" className="gap-1.5 text-xs flex-shrink-0" asChild>
                 <a href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`} target="_blank" rel="noreferrer">
-                  <Navigation size={12} /> Cómo llegar
+                  <Navigation size={12} /> <span className="hidden sm:inline">Cómo llegar</span>
                 </a>
               </Button>
             </div>
