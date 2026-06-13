@@ -6,7 +6,7 @@ import { APIProvider, Map, AdvancedMarker, InfoWindow, Pin, ColorScheme, useMap,
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Star, MapPin, ExternalLink, Bookmark, X, Plus, Calendar, Route,
-  LocateFixed, Loader2, List,
+  LocateFixed, Loader2, List, Navigation,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -200,6 +200,40 @@ export function MapViewPage() {
   const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
+
+  // Filtro por día del itinerario: en viajes largos el mapa se llena de
+  // paradas; permite ver solo las de un día (y su tramo de ruta).
+  const [dayFilter, setDayFilter] = useState<string>('all')
+  // Destino para el selector "Cómo llegar" (Google/Apple/Waze).
+  const [directionsTo, setDirectionsTo] = useState<{ lat: number; lng: number; name: string } | null>(null)
+
+  // Chips de día: solo los días que tienen alguna parada localizada, en orden.
+  const dayChips = useMemo(() => {
+    const order = new globalThis.Map<string, number>((days ?? []).map((d, i) => [d.date, i]))
+    const dates = Array.from(new Set(placedPoints.map(p => p.date).filter(Boolean)))
+    return dates
+      .sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+      .map(date => ({ date, n: (order.get(date) ?? 0) + 1 }))
+  }, [placedPoints, days])
+
+  const visiblePoints = useMemo(
+    () => (dayFilter === 'all' ? placedPoints : placedPoints.filter(p => p.date === dayFilter)),
+    [placedPoints, dayFilter],
+  )
+  const routeStops = useMemo(
+    () => (dayFilter === 'all' ? routePoints : routePoints.filter(p => p.date === dayFilter)),
+    [routePoints, dayFilter],
+  )
+
+  // En iOS/macOS ofrecemos Apple Maps; Google Maps y Waze siempre.
+  const isApple = typeof navigator !== 'undefined' && /iP(hone|ad|od)|Macintosh/.test(navigator.userAgent)
+  const navApps = directionsTo
+    ? [
+        { name: 'Google Maps', href: `https://www.google.com/maps/dir/?api=1&destination=${directionsTo.lat},${directionsTo.lng}`, show: true },
+        { name: 'Apple Maps', href: `https://maps.apple.com/?daddr=${directionsTo.lat},${directionsTo.lng}&dirflg=d`, show: isApple },
+        { name: 'Waze', href: `https://waze.com/ul?ll=${directionsTo.lat},${directionsTo.lng}&navigate=yes`, show: true },
+      ].filter(a => a.show)
+    : []
 
   function locateMe() {
     if (!('geolocation' in navigator)) { toast.error('Tu navegador no soporta geolocalización'); return }
@@ -486,11 +520,11 @@ export function MapViewPage() {
             <ScrollArea className="flex-1">
               <div className="px-4 py-3 border-b border-border sticky top-0 z-10" style={{ background: 'var(--sidebar)' }}>
                 <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                  Recorrido · {routePoints.length} paradas
+                  Recorrido · {routeStops.length} paradas
                 </span>
               </div>
               <ol>
-                {routePoints.map((p, i) => (
+                {routeStops.map((p, i) => (
                   <li key={p.key} className="flex items-start gap-3 px-4 py-3 border-b border-border/30">
                     <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
                       style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}>
@@ -604,6 +638,29 @@ export function MapViewPage() {
 
         {/* Mapa */}
         <div className="flex-1 relative">
+          {/* Filtro por día (flotante, scroll horizontal en móvil) */}
+          {dayChips.length >= 2 && (
+            <div
+              className="absolute top-3 left-3 right-3 z-10 flex gap-1.5 overflow-x-auto"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {[{ date: 'all', n: 0 }, ...dayChips].map(({ date, n }) => {
+                const active = dayFilter === date
+                return (
+                  <button
+                    key={date}
+                    onClick={() => { setDayFilter(date); setSelectedStop(null) }}
+                    className="text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 shadow-md transition-colors"
+                    style={active
+                      ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
+                      : { background: 'var(--card)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
+                  >
+                    {date === 'all' ? 'Todos' : `Día ${n}`}
+                  </button>
+                )
+              })}
+            </div>
+          )}
           <Map
             defaultCenter={mapCenter}
             defaultZoom={12}
@@ -613,11 +670,11 @@ export function MapViewPage() {
             disableDefaultUI={false}
             className="w-full h-full"
           >
-            {/* Recorrido del itinerario dibujado en el mapa */}
-            {showRoute && routePoints.length >= 2 && <MapDirections stops={routePoints} />}
+            {/* Recorrido del itinerario dibujado en el mapa (filtrado por día) */}
+            {showRoute && routeStops.length >= 2 && <MapDirections key={dayFilter} stops={routeStops} />}
 
-            {/* Paradas del itinerario con ubicación: pines numerados siempre visibles */}
-            {placedPoints.map((p, i) => (
+            {/* Paradas del itinerario con ubicación: pines numerados (del día filtrado) */}
+            {visiblePoints.map((p, i) => (
               <AdvancedMarker
                 key={p.key}
                 position={{ lat: p.lat!, lng: p.lng! }}
@@ -640,7 +697,7 @@ export function MapViewPage() {
                 position={{ lat: selectedStop.lat, lng: selectedStop.lng! }}
                 onCloseClick={() => setSelectedStop(null)}
               >
-                <div className="p-2 min-w-[160px]">
+                <div className="p-2 min-w-[170px]">
                   <p className="font-medium text-sm text-gray-900">{selectedStop.label}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{selectedStop.location}</p>
                   {selectedStop.date && (
@@ -648,6 +705,13 @@ export function MapViewPage() {
                       {format(parseISO(selectedStop.date), 'EEE dd MMM', { locale: es })}
                     </p>
                   )}
+                  <button
+                    onClick={() => setDirectionsTo({ lat: selectedStop.lat!, lng: selectedStop.lng!, name: selectedStop.label })}
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded"
+                    style={{ background: 'color-mix(in srgb, var(--primary) 16%, white)', color: '#96371a' }}
+                  >
+                    <Navigation size={11} /> Cómo llegar
+                  </button>
                 </div>
               </InfoWindow>
             )}
@@ -715,38 +779,48 @@ export function MapViewPage() {
                 position={{ lat: selectedFavorite.lat, lng: selectedFavorite.lng }}
                 onCloseClick={() => setSelectedFavorite(null)}
               >
-                <div className="p-3 min-w-[200px]" style={{ background: 'var(--card)', borderRadius: '8px' }}>
-                  <p className="font-medium text-sm mb-1">{selectedFavorite.name}</p>
+                {/* La burbuja de Google es siempre blanca → texto oscuro fijo */}
+                <div className="p-1 min-w-[210px]">
+                  <p className="font-medium text-sm mb-0.5 text-gray-900">{selectedFavorite.name}</p>
                   {selectedFavorite.address && (
-                    <p className="text-xs text-gray-400 mb-2">{selectedFavorite.address}</p>
+                    <p className="text-xs text-gray-500 mb-2">{selectedFavorite.address}</p>
                   )}
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex flex-wrap gap-1.5 mt-1">
                     <button
                       onClick={() => setAddToItineraryState({ open: true, place: { name: selectedFavorite.name, address: selectedFavorite.address, link: selectedFavorite.link, place_id: selectedFavorite.id, lat: selectedFavorite.lat, lng: selectedFavorite.lng } })}
-                      className="text-xs px-2 py-1 rounded flex items-center gap-1"
-                      style={{ background: 'color-mix(in srgb, var(--primary) 20%, transparent)', color: 'var(--primary)' }}
+                      className="text-xs px-2 py-1 rounded flex items-center gap-1 font-medium"
+                      style={{ background: '#f3ddd0', color: '#96371a' }}
                     >
-                      <Plus size={10} />
+                      <Plus size={11} />
                       Itinerario
+                    </button>
+                    <button
+                      onClick={() => setDirectionsTo({ lat: selectedFavorite.lat, lng: selectedFavorite.lng, name: selectedFavorite.name })}
+                      className="text-xs px-2 py-1 rounded flex items-center gap-1 font-medium text-gray-700"
+                      style={{ background: '#eee' }}
+                    >
+                      <Navigation size={11} />
+                      Cómo llegar
                     </button>
                     {selectedFavorite.link && (
                       <a
                         href={selectedFavorite.link}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-xs px-2 py-1 rounded flex items-center gap-1 text-gray-300 hover:text-white"
-                        style={{ background: 'rgba(255,255,255,0.05)' }}
+                        className="text-xs px-2 py-1 rounded flex items-center gap-1 text-gray-700"
+                        style={{ background: '#eee' }}
                       >
-                        <ExternalLink size={10} />
+                        <ExternalLink size={11} />
                         Maps
                       </a>
                     )}
                     <button
                       onClick={() => deleteFavorite.mutate({ id: selectedFavorite.id, tripId: tripId! })}
-                      className="text-xs px-2 py-1 rounded text-red-400 hover:text-red-300"
-                      style={{ background: 'rgba(255,0,0,0.08)' }}
+                      className="text-xs px-2 py-1 rounded text-red-600 hover:text-red-700"
+                      style={{ background: '#fde8e8' }}
+                      title="Quitar de favoritos"
                     >
-                      <X size={10} />
+                      <X size={11} />
                     </button>
                   </div>
                 </div>
@@ -830,6 +904,15 @@ export function MapViewPage() {
                     Itinerario
                   </Button>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full mt-2 gap-1.5 text-xs"
+                  onClick={() => setDirectionsTo({ lat: selectedPlace.geometry.location.lat(), lng: selectedPlace.geometry.location.lng(), name: selectedPlace.name })}
+                >
+                  <Navigation size={12} />
+                  Cómo llegar
+                </Button>
                 {selectedPlace.url && (
                   <a
                     href={selectedPlace.url}
@@ -886,6 +969,36 @@ export function MapViewPage() {
               Añadir al itinerario
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Selector de app para "Cómo llegar" */}
+      <Dialog open={!!directionsTo} onOpenChange={() => setDirectionsTo(null)}>
+        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <Navigation size={18} style={{ color: 'var(--primary)' }} />
+              Cómo llegar
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground -mt-1">{directionsTo?.name}</p>
+          <div className="grid gap-2 py-2">
+            {navApps.map(app => (
+              <a
+                key={app.name}
+                href={app.href}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setDirectionsTo(null)}
+                className="flex items-center justify-between px-4 py-3 rounded-lg border border-border hover:border-primary transition-colors"
+                style={{ background: 'var(--secondary)' }}
+              >
+                <span className="text-sm font-medium">{app.name}</span>
+                <ExternalLink size={14} className="text-muted-foreground" />
+              </a>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Se abrirá la app si la tienes instalada; si no, en el navegador.</p>
         </DialogContent>
       </Dialog>
     </APIProvider>
