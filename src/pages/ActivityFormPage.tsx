@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LocationPicker, type LatLng } from '@/components/itinerary/LocationPicker'
@@ -193,7 +193,9 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
         <div className="space-y-1.5">
           <Label>Tipo</Label>
           <Select value={watch('type')} onValueChange={(v) => setValue('type', v as FormValues['type'])}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            {/* Renderizamos la etiqueta nosotros: Radix Select no siempre muestra
+                el valor fijado por código si la lista aún no se ha abierto. */}
+            <SelectTrigger><span>{ACTIVITY_LABELS[watch('type')] ?? 'Tipo'}</span></SelectTrigger>
             <SelectContent>
               {Object.entries(ACTIVITY_LABELS).map(([k, v]) => (
                 <SelectItem key={k} value={k}>{v}</SelectItem>
