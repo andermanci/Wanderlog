@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Clock, MapPin, Euro, ExternalLink, Pencil, FileText, Navigation,
-  ArrowLeft, Upload, Loader2, X, Calendar, Trash2,
+  ArrowLeft, Upload, Loader2, X, Calendar, Trash2, Map as MapIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -179,6 +179,15 @@ export function ActivityDetailPage() {
               loading="lazy"
             />
           </div>
+        )}
+
+        {/* Ver esta actividad en el mapa del viaje */}
+        {(activity.address || activity.origin || activity.destination) && (
+          <Button variant="outline" className="w-full gap-1.5" asChild>
+            <Link to={`/trips/${tripId}/map?focus=${activity.id}`}>
+              <MapIcon size={15} /> Ver en el mapa del viaje
+            </Link>
+          </Button>
         )}
 
         {/* Descripción / notas / enlace */}

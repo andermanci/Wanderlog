@@ -375,7 +375,11 @@ export function MapViewPage() {
   const selectStop = useCallback((stop: RoutePoint) => {
     if (stop.lat == null || stop.lng == null) return
     setSelected({ kind: 'stop', stop })
-    mapInstance?.panTo({ lat: stop.lat, lng: stop.lng })
+    setPanelOpen(false) // en móvil, cierra la hoja para ver la parada en el mapa
+    if (mapInstance) {
+      mapInstance.panTo({ lat: stop.lat, lng: stop.lng })
+      if ((mapInstance.getZoom() ?? 0) < 14) mapInstance.setZoom(15)
+    }
   }, [mapInstance])
 
   // Foco automático en el buscador al abrir la hoja en móvil (sale el teclado).
@@ -383,13 +387,24 @@ export function MapViewPage() {
     if (panelOpen && isMobile) setTimeout(() => searchRef.current?.focus(), 250)
   }, [panelOpen, isMobile])
 
-  // Al abrir el mapa, orienta al usuario UNA vez: encuadra todas sus paradas y
-  // favoritos; si no tiene ninguno, centra en el destino del viaje (geocodificado).
+  // Al abrir el mapa, orienta al usuario UNA vez. Si venimos del detalle de una
+  // actividad (?focus=<id>), centra y selecciona esa parada. Si no, encuadra
+  // todas las paradas/favoritos; si no hay ninguno, centra en el destino.
   const fittedRef = useRef(false)
   useEffect(() => {
     if (!mapInstance || fittedRef.current) return
     if (favorites === undefined || activities === undefined) return // datos aún cargando
     fittedRef.current = true
+
+    // 0) Enfocar una actividad concreta (desde su pantalla de detalle).
+    const focusId = searchParams.get('focus')
+    if (focusId) {
+      searchParams.delete('focus')
+      setSearchParams(searchParams, { replace: true })
+      const target = placedPoints.find(p => p.activityId === focusId)
+      if (target) { selectStop(target); return }
+    }
+
     const pts = [
       ...placedPoints.map(p => ({ lat: p.lat!, lng: p.lng! })),
       ...(favorites ?? []).map(f => ({ lat: f.lat, lng: f.lng })),
@@ -408,6 +423,7 @@ export function MapViewPage() {
         }
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapInstance, favorites, activities, placedPoints, trip])
 
   async function handleSaveFavorite(place: PlaceResult) {
@@ -574,25 +590,37 @@ export function MapViewPage() {
             </span>
           </div>
           <ol className="pb-4">
-            {routeStops.map((p, i) => (
-              <li key={p.key} className="flex items-start gap-3 px-4 py-3 border-b border-border/30">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                  style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}>
-                  {i + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium line-clamp-1">
-                    {p.label}{p.kind === 'origin' ? ' · salida' : p.kind === 'destination' ? ' · llegada' : ''}
-                  </p>
-                  <p className="text-xs text-muted-foreground line-clamp-1">{p.location}</p>
-                  {p.date && (
-                    <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-                      {format(parseISO(p.date), 'EEE dd MMM', { locale: es })}
-                    </p>
-                  )}
-                </div>
-              </li>
-            ))}
+            {routeStops.map((p, i) => {
+              const located = p.lat != null && p.lng != null
+              const active = selected?.kind === 'stop' && selected.stop.key === p.key
+              return (
+                <li key={p.key}>
+                  <button
+                    type="button"
+                    disabled={!located}
+                    onClick={() => selectStop(p)}
+                    className="w-full text-left flex items-start gap-3 px-4 py-3 border-b border-border/30 transition-colors enabled:hover:bg-secondary disabled:opacity-60"
+                    style={active ? { background: 'color-mix(in srgb, var(--primary) 8%, transparent)' } : undefined}
+                  >
+                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                      style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}>
+                      {i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium line-clamp-1">
+                        {p.label}{p.kind === 'origin' ? ' · salida' : p.kind === 'destination' ? ' · llegada' : ''}
+                      </p>
+                      <p className="text-xs text-muted-foreground line-clamp-1">{p.location}</p>
+                      {p.date && (
+                        <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                          {format(parseISO(p.date), 'EEE dd MMM', { locale: es })}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
           </ol>
         </ScrollArea>
       ) : (
