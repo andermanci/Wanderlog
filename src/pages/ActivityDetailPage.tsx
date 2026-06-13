@@ -83,56 +83,57 @@ export function ActivityDetailPage() {
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section="Actividad" />
 
-      {/* Cabecera */}
-      <div className="flex items-start gap-3 mb-6">
-        <Button variant="ghost" size="icon" className="w-8 h-8 mt-1" asChild>
-          <Link to={`/trips/${tripId}/itinerary${day ? `?day=${day.date}` : ''}`}><ArrowLeft size={16} /></Link>
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-serif text-2xl sm:text-3xl font-medium flex items-start gap-2 break-words leading-tight">
-            <span className="text-xl sm:text-2xl flex-shrink-0">{TYPE_ICONS[activity.type]}</span>
-            <span className="min-w-0">{activity.title}</span>
-          </h1>
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            <span className="text-xs px-2 py-0.5 rounded" style={{ background: `${color}18`, color }}>
-              {ACTIVITY_LABELS[activity.type]}
-            </span>
-            {day && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground capitalize">
-                <Calendar size={12} />
-                {formatDate(day.date, 'EEEE dd MMM')}
-              </span>
-            )}
-            {(activity.start_time || activity.end_time) && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock size={12} />
-                {activity.start_time?.slice(0, 5)}{activity.end_time && ` — ${activity.end_time.slice(0, 5)}`}
-              </span>
-            )}
-            {endDay && (
-              <span className="flex items-center gap-1 text-xs font-medium capitalize" style={{ color: 'var(--primary)' }}>
-                <Calendar size={12} /> {activity.type === 'hotel' ? 'salida' : 'llega'} {formatDate(endDay.date, 'EEE dd MMM')}
-              </span>
-            )}
-            {activity.price != null && (
-              <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--primary)' }}>
-                <Euro size={12} />{activity.price.toFixed(2)}
-              </span>
-            )}
+      {/* Cabecera: fila de navegación/acciones y, debajo, el título a todo el ancho */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <Button variant="ghost" size="icon" className="w-8 h-8 -ml-2" asChild>
+            <Link to={`/trips/${tripId}/itinerary${day ? `?day=${day.date}` : ''}`}><ArrowLeft size={18} /></Link>
+          </Button>
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="sm" className="gap-1.5" asChild>
+              <Link to={`/trips/${tripId}/itinerary/${activity.id}/edit`}>
+                <Pencil size={13} /> Editar
+              </Link>
+            </Button>
+            <Button
+              variant="ghost" size="icon" className="w-9 h-9 text-destructive hover:text-destructive"
+              onClick={() => setConfirmDelete(true)} title="Eliminar"
+            >
+              <Trash2 size={15} />
+            </Button>
           </div>
         </div>
-        <div className="flex gap-1.5 flex-shrink-0">
-          <Button variant="outline" size="sm" className="gap-1.5" asChild>
-            <Link to={`/trips/${tripId}/itinerary/${activity.id}/edit`}>
-              <Pencil size={13} /> <span className="hidden sm:inline">Editar</span>
-            </Link>
-          </Button>
-          <Button
-            variant="ghost" size="icon" className="w-9 h-9 text-destructive hover:text-destructive"
-            onClick={() => setConfirmDelete(true)} title="Eliminar"
-          >
-            <Trash2 size={15} />
-          </Button>
+
+        <h1 className="font-serif text-2xl sm:text-3xl font-medium flex items-start gap-2 break-words leading-tight">
+          <span className="text-xl sm:text-2xl flex-shrink-0">{TYPE_ICONS[activity.type]}</span>
+          <span className="min-w-0">{activity.title}</span>
+        </h1>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <span className="text-xs px-2 py-0.5 rounded" style={{ background: `${color}18`, color }}>
+            {ACTIVITY_LABELS[activity.type]}
+          </span>
+          {day && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground capitalize">
+              <Calendar size={12} />
+              {formatDate(day.date, 'EEEE dd MMM')}
+            </span>
+          )}
+          {(activity.start_time || activity.end_time) && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock size={12} />
+              {activity.start_time?.slice(0, 5)}{activity.end_time && ` — ${activity.end_time.slice(0, 5)}`}
+            </span>
+          )}
+          {endDay && (
+            <span className="flex items-center gap-1 text-xs font-medium capitalize" style={{ color: 'var(--primary)' }}>
+              <Calendar size={12} /> {activity.type === 'hotel' ? 'salida' : 'llega'} {formatDate(endDay.date, 'EEE dd MMM')}
+            </span>
+          )}
+          {activity.price != null && (
+            <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--primary)' }}>
+              <Euro size={12} />{activity.price.toFixed(2)}
+            </span>
+          )}
         </div>
       </div>
 
