@@ -514,7 +514,7 @@ export function MapViewPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && searchPlaces()}
-            className="pl-9 text-sm"
+            className="pl-9 text-base md:text-sm"
           />
         </div>
 

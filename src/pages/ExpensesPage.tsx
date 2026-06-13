@@ -145,7 +145,7 @@ export function ExpensesPage() {
             value={quickDesc}
             onChange={(e) => setQuickDesc(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && quickAdd()}
-            className="flex-1 text-sm"
+            className="flex-1 text-base md:text-sm"
           />
           <Button
             onClick={quickAdd}
