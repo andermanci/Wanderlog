@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -23,7 +24,8 @@ import { useCreateActivity, useItineraryDays, useUpsertDays, useActivities } fro
 import { useTrip } from '@/lib/queries/trips'
 import { placeTypeToCategory, getCategoryColor } from '@/lib/maps'
 import { buildRoutePoints, type RoutePoint } from '@/lib/route'
-import { cn, PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS, PLACE_CATEGORY_ICONS } from '@/lib/utils'
+import { cn, PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
+import { PlaceIcon } from '@/components/places/PlaceIcon'
 import type { FavoritePlace } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -178,8 +180,9 @@ export function MapViewPage() {
   const [selectedTime, setSelectedTime] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [collectionFilter, setCollectionFilter] = useState<string>('all')
-  // Colección elegida al guardar un favorito desde la tarjeta del lugar.
+  // Colección y nota al guardar un favorito desde la tarjeta del lugar.
   const [saveCollection, setSaveCollection] = useState<string>('')
+  const [saveNote, setSaveNote] = useState<string>('')
   const [searchParams, setSearchParams] = useSearchParams()
   const [showRoute, setShowRoute] = useState(searchParams.get('route') === '1')
 
@@ -452,7 +455,7 @@ export function MapViewPage() {
       lng: place.geometry.location.lng(),
       category: cat,
       rating: place.rating ?? null,
-      notes: null,
+      notes: saveNote.trim() || null,
       link: place.url ?? null,
       collection: saveCollection.trim() || null,
     })
@@ -460,6 +463,7 @@ export function MapViewPage() {
     setSearchResults([])
     setSearchInput('')
     setSaveCollection('')
+    setSaveNote('')
   }
 
   async function handleAddToItinerary() {
@@ -894,13 +898,13 @@ export function MapViewPage() {
                 >
                   <div
                     className={cn(
-                      'w-8 h-8 rounded-full border-2 border-white flex items-center justify-center shadow-lg cursor-pointer transition-transform',
+                      'w-9 h-9 rounded-full border-[2.5px] border-white flex items-center justify-center shadow-lg cursor-pointer transition-transform',
                       active ? 'scale-125 ring-2 ring-white' : 'hover:scale-110',
                     )}
                     style={{ background: getCategoryColor(place.category) }}
-                    title={place.name}
+                    title={`${place.name} · ${PLACE_CATEGORY_LABELS[place.category]}`}
                   >
-                    <span className="text-xs">{PLACE_CATEGORY_ICONS[place.category]}</span>
+                    <PlaceIcon category={place.category} size={17} className="text-white" strokeWidth={2.4} />
                   </div>
                 </AdvancedMarker>
               )
@@ -995,7 +999,7 @@ export function MapViewPage() {
                           <Star size={11} fill="var(--primary)" /> {p.rating} / 5
                         </p>
                       )}
-                      {/* Lista/colección donde guardar (opcional) */}
+                      {/* Lista/colección y nota al guardar (opcional) */}
                       <Input
                         list="map-collections"
                         value={saveCollection}
@@ -1006,6 +1010,13 @@ export function MapViewPage() {
                       <datalist id="map-collections">
                         {placeCollections.map(c => <option key={c} value={c} />)}
                       </datalist>
+                      <Textarea
+                        value={saveNote}
+                        onChange={(e) => setSaveNote(e.target.value)}
+                        placeholder="Nota personal (opcional): qué pedir, por qué te interesa…"
+                        rows={2}
+                        className="mt-2 text-xs"
+                      />
                       <div className="flex gap-2 mt-2">
                         <Button size="sm" className="flex-1 gap-1.5 text-xs" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }} onClick={() => handleSaveFavorite(p)} disabled={saveFavorite.isPending}>
                           <Bookmark size={12} /> Guardar
@@ -1032,11 +1043,20 @@ export function MapViewPage() {
                   return (
                     <>
                       <h3 className="font-serif text-lg font-medium pr-6">{f.name}</h3>
+                      {f.collection && (
+                        <span className="inline-block text-[11px] px-2 py-0.5 rounded-full mt-1 font-medium"
+                          style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
+                          {f.collection}
+                        </span>
+                      )}
                       {f.address && <p className="text-xs text-muted-foreground mt-1">{f.address}</p>}
                       {f.rating && (
                         <p className="text-xs flex items-center gap-1 mt-1.5" style={{ color: 'var(--primary)' }}>
                           <Star size={11} fill="var(--primary)" /> {f.rating} / 5
                         </p>
+                      )}
+                      {f.notes && (
+                        <p className="text-sm mt-2 p-2 rounded-lg" style={{ background: 'var(--secondary)' }}>{f.notes}</p>
                       )}
                       <div className="flex gap-2 mt-3">
                         <Button size="sm" className="flex-1 gap-1.5 text-xs" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }} onClick={() => setAddToItineraryState({ open: true, place: { name: f.name, address: f.address, link: f.link, place_id: f.id, lat: f.lat, lng: f.lng } })}>

@@ -18,7 +18,8 @@ import {
 import { TripHeader } from '@/components/trips/TripHeader'
 import { AddToItineraryDialog, type PendingPlace } from '@/components/places/AddToItineraryDialog'
 import { useFavoritePlaces, useUpdateFavoritePlace, useDeleteFavoritePlace } from '@/lib/queries/places'
-import { PLACE_CATEGORY_LABELS, PLACE_CATEGORY_ICONS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
+import { PlaceIcon } from '@/components/places/PlaceIcon'
+import { PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
 import type { FavoritePlace } from '@/types/database'
 
 const NONE = '__none'
@@ -123,9 +124,9 @@ export function SavedPlacesPage() {
                     style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
                   >
                     <div className="flex items-start gap-3">
-                      <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-lg"
-                        style={{ background: `${PLACE_CATEGORY_COLORS[p.category]}18` }}>
-                        {PLACE_CATEGORY_ICONS[p.category]}
+                      <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: `${PLACE_CATEGORY_COLORS[p.category]}1f` }}>
+                        <PlaceIcon category={p.category} size={18} style={{ color: PLACE_CATEGORY_COLORS[p.category] }} />
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium line-clamp-1">{p.name}</p>

@@ -8,7 +8,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import {
   SortableContext, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { Plus, ChevronDown, Pencil, Route, BookOpen, CornerDownRight } from 'lucide-react'
+import { Plus, ChevronDown, Pencil, Route, BookOpen, CornerDownRight, BedDouble } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -30,7 +30,7 @@ import { useTripAttachments } from '@/lib/queries/attachments'
 import { buildRoutePoints } from '@/lib/route'
 import { TripHeader } from '@/components/trips/TripHeader'
 import type { Activity, ItineraryDay } from '@/types/database'
-import { eachDayOfInterval, parseISO, format } from 'date-fns'
+import { eachDayOfInterval, parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export function ItineraryPage() {
@@ -82,21 +82,45 @@ export function ItineraryPage() {
     return map
   }, [activities])
 
-  // Actividades que TERMINAN en otro día (vuelo nocturno, hotel…): se muestran
-  // también en ese día como "continuación", para no perderlas de vista.
+  const dayDateById = useMemo(
+    () => new Map((days ?? []).map(d => [d.id, d.date])),
+    [days],
+  )
+
+  // MOVIMIENTOS (vuelo/transporte) que terminan otro día: se muestran también
+  // en el día de llegada como "continuación". (Los hoteles NO: son estancia.)
   const arrivalsByDay = useMemo(() => {
     const map = new Map<string, Activity[]>()
     activities?.forEach(a => {
-      if (a.end_day_id && a.end_day_id !== a.day_id) {
+      const isMove = a.type === 'flight' || a.type === 'transport'
+      if (isMove && a.end_day_id && a.end_day_id !== a.day_id) {
         map.set(a.end_day_id, [...(map.get(a.end_day_id) ?? []), a])
       }
     })
     return map
   }, [activities])
-  const dayDateById = useMemo(
-    () => new Map((days ?? []).map(d => [d.id, d.date])),
-    [days],
-  )
+
+  // ALOJAMIENTO (hotel): se muestra como banner en CADA día de la estancia
+  // (entrada → noches → salida), no como una actividad puntual.
+  type Lodging = { activity: Activity; role: 'in' | 'mid' | 'out' | 'single'; night: number; nights: number }
+  const lodgingByDay = useMemo(() => {
+    const map = new Map<string, Lodging[]>()
+    const dateById = new Map((days ?? []).map(d => [d.id, d.date]))
+    activities?.filter(a => a.type === 'hotel').forEach(a => {
+      const inDate = dateById.get(a.day_id)
+      if (!inDate) return
+      const outDate = (a.end_day_id && dateById.get(a.end_day_id)) || inDate
+      const nights = Math.max(0, differenceInCalendarDays(parseISO(outDate), parseISO(inDate)))
+      ;(days ?? []).forEach(d => {
+        if (d.date < inDate || d.date > outDate) return
+        const offset = differenceInCalendarDays(parseISO(d.date), parseISO(inDate))
+        const role: Lodging['role'] = inDate === outDate ? 'single'
+          : d.date === inDate ? 'in' : d.date === outDate ? 'out' : 'mid'
+        map.set(d.id, [...(map.get(d.id) ?? []), { activity: a, role, night: offset + 1, nights }])
+      })
+    })
+    return map
+  }, [activities, days])
 
   // ¿Hay al menos 2 paradas para mostrar el botón de recorrido?
   const hasRoute = useMemo(
@@ -203,8 +227,10 @@ export function ItineraryPage() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <div className="space-y-8">
             {days?.map((day, dayIdx) => {
-              const dayActs = activitiesByDay.get(day.id) ?? []
+              // Los hoteles no son bloques en la línea de tiempo: van como banner de estancia.
+              const dayActs = (activitiesByDay.get(day.id) ?? []).filter(a => a.type !== 'hotel')
               const dayArrivals = arrivalsByDay.get(day.id) ?? []
+              const dayLodging = lodgingByDay.get(day.id) ?? []
               const collapsed = collapsedDays.has(day.id)
               const dateLabel = format(parseISO(day.date), "EEEE dd 'de' MMMM", { locale: es })
 
@@ -326,6 +352,31 @@ export function ItineraryPage() {
                             </button>
                           )}
                         </div>
+
+                        {/* Alojamiento: banner de estancia en cada día (dónde duermes) */}
+                        {dayLodging.length > 0 && (
+                          <div className="space-y-1.5 sm:ml-[52px] mb-2">
+                            {dayLodging.map(l => {
+                              const roleLabel =
+                                l.role === 'single' ? '1 noche'
+                                  : l.role === 'out' ? 'Salida'
+                                    : l.role === 'in' ? `Entrada · noche 1/${l.nights}`
+                                      : `Noche ${l.night}/${l.nights}`
+                              return (
+                                <Link
+                                  key={`lodge-${l.activity.id}`}
+                                  to={`/trips/${tripId}/itinerary/${l.activity.id}`}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors hover:brightness-105"
+                                  style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--primary) 22%, transparent)' }}
+                                >
+                                  <BedDouble size={15} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                                  <span className="flex-1 min-w-0 truncate font-medium">{l.activity.title}</span>
+                                  <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: 'var(--primary)' }}>{roleLabel}</span>
+                                </Link>
+                              )
+                            })}
+                          </div>
+                        )}
 
                         {/* Llegadas del día anterior (continuación, no se repiten enteras) */}
                         {dayArrivals.length > 0 && (

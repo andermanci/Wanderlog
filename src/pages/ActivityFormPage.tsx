@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -57,8 +57,14 @@ export function ActivityFormPage() {
     defaultValues: { type: 'activity', day_id: defaultDayId ?? '' },
   })
 
+  // Cargamos el formulario UNA sola vez (cuando llegan los datos). Sin este
+  // guard, los refetch en segundo plano de activities/days volvían a llamar a
+  // reset() y pisaban lo que el usuario tenía a medias (p. ej. el tipo).
+  const initedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (activity) {
+    if (isEdit) {
+      if (!activity || initedRef.current === activity.id) return
+      initedRef.current = activity.id
       setCoords({
         address: activity.lat != null && activity.lng != null ? { lat: activity.lat, lng: activity.lng } : null,
         origin: activity.origin_lat != null && activity.origin_lng != null ? { lat: activity.origin_lat, lng: activity.origin_lng } : null,
@@ -79,7 +85,9 @@ export function ActivityFormPage() {
         external_link: activity.external_link ?? '',
         notes: activity.notes ?? '',
       })
-    } else if (!isEdit && days?.length) {
+    } else {
+      if (initedRef.current === 'new' || !days?.length) return
+      initedRef.current = 'new'
       reset({ type: 'activity', day_id: defaultDayId ?? days[0].id })
     }
   }, [activity, isEdit, days, defaultDayId, reset])

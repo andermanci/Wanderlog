@@ -111,7 +111,7 @@ export function ActivityDetailPage() {
             )}
             {endDay && (
               <span className="flex items-center gap-1 text-xs font-medium capitalize" style={{ color: 'var(--primary)' }}>
-                <Calendar size={12} /> llega {formatDate(endDay.date, 'EEE dd MMM')}
+                <Calendar size={12} /> {activity.type === 'hotel' ? 'salida' : 'llega'} {formatDate(endDay.date, 'EEE dd MMM')}
               </span>
             )}
             {activity.price != null && (
