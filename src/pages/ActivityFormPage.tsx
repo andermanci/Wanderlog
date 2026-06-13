@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,6 +16,7 @@ import { LocationPicker, type LatLng } from '@/components/itinerary/LocationPick
 import { TripHeader } from '@/components/trips/TripHeader'
 import { useCreateActivity, useUpdateActivity, useItineraryDays, useActivities } from '@/lib/queries/itinerary'
 import { ACTIVITY_LABELS } from '@/lib/utils'
+import type { Activity, ItineraryDay } from '@/types/database'
 
 const schema = z.object({
   title: z.string().min(1, 'Título obligatorio'),
@@ -35,71 +36,111 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-// Página de crear/editar actividad (antes era un modal: demasiado grande y
-// abría el selector de ubicación como modal-sobre-modal).
+// Página: carga datos y, SOLO cuando están listos, monta el formulario con sus
+// valores ya calculados (con key por actividad). Así el tipo y demás campos
+// salen correctos desde el primer render, sin reset() en efectos (que se
+// pisaba con los refetch en segundo plano y dejaba el tipo vacío).
 export function ActivityFormPage() {
   const { tripId, activityId } = useParams<{ tripId: string; activityId?: string }>()
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const defaultDayId = searchParams.get('day') ?? undefined
 
   const { data: days, isLoading: loadingDays } = useItineraryDays(tripId!)
   const { data: activities, isLoading: loadingActs } = useActivities(tripId!)
-  const activity = activityId ? activities?.find(a => a.id === activityId) ?? null : null
   const isEdit = !!activityId
+  const activity = activityId ? activities?.find(a => a.id === activityId) ?? null : null
+  const loading = loadingDays || loadingActs
 
+  return (
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+      <TripHeader tripId={tripId!} section={isEdit ? 'Editar actividad' : 'Nueva actividad'} />
+
+      <div className="flex items-center gap-3 mb-6">
+        <Button variant="ghost" size="icon" className="w-8 h-8" asChild>
+          <Link to={`/trips/${tripId}/itinerary`}><ArrowLeft size={16} /></Link>
+        </Button>
+        <h1 className="font-serif text-2xl font-medium">{isEdit ? 'Editar actividad' : 'Nueva actividad'}</h1>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" style={{ background: 'var(--secondary)' }} />
+          ))}
+        </div>
+      ) : isEdit && !activity ? (
+        <p className="text-muted-foreground py-12 text-center">Actividad no encontrada.</p>
+      ) : (
+        <ActivityForm
+          key={activityId ?? 'new'}
+          tripId={tripId!}
+          days={days ?? []}
+          activity={activity}
+          isEdit={isEdit}
+          defaultDayId={defaultDayId}
+        />
+      )}
+    </div>
+  )
+}
+
+function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
+  tripId: string
+  days: ItineraryDay[]
+  activity: Activity | null
+  isEdit: boolean
+  defaultDayId?: string
+}) {
+  const navigate = useNavigate()
   const createActivity = useCreateActivity()
   const updateActivity = useUpdateActivity()
-  const [coords, setCoords] = useState<{ address?: LatLng | null; origin?: LatLng | null; destination?: LatLng | null }>({})
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const [coords, setCoords] = useState<{ address?: LatLng | null; origin?: LatLng | null; destination?: LatLng | null }>(() => ({
+    address: activity?.lat != null && activity?.lng != null ? { lat: activity.lat, lng: activity.lng } : null,
+    origin: activity?.origin_lat != null && activity?.origin_lng != null ? { lat: activity.origin_lat, lng: activity.origin_lng } : null,
+    destination: activity?.destination_lat != null && activity?.destination_lng != null ? { lat: activity.destination_lat, lng: activity.destination_lng } : null,
+  }))
+
+  // Valores iniciales calculados desde la actividad (o genéricos para una nueva).
+  const defaultValues: FormValues = activity ? {
+    title: activity.title,
+    type: activity.type,
+    day_id: activity.day_id,
+    end_day_id: activity.end_day_id ?? '',
+    start_time: activity.start_time ?? '',
+    end_time: activity.end_time ?? '',
+    address: activity.address ?? '',
+    origin: activity.origin ?? '',
+    destination: activity.destination ?? '',
+    description: activity.description ?? '',
+    price: activity.price ?? undefined,
+    external_link: activity.external_link ?? '',
+    notes: activity.notes ?? '',
+  } : {
+    title: '',
+    type: 'activity',
+    day_id: defaultDayId ?? days[0]?.id ?? '',
+    end_day_id: '',
+  }
+
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
-    defaultValues: { type: 'activity', day_id: defaultDayId ?? '' },
+    defaultValues,
   })
 
-  // Cargamos el formulario UNA sola vez (cuando llegan los datos). Sin este
-  // guard, los refetch en segundo plano de activities/days volvían a llamar a
-  // reset() y pisaban lo que el usuario tenía a medias (p. ej. el tipo).
-  const initedRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (isEdit) {
-      if (!activity || initedRef.current === activity.id) return
-      initedRef.current = activity.id
-      setCoords({
-        address: activity.lat != null && activity.lng != null ? { lat: activity.lat, lng: activity.lng } : null,
-        origin: activity.origin_lat != null && activity.origin_lng != null ? { lat: activity.origin_lat, lng: activity.origin_lng } : null,
-        destination: activity.destination_lat != null && activity.destination_lng != null ? { lat: activity.destination_lat, lng: activity.destination_lng } : null,
-      })
-      reset({
-        title: activity.title,
-        type: activity.type,
-        day_id: activity.day_id,
-        end_day_id: activity.end_day_id ?? '',
-        start_time: activity.start_time ?? '',
-        end_time: activity.end_time ?? '',
-        address: activity.address ?? '',
-        origin: activity.origin ?? '',
-        destination: activity.destination ?? '',
-        description: activity.description ?? '',
-        price: activity.price ?? undefined,
-        external_link: activity.external_link ?? '',
-        notes: activity.notes ?? '',
-      })
-    } else {
-      if (initedRef.current === 'new' || !days?.length) return
-      initedRef.current = 'new'
-      reset({ type: 'activity', day_id: defaultDayId ?? days[0].id })
-    }
-  }, [activity, isEdit, days, defaultDayId, reset])
+  // El selector de día es un calendario, pero el modelo usa day_id.
+  const dayDate = (id?: string) => days.find(d => d.id === id)?.date ?? ''
+  const dayIdForDate = (date: string) => days.find(d => d.date === date)?.id ?? ''
+  const firstDate = days.length ? parseISO(days[0].date) : undefined
+  const lastDate = days.length ? parseISO(days[days.length - 1].date) : undefined
 
   async function onSubmit(values: FormValues) {
     // Vuelo y transporte = movimiento A→B (origen/destino); el resto, dirección.
     const isTransport = values.type === 'transport' || values.type === 'flight'
     const payload = {
       ...values,
-      trip_id: tripId!,
+      trip_id: tripId,
       day_id: values.day_id,
-      // Solo guardamos día de llegada si es distinto del de salida.
       end_day_id: values.end_day_id && values.end_day_id !== values.day_id ? values.end_day_id : null,
       description: values.description ?? null,
       address: values.address || null,
@@ -128,184 +169,149 @@ export function ActivityFormPage() {
     }
   }
 
-  const loading = loadingDays || loadingActs
-
-  // El selector de día es un calendario, pero el modelo usa day_id: convertimos
-  // entre fecha (yyyy-MM-dd) y el id del día del viaje.
-  const dayDate = (id?: string) => days?.find(d => d.id === id)?.date ?? ''
-  const dayIdForDate = (date: string) => days?.find(d => d.date === date)?.id ?? ''
-  const firstDate = days?.length ? parseISO(days[0].date) : undefined
-  const lastDate = days?.length ? parseISO(days[days.length - 1].date) : undefined
+  const t = watch('type')
+  const isMove = t === 'transport' || t === 'flight'
+  const isHotel = t === 'hotel'
+  const startLabel = isMove ? 'Hora salida' : isHotel ? 'Hora entrada' : 'Hora inicio'
+  const endLabel = isMove ? 'Hora llegada' : isHotel ? 'Hora salida' : 'Hora fin'
+  const endDayLabel = isMove ? 'Día de llegada' : isHotel ? 'Día de salida' : 'Día de fin'
+  const depDate = dayDate(watch('day_id'))
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-      <TripHeader tripId={tripId!} section={isEdit ? 'Editar actividad' : 'Nueva actividad'} />
-
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="icon" className="w-8 h-8" asChild>
-          <Link to={`/trips/${tripId}/itinerary`}><ArrowLeft size={16} /></Link>
-        </Button>
-        <h1 className="font-serif text-2xl font-medium">{isEdit ? 'Editar actividad' : 'Nueva actividad'}</h1>
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-4 rounded-xl p-5"
+      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+    >
+      <div className="space-y-1.5">
+        <Label>Título *</Label>
+        <Input {...register('title')} placeholder="Ej: Visitar el Coliseo" autoFocus={!isEdit} />
+        {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" style={{ background: 'var(--secondary)' }} />
-          ))}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>Tipo</Label>
+          <Select value={watch('type')} onValueChange={(v) => setValue('type', v as FormValues['type'])}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(ACTIVITY_LABELS).map(([k, v]) => (
+                <SelectItem key={k} value={k}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      ) : isEdit && !activity ? (
-        <p className="text-muted-foreground py-12 text-center">Actividad no encontrada.</p>
-      ) : (
-        <form
-          onSubmit={handleSubmit(onSubmit)}
-          className="space-y-4 rounded-xl p-5"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-        >
-          <div className="space-y-1.5">
-            <Label>Título *</Label>
-            <Input {...register('title')} placeholder="Ej: Visitar el Coliseo" autoFocus={!isEdit} />
-            {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
-          </div>
+        <div className="space-y-1.5">
+          <Label>Día</Label>
+          <DatePicker
+            value={dayDate(watch('day_id'))}
+            onChange={(date) => { const id = dayIdForDate(date); if (id) setValue('day_id', id, { shouldValidate: true }) }}
+            fromDate={firstDate}
+            toDate={lastDate}
+            placeholder="Elegir día"
+          />
+          {errors.day_id && <p className="text-xs text-destructive">{errors.day_id.message}</p>}
+        </div>
+      </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Tipo</Label>
-              <Select value={watch('type')} onValueChange={(v) => setValue('type', v as FormValues['type'])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ACTIVITY_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Día</Label>
-              <DatePicker
-                value={dayDate(watch('day_id'))}
-                onChange={(date) => { const id = dayIdForDate(date); if (id) setValue('day_id', id, { shouldValidate: true }) }}
-                fromDate={firstDate}
-                toDate={lastDate}
-                placeholder="Elegir día"
-              />
-              {errors.day_id && <p className="text-xs text-destructive">{errors.day_id.message}</p>}
-            </div>
-          </div>
-
-          {(() => {
-            const t = watch('type')
-            const isMove = t === 'transport' || t === 'flight'
-            const isHotel = t === 'hotel'
-            const startLabel = isMove ? 'Hora salida' : isHotel ? 'Hora entrada' : 'Hora inicio'
-            const endLabel = isMove ? 'Hora llegada' : isHotel ? 'Hora salida' : 'Hora fin'
-            const endDayLabel = isMove ? 'Día de llegada' : isHotel ? 'Día de salida' : 'Día de fin'
-            const depDate = dayDate(watch('day_id'))
-            return (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>{startLabel}</Label>
-                    <Input type="time" {...register('start_time')} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>{endLabel}</Label>
-                    <Input type="time" {...register('end_time')} />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>{endDayLabel} <span className="text-muted-foreground font-normal">(si termina otro día)</span></Label>
-                  <div className="flex gap-2">
-                    <DatePicker
-                      className="flex-1"
-                      value={dayDate(watch('end_day_id'))}
-                      onChange={(date) => setValue('end_day_id', dayIdForDate(date))}
-                      fromDate={depDate ? parseISO(depDate) : firstDate}
-                      toDate={lastDate}
-                      placeholder="Mismo día"
-                    />
-                    {watch('end_day_id') && (
-                      <Button type="button" variant="ghost" size="icon" className="flex-shrink-0" title="Mismo día"
-                        onClick={() => setValue('end_day_id', '')}>
-                        <X size={15} />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {isMove ? (
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <Label>Origen</Label>
-                      <LocationPicker
-                        value={watch('origin')}
-                        onChange={(v, c) => { setValue('origin', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, origin: c ?? null })) }}
-                        placeholder={t === 'flight' ? 'Aeropuerto / ciudad de salida' : 'Punto de salida'}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Destino</Label>
-                      <LocationPicker
-                        value={watch('destination')}
-                        onChange={(v, c) => { setValue('destination', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, destination: c ?? null })) }}
-                        placeholder={t === 'flight' ? 'Aeropuerto / ciudad de llegada' : 'Punto de llegada'}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    <Label>Dirección</Label>
-                    <LocationPicker
-                      value={watch('address')}
-                      onChange={(v, c) => { setValue('address', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, address: c ?? null })) }}
-                      placeholder="Buscar o elegir en el mapa"
-                    />
-                  </div>
-                )}
-              </>
-            )
-          })()}
-
-          <div className="space-y-1.5">
-            <Label>Descripción</Label>
-            <Textarea {...register('description')} rows={2} placeholder="Detalles de la actividad..." />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Precio (€)</Label>
-              <Input type="number" step="0.01" {...register('price')} placeholder="0.00" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Enlace externo</Label>
-              <Input {...register('external_link')} placeholder="https://..." />
-              {errors.external_link && <p className="text-xs text-destructive">{errors.external_link.message}</p>}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Notas</Label>
-            <Textarea {...register('notes')} rows={2} placeholder="Notas adicionales..." />
-          </div>
-
-          {!isEdit && (
-            <p className="text-xs text-muted-foreground">
-              Las entradas y QRs se adjuntan después, desde el detalle de la actividad.
-            </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>{startLabel}</Label>
+          <Input type="time" {...register('start_time')} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>{endLabel}</Label>
+          <Input type="time" {...register('end_time')} />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label>{endDayLabel} <span className="text-muted-foreground font-normal">(si termina otro día)</span></Label>
+        <div className="flex gap-2">
+          <DatePicker
+            className="flex-1"
+            value={dayDate(watch('end_day_id'))}
+            onChange={(date) => setValue('end_day_id', dayIdForDate(date))}
+            fromDate={depDate ? parseISO(depDate) : firstDate}
+            toDate={lastDate}
+            placeholder="Mismo día"
+          />
+          {watch('end_day_id') && (
+            <Button type="button" variant="ghost" size="icon" className="flex-shrink-0" title="Mismo día"
+              onClick={() => setValue('end_day_id', '')}>
+              <X size={15} />
+            </Button>
           )}
+        </div>
+      </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" asChild>
-              <Link to={`/trips/${tripId}/itinerary`}>Cancelar</Link>
-            </Button>
-            <Button type="submit" disabled={isSubmitting}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
-              {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
-              {isEdit ? 'Guardar' : 'Añadir'}
-            </Button>
+      {isMove ? (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Origen</Label>
+            <LocationPicker
+              value={watch('origin')}
+              onChange={(v, c) => { setValue('origin', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, origin: c ?? null })) }}
+              placeholder={t === 'flight' ? 'Aeropuerto / ciudad de salida' : 'Punto de salida'}
+            />
           </div>
-        </form>
+          <div className="space-y-1.5">
+            <Label>Destino</Label>
+            <LocationPicker
+              value={watch('destination')}
+              onChange={(v, c) => { setValue('destination', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, destination: c ?? null })) }}
+              placeholder={t === 'flight' ? 'Aeropuerto / ciudad de llegada' : 'Punto de llegada'}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <Label>Dirección</Label>
+          <LocationPicker
+            value={watch('address')}
+            onChange={(v, c) => { setValue('address', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, address: c ?? null })) }}
+            placeholder="Buscar o elegir en el mapa"
+          />
+        </div>
       )}
-    </div>
+
+      <div className="space-y-1.5">
+        <Label>Descripción</Label>
+        <Textarea {...register('description')} rows={2} placeholder="Detalles de la actividad..." />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>Precio (€)</Label>
+          <Input type="number" step="0.01" {...register('price')} placeholder="0.00" />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Enlace externo</Label>
+          <Input {...register('external_link')} placeholder="https://..." />
+          {errors.external_link && <p className="text-xs text-destructive">{errors.external_link.message}</p>}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Notas</Label>
+        <Textarea {...register('notes')} rows={2} placeholder="Notas adicionales..." />
+      </div>
+
+      {!isEdit && (
+        <p className="text-xs text-muted-foreground">
+          Las entradas y QRs se adjuntan después, desde el detalle de la actividad.
+        </p>
+      )}
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="ghost" asChild>
+          <Link to={`/trips/${tripId}/itinerary`}>Cancelar</Link>
+        </Button>
+        <Button type="submit" disabled={isSubmitting}
+          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+          {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
+          {isEdit ? 'Guardar' : 'Añadir'}
+        </Button>
+      </div>
+    </form>
   )
 }
