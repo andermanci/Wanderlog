@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
 
@@ -32,10 +33,10 @@ export function LocationPicker({ value, onChange, placeholder = 'Seleccionar ubi
           type="button"
           variant="outline"
           onClick={() => setOpen(true)}
-          className="flex-1 justify-start text-left font-normal"
+          className="flex-1 min-w-0 justify-start text-left font-normal"
         >
           <MapPin size={14} className="mr-2 opacity-60 flex-shrink-0" />
-          <span className={value ? '' : 'text-muted-foreground'}>{value || placeholder}</span>
+          <span className={cn('truncate', !value && 'text-muted-foreground')}>{value || placeholder}</span>
         </Button>
         {value && (
           <Button type="button" variant="ghost" size="icon" onClick={() => onChange('', null)} title="Quitar">
