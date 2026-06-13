@@ -15,12 +15,8 @@ import { useActivities, useItineraryDays, useDeleteActivity } from '@/lib/querie
 import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useAuthStore } from '@/store/authStore'
 import { ACTIVITY_COLORS, ACTIVITY_LABELS, formatDate } from '@/lib/utils'
+import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { toast } from 'sonner'
-
-const TYPE_ICONS: Record<string, string> = {
-  flight: '✈️', hotel: '🏨', restaurant: '🍽️', activity: '🎯',
-  transport: '🚌', place: '📍', other: '📌',
-}
 
 // Página de detalle de actividad (antes un modal): enlazable, con botón
 // atrás natural en móvil, mapa y wallet de entradas con subida directa.
@@ -104,8 +100,11 @@ export function ActivityDetailPage() {
           </div>
         </div>
 
-        <h1 className="font-serif text-2xl sm:text-3xl font-medium flex items-start gap-2 break-words leading-tight">
-          <span className="text-xl sm:text-2xl flex-shrink-0">{TYPE_ICONS[activity.type]}</span>
+        <h1 className="font-serif text-2xl sm:text-3xl font-medium flex items-start gap-2.5 break-words leading-tight">
+          <span className="flex-shrink-0 mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center"
+            style={{ background: `${color}1f` }}>
+            <ActivityIcon type={activity.type} size={20} style={{ color }} />
+          </span>
           <span className="min-w-0">{activity.title}</span>
         </h1>
         <div className="flex flex-wrap items-center gap-2 mt-2">

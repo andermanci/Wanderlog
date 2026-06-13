@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Pencil, Trash2, ExternalLink, Clock, MapPin, Euro, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { cn, ACTIVITY_COLORS, ACTIVITY_LABELS } from '@/lib/utils'
 import type { Activity, ActivityAttachment } from '@/types/database'
 
@@ -11,16 +12,6 @@ interface ActivityBlockProps {
   onEdit: (a: Activity) => void
   onDelete: (a: Activity) => void
   onOpen?: (a: Activity) => void
-}
-
-const TYPE_ICONS: Record<string, string> = {
-  flight: '✈️',
-  hotel: '🏨',
-  restaurant: '🍽️',
-  activity: '🎯',
-  transport: '🚌',
-  place: '📍',
-  other: '📌',
 }
 
 export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, onOpen }: ActivityBlockProps) {
@@ -67,7 +58,10 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
       </button>
 
       {/* Icon */}
-      <span className="text-base flex-shrink-0 mt-0.5">{TYPE_ICONS[activity.type]}</span>
+      <span className="flex-shrink-0 mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center"
+        style={{ background: `color-mix(in srgb, ${color} 14%, transparent)` }}>
+        <ActivityIcon type={activity.type} size={15} style={{ color }} />
+      </span>
 
       {/* Content */}
       <div className="flex-1 min-w-0">

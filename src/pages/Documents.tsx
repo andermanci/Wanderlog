@@ -26,6 +26,7 @@ import { useTravelers, useCreateTraveler, useDeleteTraveler } from '@/lib/querie
 import { useTripAttachments, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useActivities } from '@/lib/queries/itinerary'
 import { TripHeader } from '@/components/trips/TripHeader'
+import { DocIcon } from '@/components/icons/DocIcon'
 import { IdPhotoInput } from '@/components/documents/IdPhotoInput'
 import { IdCardViewer } from '@/components/documents/IdCardViewer'
 import { DocLightbox } from '@/components/documents/DocLightbox'
@@ -52,13 +53,6 @@ const schema = z.object({
 })
 
 type FormValues = z.infer<typeof schema>
-
-const CATEGORY_ICONS: Record<string, string> = {
-  passport: '🛂', dni: '🪪', visa: '📋', driving_license: '🚘', health_card: '⚕️',
-  flight: '✈️', train: '🚆', bus: '🚌', hotel: '🏨',
-  car_rental: '🚗', transfer: '🚖', tour: '🎭',
-  ticket: '🎟️', insurance: '🛡️', other: '📄',
-}
 
 const BOOKING_CATEGORIES = Object.entries(DOCUMENT_LABELS).filter(([k]) => !PERSONAL_DOC_CATEGORIES.includes(k))
 
@@ -350,7 +344,7 @@ export function DocumentsPage() {
                 {Object.entries(groupedBooking).map(([c, docs]) => (
                   <div key={c}>
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-lg">{CATEGORY_ICONS[c]}</span>
+                      <DocIcon category={c} size={18} style={{ color: 'var(--primary)' }} />
                       <h3 className="font-serif text-lg font-medium">{DOCUMENT_LABELS[c]}</h3>
                       <Badge variant="outline" className="text-xs">{docs.length}</Badge>
                     </div>
@@ -466,7 +460,9 @@ export function DocumentsPage() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {PERSONAL_DOC_CATEGORIES.map(k => (
-                        <SelectItem key={k} value={k}>{CATEGORY_ICONS[k]} {DOCUMENT_LABELS[k]}</SelectItem>
+                        <SelectItem key={k} value={k}>
+                          <span className="flex items-center gap-2"><DocIcon category={k} size={14} /> {DOCUMENT_LABELS[k]}</span>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -522,7 +518,9 @@ export function DocumentsPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {BOOKING_CATEGORIES.map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{CATEGORY_ICONS[k]} {v}</SelectItem>
+                    <SelectItem key={k} value={k}>
+                      <span className="flex items-center gap-2"><DocIcon category={k} size={14} /> {v}</span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -688,7 +686,7 @@ function PersonalDocCard({ doc, travelerName, onView, onEdit, onDelete }: {
         <div className="w-16 flex-shrink-0 bg-black/5 flex items-center justify-center">
           {doc.file_url
             ? <img src={doc.file_url} alt="" className="w-full h-full object-cover" />
-            : <span className="text-2xl py-3">{CATEGORY_ICONS[doc.category]}</span>}
+            : <DocIcon category={doc.category} size={22} style={{ color: 'var(--primary)' }} />}
         </div>
         <div className="flex-1 min-w-0 py-2 pr-1">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -728,7 +726,10 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile }: {
       className="group flex items-start gap-4 p-4 rounded-xl"
       style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
     >
-      <span className="text-2xl flex-shrink-0">{CATEGORY_ICONS[doc.category]}</span>
+      <span className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
+        style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)' }}>
+        <DocIcon category={doc.category} size={18} style={{ color: 'var(--primary)' }} />
+      </span>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
