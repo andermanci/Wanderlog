@@ -200,6 +200,9 @@ export function MapViewPage() {
   const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
+  const [searching, setSearching] = useState(false)
+  // Una sola comprobación al montar: condiciona controles del mapa y gestos.
+  const [isMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
 
   // Filtro por día del itinerario: en viajes largos el mapa se llena de
   // paradas; permite ver solo las de un día (y su tramo de ruta).
@@ -268,6 +271,7 @@ export function MapViewPage() {
       return
     }
     const center = mapInstance?.getCenter() ?? undefined
+    setSearching(true)
 
     // Mapea un Place de la API nueva al shape que usa el resto del componente.
     const fromNew = (p: google.maps.places.Place): PlaceResult => ({
@@ -307,6 +311,7 @@ export function MapViewPage() {
         })
         if (places?.length) {
           applyResults(places.filter(p => p.location).map(fromNew))
+          setSearching(false)
           return
         }
       }
@@ -320,6 +325,7 @@ export function MapViewPage() {
       service.textSearch(
         { query: q, ...(center ? { location: center, radius: 50000 } : {}) },
         (results, status) => {
+          setSearching(false)
           const S = google.maps.places.PlacesServiceStatus
           if (status === S.OK && results?.length) {
             applyResults(results as unknown as PlaceResult[])
@@ -335,6 +341,7 @@ export function MapViewPage() {
     } catch (e) {
       console.error('[map] textSearch error:', e)
       toast.error('No se pudo buscar lugares')
+      setSearching(false)
     }
   }, [searchInput, mapInstance])
 
@@ -466,8 +473,8 @@ export function MapViewPage() {
                 onKeyDown={(e) => e.key === 'Enter' && searchPlaces()}
                 className="flex-1 text-sm"
               />
-              <Button size="icon" variant="ghost" onClick={searchPlaces}>
-                <Search size={16} />
+              <Button size="icon" variant="ghost" onClick={searchPlaces} disabled={searching}>
+                {searching ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
               </Button>
             </div>
 
@@ -667,7 +674,9 @@ export function MapViewPage() {
             mapId="wanderlog-map"
             onIdle={(e) => setMapInstance(e.map)}
             colorScheme={ColorScheme.FOLLOW_SYSTEM}
-            disableDefaultUI={false}
+            gestureHandling="greedy"
+            disableDefaultUI
+            zoomControl={!isMobile}
             className="w-full h-full"
           >
             {/* Recorrido del itinerario dibujado en el mapa (filtrado por día) */}
@@ -788,7 +797,7 @@ export function MapViewPage() {
                   <div className="flex flex-wrap gap-1.5 mt-1">
                     <button
                       onClick={() => setAddToItineraryState({ open: true, place: { name: selectedFavorite.name, address: selectedFavorite.address, link: selectedFavorite.link, place_id: selectedFavorite.id, lat: selectedFavorite.lat, lng: selectedFavorite.lng } })}
-                      className="text-xs px-2 py-1 rounded flex items-center gap-1 font-medium"
+                      className="text-xs px-2.5 py-1.5 rounded flex items-center gap-1 font-medium"
                       style={{ background: '#f3ddd0', color: '#96371a' }}
                     >
                       <Plus size={11} />
@@ -796,7 +805,7 @@ export function MapViewPage() {
                     </button>
                     <button
                       onClick={() => setDirectionsTo({ lat: selectedFavorite.lat, lng: selectedFavorite.lng, name: selectedFavorite.name })}
-                      className="text-xs px-2 py-1 rounded flex items-center gap-1 font-medium text-gray-700"
+                      className="text-xs px-2.5 py-1.5 rounded flex items-center gap-1 font-medium text-gray-700"
                       style={{ background: '#eee' }}
                     >
                       <Navigation size={11} />
@@ -807,7 +816,7 @@ export function MapViewPage() {
                         href={selectedFavorite.link}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-xs px-2 py-1 rounded flex items-center gap-1 text-gray-700"
+                        className="text-xs px-2.5 py-1.5 rounded flex items-center gap-1 text-gray-700"
                         style={{ background: '#eee' }}
                       >
                         <ExternalLink size={11} />
@@ -816,7 +825,7 @@ export function MapViewPage() {
                     )}
                     <button
                       onClick={() => deleteFavorite.mutate({ id: selectedFavorite.id, tripId: tripId! })}
-                      className="text-xs px-2 py-1 rounded text-red-600 hover:text-red-700"
+                      className="text-xs px-2.5 py-1.5 rounded text-red-600 hover:text-red-700"
                       style={{ background: '#fde8e8' }}
                       title="Quitar de favoritos"
                     >
@@ -828,28 +837,34 @@ export function MapViewPage() {
             )}
           </Map>
 
-          {/* Mi ubicación (flotante) */}
-          <Button
-            size="icon"
-            onClick={locateMe}
-            disabled={locating}
-            title="Dónde estoy"
-            className="absolute bottom-20 right-4 md:bottom-6 z-10 rounded-full w-11 h-11 shadow-xl"
-            style={{ background: 'var(--card)', color: 'var(--primary)', border: '1px solid var(--border)' }}
-          >
-            {locating ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
-          </Button>
+          {/* Botones flotantes: se ocultan si hay tarjeta de lugar abierta
+              (en móvil la tarjeta ocupa la franja inferior y los tapaba). */}
+          {!selectedPlace && (
+            <>
+              {/* Mi ubicación */}
+              <Button
+                size="icon"
+                onClick={locateMe}
+                disabled={locating}
+                title="Dónde estoy"
+                className="absolute bottom-20 right-4 md:bottom-6 z-10 rounded-full w-12 h-12 md:w-11 md:h-11 shadow-xl"
+                style={{ background: 'var(--card)', color: 'var(--primary)', border: '1px solid var(--border)' }}
+              >
+                {locating ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
+              </Button>
 
-          {/* Abrir lista/búsqueda (solo móvil) */}
-          {!panelOpen && (
-            <Button
-              onClick={() => setPanelOpen(true)}
-              className="md:hidden absolute bottom-20 left-4 z-10 gap-2 shadow-xl rounded-full"
-              style={{ background: 'var(--card)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
-            >
-              <List size={16} />
-              Buscar y lugares
-            </Button>
+              {/* Abrir lista/búsqueda (solo móvil) */}
+              {!panelOpen && (
+                <Button
+                  onClick={() => setPanelOpen(true)}
+                  className="md:hidden absolute bottom-20 left-4 z-10 gap-2 h-12 shadow-xl rounded-full"
+                  style={{ background: 'var(--card)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
+                >
+                  <List size={16} />
+                  Buscar y lugares
+                </Button>
+              )}
+            </>
           )}
 
           {/* Panel de lugar desde búsqueda */}
