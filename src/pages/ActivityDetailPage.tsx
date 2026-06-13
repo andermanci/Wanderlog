@@ -40,6 +40,7 @@ export function ActivityDetailPage() {
 
   const activity = activities?.find(a => a.id === activityId)
   const day = days?.find(d => d.id === activity?.day_id)
+  const endDay = activity?.end_day_id ? days?.find(d => d.id === activity.end_day_id) : null
   const attachments = (tripAttachments ?? []).filter(a => a.activity_id === activityId)
 
   async function handleUpload(file: File) {
@@ -106,6 +107,11 @@ export function ActivityDetailPage() {
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock size={12} />
                 {activity.start_time?.slice(0, 5)}{activity.end_time && ` — ${activity.end_time.slice(0, 5)}`}
+              </span>
+            )}
+            {endDay && (
+              <span className="flex items-center gap-1 text-xs font-medium capitalize" style={{ color: 'var(--primary)' }}>
+                <Calendar size={12} /> llega {formatDate(endDay.date, 'EEE dd MMM')}
               </span>
             )}
             {activity.price != null && (

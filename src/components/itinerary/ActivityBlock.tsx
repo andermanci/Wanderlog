@@ -85,6 +85,12 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
                   {activity.end_time && ` — ${activity.end_time.slice(0, 5)}`}
                 </span>
               )}
+              {activity.end_day_id && activity.end_day_id !== activity.day_id && (
+                <span className="text-[11px] px-1.5 py-0.5 rounded-full font-medium"
+                  style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
+                  llega otro día
+                </span>
+              )}
               {activity.type === 'transport' && (activity.origin || activity.destination) ? (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground truncate max-w-[220px]">
                   <MapPin size={10} />

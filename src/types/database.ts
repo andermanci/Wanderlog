@@ -128,6 +128,7 @@ export type Database = {
           id: string
           trip_id: string
           day_id: string
+          end_day_id: string | null
           type: 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transport' | 'place' | 'other'
           title: string
           description: string | null
@@ -153,6 +154,7 @@ export type Database = {
           id?: string
           trip_id: string
           day_id: string
+          end_day_id?: string | null
           type?: 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transport' | 'place' | 'other'
           title: string
           description?: string | null
@@ -178,6 +180,7 @@ export type Database = {
           id?: string
           trip_id?: string
           day_id?: string
+          end_day_id?: string | null
           type?: 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transport' | 'place' | 'other'
           title?: string
           description?: string | null

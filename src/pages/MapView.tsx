@@ -454,6 +454,7 @@ export function MapViewPage() {
     await createActivity.mutateAsync({
       trip_id: tripId!,
       day_id: dayId,
+      end_day_id: null,
       type: 'place',
       title: place.name,
       address: place.address ?? null,

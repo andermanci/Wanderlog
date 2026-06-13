@@ -23,11 +23,14 @@ export function IdPhotoInput({ label, value, tripId, onChange }: IdPhotoInputPro
   const [uploading, setUploading] = useState(false)
   // Previsualización: original + recorte detectado (si lo hay)
   const [pending, setPending] = useState<{ original: File; originalUrl: string; cropped: Blob | null; croppedUrl: string | null } | null>(null)
+  // Por defecto mostramos la foto ORIGINAL (segura); el recorte es opcional.
+  const [showCrop, setShowCrop] = useState(false)
 
   async function onPick(file: File) {
     if (file.size > 10 * 1024 * 1024) { toast.error('La imagen supera 10 MB'); return }
     setProcessing(true)
     const cropped = await cropDocument(file)
+    setShowCrop(false)
     setPending({
       original: file,
       originalUrl: URL.createObjectURL(file),
@@ -107,33 +110,37 @@ export function IdPhotoInput({ label, value, tripId, onChange }: IdPhotoInputPro
           </DialogHeader>
           {pending && (
             <div className="space-y-3">
+              {/* Selector original / recorte (original por defecto) */}
+              {pending.cropped && (
+                <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'var(--secondary)' }}>
+                  <button type="button" onClick={() => setShowCrop(false)}
+                    className="flex-1 text-xs py-1.5 rounded-md font-medium transition-colors"
+                    style={!showCrop ? { background: 'var(--card)', color: 'var(--foreground)' } : { color: 'var(--muted-foreground)' }}>
+                    Original
+                  </button>
+                  <button type="button" onClick={() => setShowCrop(true)}
+                    className="flex-1 text-xs py-1.5 rounded-md font-medium transition-colors"
+                    style={showCrop ? { background: 'var(--card)', color: 'var(--foreground)' } : { color: 'var(--muted-foreground)' }}>
+                    Recorte automático
+                  </button>
+                </div>
+              )}
               <img
-                src={pending.croppedUrl ?? pending.originalUrl}
+                src={showCrop && pending.croppedUrl ? pending.croppedUrl : pending.originalUrl}
                 alt="Previsualización"
                 className="w-full max-h-[50vh] object-contain rounded-lg border border-border"
                 style={{ background: 'var(--secondary)' }}
               />
-              {pending.cropped
-                ? <p className="text-xs text-muted-foreground text-center">Recorte automático del documento. ¿Lo usas o prefieres la foto original?</p>
-                : <p className="text-xs text-muted-foreground text-center">No se detectó el borde del documento; se subirá la foto tal cual.</p>}
-              <div className="flex gap-2">
-                {pending.cropped ? (
-                  <>
-                    <Button type="button" variant="outline" className="flex-1 gap-1.5" disabled={uploading} onClick={() => confirm(false)}>
-                      Usar original
-                    </Button>
-                    <Button type="button" className="flex-1 gap-1.5" disabled={uploading} onClick={() => confirm(true)}
-                      style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
-                      {uploading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Usar recorte
-                    </Button>
-                  </>
-                ) : (
-                  <Button type="button" className="flex-1 gap-1.5" disabled={uploading} onClick={() => confirm(false)}
-                    style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
-                    {uploading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Subir foto
-                  </Button>
-                )}
-              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                {pending.cropped
+                  ? 'Elige la versión que prefieras y súbela.'
+                  : 'Se subirá la foto tal cual.'}
+              </p>
+              <Button type="button" className="w-full gap-1.5" disabled={uploading} onClick={() => confirm(showCrop)}
+                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+                {uploading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                Usar esta foto
+              </Button>
             </div>
           )}
         </DialogContent>

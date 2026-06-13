@@ -19,6 +19,7 @@ const schema = z.object({
   title: z.string().min(1, 'Título obligatorio'),
   type: z.enum(['flight', 'hotel', 'restaurant', 'activity', 'transport', 'place', 'other']),
   day_id: z.string().min(1, 'Elige un día'),
+  end_day_id: z.string().optional(),
   start_time: z.string().optional(),
   end_time: z.string().optional(),
   address: z.string().optional(),
@@ -65,6 +66,7 @@ export function ActivityFormPage() {
         title: activity.title,
         type: activity.type,
         day_id: activity.day_id,
+        end_day_id: activity.end_day_id ?? '',
         start_time: activity.start_time ?? '',
         end_time: activity.end_time ?? '',
         address: activity.address ?? '',
@@ -86,6 +88,8 @@ export function ActivityFormPage() {
       ...values,
       trip_id: tripId!,
       day_id: values.day_id,
+      // Solo guardamos día de llegada si es distinto del de salida.
+      end_day_id: values.end_day_id && values.end_day_id !== values.day_id ? values.end_day_id : null,
       description: values.description ?? null,
       address: values.address || null,
       origin: values.origin || null,
@@ -172,16 +176,35 @@ export function ActivityFormPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Hora inicio</Label>
-              <Input type="time" {...register('start_time')} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Hora fin</Label>
-              <Input type="time" {...register('end_time')} />
-            </div>
-          </div>
+          {(() => {
+            const isMove = watch('type') === 'transport' || watch('type') === 'flight'
+            return (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>{isMove ? 'Hora salida' : 'Hora inicio'}</Label>
+                    <Input type="time" {...register('start_time')} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>{isMove ? 'Hora llegada' : 'Hora fin'}</Label>
+                    <Input type="time" {...register('end_time')} />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Día de llegada <span className="text-muted-foreground font-normal">(si termina otro día)</span></Label>
+                  <Select value={watch('end_day_id') || 'same'} onValueChange={(v) => setValue('end_day_id', v === 'same' ? '' : v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="same">Mismo día</SelectItem>
+                      {days?.map(d => (
+                        <SelectItem key={d.id} value={d.id}>{formatDate(d.date, 'EEE dd MMM')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )
+          })()}
 
           {watch('type') === 'transport' ? (
             <div className="space-y-3">
