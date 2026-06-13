@@ -6,7 +6,7 @@ import { APIProvider, Map, AdvancedMarker, Pin, ColorScheme, useMap, useMapsLibr
 import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import {
   Search, Star, MapPin, ExternalLink, Bookmark, X, Calendar, Route,
-  LocateFixed, Loader2, List, Navigation,
+  LocateFixed, Loader2, List, Navigation, Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { DatePicker } from '@/components/ui/date-picker'
-import { useFavoritePlaces, useSaveFavoritePlace, useDeleteFavoritePlace } from '@/lib/queries/places'
+import { useFavoritePlaces, useSaveFavoritePlace, useDeleteFavoritePlace, useUpdateFavoritePlace } from '@/lib/queries/places'
 import { useCreateActivity, useItineraryDays, useUpsertDays, useActivities } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
 import { placeTypeToCategory, getCategoryColor } from '@/lib/maps'
@@ -156,6 +156,7 @@ export function MapViewPage() {
   const { data: activities } = useActivities(tripId!)
   const saveFavorite = useSaveFavoritePlace()
   const deleteFavorite = useDeleteFavoritePlace()
+  const updateFavorite = useUpdateFavoritePlace()
   const createActivity = useCreateActivity()
   const upsertDays = useUpsertDays()
 
@@ -183,6 +184,11 @@ export function MapViewPage() {
   // Colección y nota al guardar un favorito desde la tarjeta del lugar.
   const [saveCollection, setSaveCollection] = useState<string>('')
   const [saveNote, setSaveNote] = useState<string>('')
+  // Edición de un favorito ya guardado (lista, nota, enlace).
+  const [editFav, setEditFav] = useState<FavoritePlace | null>(null)
+  const [editCollection, setEditCollection] = useState('')
+  const [editNote, setEditNote] = useState('')
+  const [editLink, setEditLink] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
   const [showRoute, setShowRoute] = useState(searchParams.get('route') === '1')
 
@@ -464,6 +470,25 @@ export function MapViewPage() {
     setSearchInput('')
     setSaveCollection('')
     setSaveNote('')
+  }
+
+  function openEditFav(f: FavoritePlace) {
+    setEditFav(f)
+    setEditCollection(f.collection ?? '')
+    setEditNote(f.notes ?? '')
+    setEditLink(f.link ?? '')
+  }
+  async function saveEditFav() {
+    if (!editFav) return
+    const updated = await updateFavorite.mutateAsync({
+      id: editFav.id,
+      collection: editCollection.trim() || null,
+      notes: editNote.trim() || null,
+      link: editLink.trim() || null,
+    })
+    // Refresca la tarjeta abierta con los datos nuevos.
+    setSelected(sel => sel?.kind === 'favorite' && sel.favorite.id === updated.id ? { kind: 'favorite', favorite: updated } : sel)
+    setEditFav(null)
   }
 
   async function handleAddToItinerary() {
@@ -1067,8 +1092,11 @@ export function MapViewPage() {
                         </Button>
                       </div>
                       <div className="flex gap-2 mt-2">
+                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => openEditFav(f)}>
+                          <Pencil size={12} /> Editar
+                        </Button>
                         {f.link && (
-                          <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" asChild>
+                          <Button size="sm" variant="outline" className="gap-1.5 text-xs" asChild>
                             <a href={f.link} target="_blank" rel="noreferrer"><ExternalLink size={12} /> Maps</a>
                           </Button>
                         )}
@@ -1180,6 +1208,41 @@ export function MapViewPage() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">Se abrirá la app si la tienes instalada; si no, en el navegador.</p>
+        </DialogContent>
+      </Dialog>
+
+      {/* Editar favorito: lista, nota y enlace */}
+      <Dialog open={!!editFav} onOpenChange={(o) => !o && setEditFav(null)}>
+        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <DialogHeader>
+            <DialogTitle className="font-serif truncate pr-6">{editFav?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Lista</Label>
+              <Input list="edit-fav-collections" value={editCollection} onChange={(e) => setEditCollection(e.target.value)}
+                placeholder="Ej: Favoritos de Roma" />
+              <datalist id="edit-fav-collections">
+                {placeCollections.map(c => <option key={c} value={c} />)}
+              </datalist>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nota personal</Label>
+              <Textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} rows={3} placeholder="Qué pedir, por qué te interesa…" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Enlace (menú, Instagram…)</Label>
+              <Input value={editLink} onChange={(e) => setEditLink(e.target.value)} placeholder="https://…" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setEditFav(null)}>Cancelar</Button>
+            <Button disabled={updateFavorite.isPending} onClick={saveEditFav}
+              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+              {updateFavorite.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
+              Guardar
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </APIProvider>
