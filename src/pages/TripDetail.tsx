@@ -85,8 +85,12 @@ export function TripDetail() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground -mb-4">
+      {/* Breadcrumb.
+          OJO: nada de margen negativo aquí. space-y-* en Tailwind v4 va
+          envuelto en :where() (especificidad 0), así que un -mb-* lo
+          sobreescribe y deja margen negativo → el hero se montaba encima
+          y tapaba el breadcrumb. */}
+      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Link to="/dashboard" className="hover:text-foreground transition-colors">Viajes</Link>
         <ChevronRight size={12} className="opacity-50" />
         <span className="text-foreground font-medium truncate max-w-[220px]">{trip.name}</span>
