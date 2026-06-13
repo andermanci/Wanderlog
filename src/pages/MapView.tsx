@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { APIProvider, Map, AdvancedMarker, InfoWindow, Pin, ColorScheme, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
+import { APIProvider, Map, AdvancedMarker, Pin, ColorScheme, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Search, Star, MapPin, ExternalLink, Bookmark, X, Plus, Calendar, Route,
+  Search, Star, MapPin, ExternalLink, Bookmark, X, Calendar, Route,
   LocateFixed, Loader2, List, Navigation,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -139,6 +139,13 @@ interface AddToItineraryState {
   open: boolean
 }
 
+// Selección activa en el mapa: un único concepto para lugar buscado, favorito
+// o parada del itinerario → una sola tarjeta inferior coherente.
+type MapSelection =
+  | { kind: 'place'; place: PlaceResult }
+  | { kind: 'favorite'; favorite: FavoritePlace }
+  | { kind: 'stop'; stop: RoutePoint }
+
 export function MapViewPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const { data: trip } = useTrip(tripId!)
@@ -161,8 +168,8 @@ export function MapViewPage() {
 
   const [searchInput, setSearchInput] = useState('')
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([])
-  const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null)
-  const [selectedFavorite, setSelectedFavorite] = useState<FavoritePlace | null>(null)
+  const [selected, setSelected] = useState<MapSelection | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null)
   const [addToItineraryState, setAddToItineraryState] = useState<AddToItineraryState | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>('')
@@ -196,7 +203,6 @@ export function MapViewPage() {
     () => routePoints.filter(p => p.lat != null && p.lng != null),
     [routePoints],
   )
-  const [selectedStop, setSelectedStop] = useState<RoutePoint | null>(null)
   const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
@@ -288,7 +294,7 @@ export function MapViewPage() {
     // Pinta los resultados y centra el mapa en ellos.
     const applyResults = (rs: PlaceResult[]) => {
       setSearchResults(rs)
-      setSelectedPlace(rs.length === 1 ? rs[0] : null)
+      setSelected(rs.length === 1 ? { kind: 'place', place: rs[0] } : null)
       if (!mapInstance || !rs.length) return
       if (rs.length === 1) {
         mapInstance.panTo({ lat: rs[0].geometry.location.lat(), lng: rs[0].geometry.location.lng() })
@@ -347,13 +353,58 @@ export function MapViewPage() {
 
   // Selecciona un resultado y centra el mapa en él.
   const selectPlace = useCallback((place: PlaceResult) => {
-    setSelectedPlace(place)
+    setSelected({ kind: 'place', place })
     setPanelOpen(false) // en móvil, cierra la hoja para ver el mapa
     if (mapInstance) {
       mapInstance.panTo({ lat: place.geometry.location.lat(), lng: place.geometry.location.lng() })
       mapInstance.setZoom(16)
     }
   }, [mapInstance])
+
+  // Selecciona un favorito o una parada y centra el mapa en él.
+  const selectFavorite = useCallback((favorite: FavoritePlace) => {
+    setSelected({ kind: 'favorite', favorite })
+    setPanelOpen(false)
+    mapInstance?.panTo({ lat: favorite.lat, lng: favorite.lng })
+  }, [mapInstance])
+
+  const selectStop = useCallback((stop: RoutePoint) => {
+    if (stop.lat == null || stop.lng == null) return
+    setSelected({ kind: 'stop', stop })
+    mapInstance?.panTo({ lat: stop.lat, lng: stop.lng })
+  }, [mapInstance])
+
+  // Foco automático en el buscador al abrir la hoja en móvil (sale el teclado).
+  useEffect(() => {
+    if (panelOpen && isMobile) setTimeout(() => searchRef.current?.focus(), 250)
+  }, [panelOpen, isMobile])
+
+  // Al abrir el mapa, orienta al usuario UNA vez: encuadra todas sus paradas y
+  // favoritos; si no tiene ninguno, centra en el destino del viaje (geocodificado).
+  const fittedRef = useRef(false)
+  useEffect(() => {
+    if (!mapInstance || fittedRef.current) return
+    if (favorites === undefined || activities === undefined) return // datos aún cargando
+    fittedRef.current = true
+    const pts = [
+      ...placedPoints.map(p => ({ lat: p.lat!, lng: p.lng! })),
+      ...(favorites ?? []).map(f => ({ lat: f.lat, lng: f.lng })),
+    ]
+    if (pts.length === 1) {
+      mapInstance.setCenter(pts[0]); mapInstance.setZoom(14)
+    } else if (pts.length > 1) {
+      const bounds = new google.maps.LatLngBounds()
+      pts.forEach(p => bounds.extend(p))
+      mapInstance.fitBounds(bounds, 64)
+    } else if (trip?.destination) {
+      new google.maps.Geocoder().geocode({ address: trip.destination }, (res, status) => {
+        if (status === 'OK' && res?.[0]) {
+          mapInstance.panTo(res[0].geometry.location)
+          mapInstance.setZoom(12)
+        }
+      })
+    }
+  }, [mapInstance, favorites, activities, placedPoints, trip])
 
   async function handleSaveFavorite(place: PlaceResult) {
     if (!tripId) return
@@ -370,7 +421,7 @@ export function MapViewPage() {
       notes: null,
       link: place.url ?? null,
     })
-    setSelectedPlace(null)
+    setSelected(null)
     setSearchResults([])
     setSearchInput('')
   }
@@ -434,14 +485,15 @@ export function MapViewPage() {
   return (
     <APIProvider apiKey={API_KEY} libraries={['places']}>
       <div className="flex h-full relative">
-        {/* Panel lateral (escritorio) / hoja inferior (móvil) */}
+        {/* Panel lateral (escritorio) / hoja inferior (móvil).
+            En móvil queda montado y se desliza (translate-y) para que entre y
+            salga con fluidez en lugar de aparecer de golpe. */}
         <div
           className={cn(
-            'flex-col border-border',
-            'md:flex md:static md:w-80 md:border-r md:max-h-none md:rounded-none',
-            panelOpen
-              ? 'flex absolute inset-x-0 bottom-0 z-30 max-h-[60%] border-t rounded-t-2xl shadow-2xl'
-              : 'hidden',
+            'flex flex-col border-border transition-transform duration-300 ease-out',
+            'md:static md:w-80 md:border-r md:max-h-none md:rounded-none md:translate-y-0 md:shadow-none',
+            'absolute inset-x-0 bottom-0 z-30 max-h-[60%] border-t rounded-t-2xl shadow-2xl',
+            panelOpen ? 'translate-y-0' : 'translate-y-full md:translate-y-0',
           )}
           style={{ background: 'var(--sidebar)' }}
         >
@@ -467,6 +519,7 @@ export function MapViewPage() {
             <h2 className="font-serif text-xl mb-3">Mapa</h2>
             <div className="flex gap-2">
               <Input
+                ref={searchRef}
                 placeholder="Buscar lugares..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
@@ -610,7 +663,7 @@ export function MapViewPage() {
                       {items.map(place => (
                         <button
                           key={place.id}
-                          onClick={() => { setSelectedFavorite(place); setPanelOpen(false) }}
+                          onClick={() => selectFavorite(place)}
                           className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors border-b border-border/30"
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -656,7 +709,7 @@ export function MapViewPage() {
                 return (
                   <button
                     key={date}
-                    onClick={() => { setDayFilter(date); setSelectedStop(null) }}
+                    onClick={() => { setDayFilter(date); setSelected(null) }}
                     className="text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 shadow-md transition-colors"
                     style={active
                       ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
@@ -682,48 +735,31 @@ export function MapViewPage() {
             {/* Recorrido del itinerario dibujado en el mapa (filtrado por día) */}
             {showRoute && routeStops.length >= 2 && <MapDirections key={dayFilter} stops={routeStops} />}
 
-            {/* Paradas del itinerario con ubicación: pines numerados (del día filtrado) */}
-            {visiblePoints.map((p, i) => (
-              <AdvancedMarker
-                key={p.key}
-                position={{ lat: p.lat!, lng: p.lng! }}
-                zIndex={5}
-                onClick={() => setSelectedStop(p)}
-              >
-                <div
-                  className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center shadow-lg cursor-pointer text-[11px] font-bold text-white"
-                  style={{ background: '#bf4d22' }}
-                  title={p.label}
+            {/* Paradas del itinerario con ubicación: pines numerados (del día filtrado).
+                El icono es de 24px pero el área pulsable ronda los 44px (padding). */}
+            {visiblePoints.map((p, i) => {
+              const active = selected?.kind === 'stop' && selected.stop.key === p.key
+              return (
+                <AdvancedMarker
+                  key={p.key}
+                  position={{ lat: p.lat!, lng: p.lng! }}
+                  zIndex={active ? 15 : 5}
+                  onClick={() => selectStop(p)}
                 >
-                  {i + 1}
-                </div>
-              </AdvancedMarker>
-            ))}
-
-            {/* InfoWindow de parada del itinerario */}
-            {selectedStop && selectedStop.lat != null && (
-              <InfoWindow
-                position={{ lat: selectedStop.lat, lng: selectedStop.lng! }}
-                onCloseClick={() => setSelectedStop(null)}
-              >
-                <div className="p-2 min-w-[170px]">
-                  <p className="font-medium text-sm text-gray-900">{selectedStop.label}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{selectedStop.location}</p>
-                  {selectedStop.date && (
-                    <p className="text-xs text-gray-500 mt-0.5 capitalize">
-                      {format(parseISO(selectedStop.date), 'EEE dd MMM', { locale: es })}
-                    </p>
-                  )}
-                  <button
-                    onClick={() => setDirectionsTo({ lat: selectedStop.lat!, lng: selectedStop.lng!, name: selectedStop.label })}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded"
-                    style={{ background: 'color-mix(in srgb, var(--primary) 16%, white)', color: '#96371a' }}
-                  >
-                    <Navigation size={11} /> Cómo llegar
-                  </button>
-                </div>
-              </InfoWindow>
-            )}
+                  <div className="p-2.5 cursor-pointer" title={p.label}>
+                    <div
+                      className={cn(
+                        'w-6 h-6 rounded-full border-2 border-white flex items-center justify-center shadow-lg text-[11px] font-bold text-white transition-transform',
+                        active && 'scale-125 ring-2 ring-white',
+                      )}
+                      style={{ background: '#bf4d22' }}
+                    >
+                      {i + 1}
+                    </div>
+                  </div>
+                </AdvancedMarker>
+              )
+            })}
 
             {/* Mi ubicación */}
             {myPos && (
@@ -736,32 +772,39 @@ export function MapViewPage() {
             )}
 
             {/* Marcadores de favoritos */}
-            {filteredFavorites?.map(place => (
-              <AdvancedMarker
-                key={place.id}
-                position={{ lat: place.lat, lng: place.lng }}
-                onClick={() => setSelectedFavorite(place)}
-              >
-                <div
-                  className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform"
-                  style={{ background: getCategoryColor(place.category) }}
-                  title={place.name}
+            {filteredFavorites?.map(place => {
+              const active = selected?.kind === 'favorite' && selected.favorite.id === place.id
+              return (
+                <AdvancedMarker
+                  key={place.id}
+                  position={{ lat: place.lat, lng: place.lng }}
+                  zIndex={active ? 15 : 2}
+                  onClick={() => selectFavorite(place)}
                 >
-                  <span className="text-xs">
-                    {place.category === 'restaurant' ? '🍽️' :
-                      place.category === 'hotel' ? '🏨' :
-                        place.category === 'attraction' ? '🎯' :
-                          place.category === 'cafe' ? '☕' :
-                            place.category === 'bar' ? '🍺' :
-                              place.category === 'shop' ? '🛍️' : '📍'}
-                  </span>
-                </div>
-              </AdvancedMarker>
-            ))}
+                  <div
+                    className={cn(
+                      'w-8 h-8 rounded-full border-2 border-white flex items-center justify-center shadow-lg cursor-pointer transition-transform',
+                      active ? 'scale-125 ring-2 ring-white' : 'hover:scale-110',
+                    )}
+                    style={{ background: getCategoryColor(place.category) }}
+                    title={place.name}
+                  >
+                    <span className="text-xs">
+                      {place.category === 'restaurant' ? '🍽️' :
+                        place.category === 'hotel' ? '🏨' :
+                          place.category === 'attraction' ? '🎯' :
+                            place.category === 'cafe' ? '☕' :
+                              place.category === 'bar' ? '🍺' :
+                                place.category === 'shop' ? '🛍️' : '📍'}
+                    </span>
+                  </div>
+                </AdvancedMarker>
+              )
+            })}
 
             {/* Marcadores de resultados de búsqueda */}
             {searchResults.map(place => {
-              const isSel = selectedPlace?.place_id === place.place_id
+              const isSel = selected?.kind === 'place' && selected.place.place_id === place.place_id
               return (
                 <AdvancedMarker
                   key={place.place_id}
@@ -782,64 +825,11 @@ export function MapViewPage() {
               )
             })}
 
-            {/* InfoWindow de favorito seleccionado */}
-            {selectedFavorite && (
-              <InfoWindow
-                position={{ lat: selectedFavorite.lat, lng: selectedFavorite.lng }}
-                onCloseClick={() => setSelectedFavorite(null)}
-              >
-                {/* La burbuja de Google es siempre blanca → texto oscuro fijo */}
-                <div className="p-1 min-w-[210px]">
-                  <p className="font-medium text-sm mb-0.5 text-gray-900">{selectedFavorite.name}</p>
-                  {selectedFavorite.address && (
-                    <p className="text-xs text-gray-500 mb-2">{selectedFavorite.address}</p>
-                  )}
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    <button
-                      onClick={() => setAddToItineraryState({ open: true, place: { name: selectedFavorite.name, address: selectedFavorite.address, link: selectedFavorite.link, place_id: selectedFavorite.id, lat: selectedFavorite.lat, lng: selectedFavorite.lng } })}
-                      className="text-xs px-2.5 py-1.5 rounded flex items-center gap-1 font-medium"
-                      style={{ background: '#f3ddd0', color: '#96371a' }}
-                    >
-                      <Plus size={11} />
-                      Itinerario
-                    </button>
-                    <button
-                      onClick={() => setDirectionsTo({ lat: selectedFavorite.lat, lng: selectedFavorite.lng, name: selectedFavorite.name })}
-                      className="text-xs px-2.5 py-1.5 rounded flex items-center gap-1 font-medium text-gray-700"
-                      style={{ background: '#eee' }}
-                    >
-                      <Navigation size={11} />
-                      Cómo llegar
-                    </button>
-                    {selectedFavorite.link && (
-                      <a
-                        href={selectedFavorite.link}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs px-2.5 py-1.5 rounded flex items-center gap-1 text-gray-700"
-                        style={{ background: '#eee' }}
-                      >
-                        <ExternalLink size={11} />
-                        Maps
-                      </a>
-                    )}
-                    <button
-                      onClick={() => deleteFavorite.mutate({ id: selectedFavorite.id, tripId: tripId! })}
-                      className="text-xs px-2.5 py-1.5 rounded text-red-600 hover:text-red-700"
-                      style={{ background: '#fde8e8' }}
-                      title="Quitar de favoritos"
-                    >
-                      <X size={11} />
-                    </button>
-                  </div>
-                </div>
-              </InfoWindow>
-            )}
           </Map>
 
           {/* Botones flotantes: se ocultan si hay tarjeta de lugar abierta
               (en móvil la tarjeta ocupa la franja inferior y los tapaba). */}
-          {!selectedPlace && (
+          {!selected && (
             <>
               {/* Mi ubicación */}
               <Button
@@ -867,9 +857,10 @@ export function MapViewPage() {
             </>
           )}
 
-          {/* Panel de lugar desde búsqueda */}
+          {/* Tarjeta inferior unificada: misma interacción para lugar buscado,
+              favorito y parada del itinerario (cómoda al pulgar en móvil). */}
           <AnimatePresence>
-            {selectedPlace && (
+            {selected && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -878,67 +869,107 @@ export function MapViewPage() {
                 style={{ background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--primary) 20%, transparent)' }}
               >
                 <button
-                  onClick={() => { setSelectedPlace(null); setSearchResults([]) }}
+                  onClick={() => { setSelected(null); if (selected.kind === 'place') setSearchResults([]) }}
                   className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
                 >
-                  <X size={14} />
+                  <X size={16} />
                 </button>
-                {selectedPlace.photos?.[0] && (
-                  <img
-                    src={selectedPlace.photos[0].getUrl({ maxWidth: 400 })}
-                    alt={selectedPlace.name}
-                    className="w-full h-28 object-cover rounded-lg mb-3"
-                  />
-                )}
-                <h3 className="font-serif text-lg font-medium pr-6">{selectedPlace.name}</h3>
-                <p className="text-xs text-muted-foreground mt-1">{selectedPlace.formatted_address}</p>
-                {selectedPlace.rating && (
-                  <p className="text-xs flex items-center gap-1 mt-1.5" style={{ color: 'var(--primary)' }}>
-                    <Star size={11} fill="var(--primary)" />
-                    {selectedPlace.rating} / 5
-                  </p>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    className="flex-1 gap-1.5 text-xs"
-                    style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
-                    onClick={() => handleSaveFavorite(selectedPlace)}
-                    disabled={saveFavorite.isPending}
-                  >
-                    <Bookmark size={12} />
-                    Favorito
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 gap-1.5 text-xs"
-                    onClick={() => setAddToItineraryState({ open: true, place: { name: selectedPlace.name, address: selectedPlace.formatted_address, link: selectedPlace.url ?? null, place_id: null, lat: selectedPlace.geometry.location.lat(), lng: selectedPlace.geometry.location.lng() } })}
-                  >
-                    <Calendar size={12} />
-                    Itinerario
-                  </Button>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full mt-2 gap-1.5 text-xs"
-                  onClick={() => setDirectionsTo({ lat: selectedPlace.geometry.location.lat(), lng: selectedPlace.geometry.location.lng(), name: selectedPlace.name })}
-                >
-                  <Navigation size={12} />
-                  Cómo llegar
-                </Button>
-                {selectedPlace.url && (
-                  <a
-                    href={selectedPlace.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <ExternalLink size={12} />
-                    Ver en Google Maps
-                  </a>
-                )}
+
+                {/* Lugar buscado */}
+                {selected.kind === 'place' && (() => {
+                  const p = selected.place
+                  const lat = p.geometry.location.lat(), lng = p.geometry.location.lng()
+                  return (
+                    <>
+                      {p.photos?.[0] && (
+                        <img src={p.photos[0].getUrl({ maxWidth: 400 })} alt={p.name} className="w-full h-28 object-cover rounded-lg mb-3" />
+                      )}
+                      <h3 className="font-serif text-lg font-medium pr-6">{p.name}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">{p.formatted_address}</p>
+                      {p.rating && (
+                        <p className="text-xs flex items-center gap-1 mt-1.5" style={{ color: 'var(--primary)' }}>
+                          <Star size={11} fill="var(--primary)" /> {p.rating} / 5
+                        </p>
+                      )}
+                      <div className="flex gap-2 mt-3">
+                        <Button size="sm" className="flex-1 gap-1.5 text-xs" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }} onClick={() => handleSaveFavorite(p)} disabled={saveFavorite.isPending}>
+                          <Bookmark size={12} /> Favorito
+                        </Button>
+                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => setAddToItineraryState({ open: true, place: { name: p.name, address: p.formatted_address, link: p.url ?? null, place_id: null, lat, lng } })}>
+                          <Calendar size={12} /> Itinerario
+                        </Button>
+                      </div>
+                      <Button size="sm" variant="outline" className="w-full mt-2 gap-1.5 text-xs" onClick={() => setDirectionsTo({ lat, lng, name: p.name })}>
+                        <Navigation size={12} /> Cómo llegar
+                      </Button>
+                      {p.url && (
+                        <a href={p.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+                          <ExternalLink size={12} /> Ver en Google Maps
+                        </a>
+                      )}
+                    </>
+                  )
+                })()}
+
+                {/* Favorito guardado */}
+                {selected.kind === 'favorite' && (() => {
+                  const f = selected.favorite
+                  return (
+                    <>
+                      <h3 className="font-serif text-lg font-medium pr-6">{f.name}</h3>
+                      {f.address && <p className="text-xs text-muted-foreground mt-1">{f.address}</p>}
+                      {f.rating && (
+                        <p className="text-xs flex items-center gap-1 mt-1.5" style={{ color: 'var(--primary)' }}>
+                          <Star size={11} fill="var(--primary)" /> {f.rating} / 5
+                        </p>
+                      )}
+                      <div className="flex gap-2 mt-3">
+                        <Button size="sm" className="flex-1 gap-1.5 text-xs" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }} onClick={() => setAddToItineraryState({ open: true, place: { name: f.name, address: f.address, link: f.link, place_id: f.id, lat: f.lat, lng: f.lng } })}>
+                          <Calendar size={12} /> Itinerario
+                        </Button>
+                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => setDirectionsTo({ lat: f.lat, lng: f.lng, name: f.name })}>
+                          <Navigation size={12} /> Cómo llegar
+                        </Button>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {f.link && (
+                          <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" asChild>
+                            <a href={f.link} target="_blank" rel="noreferrer"><ExternalLink size={12} /> Maps</a>
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" className="gap-1.5 text-xs text-destructive hover:text-destructive" onClick={() => { deleteFavorite.mutate({ id: f.id, tripId: tripId! }); setSelected(null) }}>
+                          <X size={12} /> Quitar
+                        </Button>
+                      </div>
+                    </>
+                  )
+                })()}
+
+                {/* Parada del itinerario */}
+                {selected.kind === 'stop' && (() => {
+                  const s = selected.stop
+                  return (
+                    <>
+                      <h3 className="font-serif text-lg font-medium pr-6">{s.label}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">{s.location}</p>
+                      {s.date && (
+                        <p className="text-xs text-muted-foreground mt-0.5 capitalize flex items-center gap-1">
+                          <Calendar size={11} /> {format(parseISO(s.date), 'EEEE dd MMM', { locale: es })}
+                        </p>
+                      )}
+                      <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => s.lat != null && setDirectionsTo({ lat: s.lat, lng: s.lng!, name: s.label })}>
+                          <Navigation size={12} /> Cómo llegar
+                        </Button>
+                        <Button size="sm" className="flex-1 gap-1.5 text-xs" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }} asChild>
+                          <Link to={`/trips/${tripId}/itinerary/${s.activityId}`}>
+                            <Calendar size={12} /> Ver actividad
+                          </Link>
+                        </Button>
+                      </div>
+                    </>
+                  )
+                })()}
               </motion.div>
             )}
           </AnimatePresence>

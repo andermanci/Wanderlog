@@ -6,6 +6,8 @@ export interface RoutePoint {
   location: string
   date: string
   kind?: 'origin' | 'destination'
+  /** Id de la actividad de origen (para enlazar a su detalle). */
+  activityId: string
   /** Coordenadas guardadas al elegir la ubicación (si las hay). */
   lat?: number | null
   lng?: number | null
@@ -34,10 +36,10 @@ export function buildRoutePoints(activities: Activity[], days: ItineraryDay[]): 
   for (const a of sorted) {
     const date = dayDate.get(a.day_id) ?? ''
     if (a.type === 'transport') {
-      if (a.origin) push({ key: `${a.id}-o`, label: a.title, location: a.origin, date, kind: 'origin', lat: a.origin_lat, lng: a.origin_lng })
-      if (a.destination) push({ key: `${a.id}-d`, label: a.title, location: a.destination, date, kind: 'destination', lat: a.destination_lat, lng: a.destination_lng })
+      if (a.origin) push({ key: `${a.id}-o`, activityId: a.id, label: a.title, location: a.origin, date, kind: 'origin', lat: a.origin_lat, lng: a.origin_lng })
+      if (a.destination) push({ key: `${a.id}-d`, activityId: a.id, label: a.title, location: a.destination, date, kind: 'destination', lat: a.destination_lat, lng: a.destination_lng })
     } else if (a.address) {
-      push({ key: a.id, label: a.title, location: a.address, date, lat: a.lat, lng: a.lng })
+      push({ key: a.id, activityId: a.id, label: a.title, location: a.address, date, lat: a.lat, lng: a.lng })
     }
   }
   return points
