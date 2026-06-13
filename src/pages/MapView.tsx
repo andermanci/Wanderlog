@@ -3,7 +3,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { APIProvider, Map, AdvancedMarker, Pin, ColorScheme, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import {
   Search, Star, MapPin, ExternalLink, Bookmark, X, Calendar, Route,
   LocateFixed, Loader2, List, Navigation,
@@ -209,6 +209,8 @@ export function MapViewPage() {
   const [searching, setSearching] = useState(false)
   // Una sola comprobación al montar: condiciona controles del mapa y gestos.
   const [isMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
+  // Para arrastrar la hoja inferior hacia abajo y cerrarla (solo desde el asa).
+  const dragControls = useDragControls()
 
   // Filtro por día del itinerario: en viajes largos el mapa se llena de
   // paradas; permite ver solo las de un día (y su tramo de ruta).
@@ -482,137 +484,122 @@ export function MapViewPage() {
     )
   }
 
-  return (
-    <APIProvider apiKey={API_KEY} libraries={['places']}>
-      <div className="flex h-full relative">
-        {/* Panel lateral (escritorio) / hoja inferior (móvil).
-            En móvil queda montado y se desliza (translate-y) para que entre y
-            salga con fluidez en lugar de aparecer de golpe. */}
-        <div
-          className={cn(
-            'flex flex-col border-border transition-transform duration-300 ease-out',
-            'md:static md:w-80 md:border-r md:max-h-none md:rounded-none md:translate-y-0 md:shadow-none',
-            'absolute inset-x-0 bottom-0 z-30 max-h-[60%] border-t rounded-t-2xl shadow-2xl',
-            panelOpen ? 'translate-y-0' : 'translate-y-full md:translate-y-0',
-          )}
-          style={{ background: 'var(--sidebar)' }}
-        >
-          {/* Asa de cierre (solo móvil) */}
+  // Contenido del panel, compartido por el sidebar de escritorio y la hoja móvil.
+  const panelContent = (
+    <>
+      {/* Búsqueda */}
+      <div className="p-4 space-y-3 border-b border-border shrink-0">
+        <nav className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+          <Link to="/dashboard" className="hover:text-foreground transition-colors">Viajes</Link>
+          <span className="opacity-50">›</span>
+          <Link to={`/trips/${tripId}`} className="hover:text-foreground transition-colors truncate max-w-[110px]">
+            {trip?.name ?? '…'}
+          </Link>
+          <span className="opacity-50">›</span>
+          <span className="text-foreground font-medium">Mapa</span>
+        </nav>
+        {/* Buscador con la lupa dentro del campo (clic = buscar) */}
+        <div className="relative">
           <button
-            className="md:hidden flex items-center justify-center py-2 text-muted-foreground"
-            onClick={() => setPanelOpen(false)}
+            onClick={searchPlaces}
+            disabled={searching}
+            title="Buscar"
+            className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-100"
           >
-            <span className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+            {searching ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
           </button>
+          <Input
+            ref={searchRef}
+            placeholder="Buscar lugares..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && searchPlaces()}
+            className="pl-9 text-sm"
+          />
+        </div>
 
-          {/* Búsqueda */}
-          <div className="p-4 border-b border-border">
-            <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-2 flex-wrap">
-              <Link to="/dashboard" className="hover:text-foreground transition-colors">Viajes</Link>
-              <span className="opacity-50">›</span>
-              <Link to={`/trips/${tripId}`} className="hover:text-foreground transition-colors truncate max-w-[110px]">
-                {trip?.name ?? '…'}
-              </Link>
-              <span className="opacity-50">›</span>
-              <span className="text-foreground font-medium">Mapa</span>
-            </nav>
-            <h2 className="font-serif text-xl mb-3">Mapa</h2>
-            <div className="flex gap-2">
-              <Input
-                ref={searchRef}
-                placeholder="Buscar lugares..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && searchPlaces()}
-                className="flex-1 text-sm"
-              />
-              <Button size="icon" variant="ghost" onClick={searchPlaces} disabled={searching}>
-                {searching ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-              </Button>
-            </div>
+        {/* Ver/ocultar el recorrido del itinerario en el mapa */}
+        {routePoints.length >= 2 && (
+          <Button
+            variant={showRoute ? 'default' : 'outline'}
+            size="sm"
+            className="w-full gap-1.5 text-xs"
+            onClick={() => { const nv = !showRoute; setShowRoute(nv); if (nv) setPanelOpen(false) }}
+            style={showRoute ? { background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' } : undefined}
+          >
+            <Route size={14} /> {showRoute ? 'Ocultar recorrido' : 'Ver recorrido del viaje'}
+          </Button>
+        )}
+      </div>
 
-            {/* Ver/ocultar el recorrido del itinerario en el mapa */}
-            {routePoints.length >= 2 && (
-              <Button
-                variant={showRoute ? 'default' : 'outline'}
-                size="sm"
-                className="w-full mt-2 gap-1.5 text-xs"
-                onClick={() => { const nv = !showRoute; setShowRoute(nv); if (nv) setPanelOpen(false) }}
-                style={showRoute ? { background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' } : undefined}
-              >
-                <Route size={14} /> {showRoute ? 'Ocultar recorrido' : 'Ver recorrido del viaje'}
-              </Button>
-            )}
+      {/* Resultados de búsqueda */}
+      {searchResults.length > 0 && (
+        <div className="border-b border-border shrink-0">
+          <div className="flex items-center justify-between px-4 py-2">
+            <span className="text-xs text-muted-foreground">{searchResults.length} resultados</span>
+            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => setSearchResults([])}>
+              <X size={12} /> Limpiar
+            </Button>
           </div>
+          <ScrollArea className="max-h-52">
+            {searchResults.map(place => (
+              <button
+                key={place.place_id}
+                onClick={() => selectPlace(place)}
+                className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors border-b border-border/50 last:border-0"
+              >
+                <p className="text-sm font-medium line-clamp-1">{place.name}</p>
+                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{place.formatted_address}</p>
+                {place.rating && (
+                  <p className="text-xs flex items-center gap-1 mt-1" style={{ color: 'var(--primary)' }}>
+                    <Star size={10} fill="var(--primary)" />
+                    {place.rating}
+                  </p>
+                )}
+              </button>
+            ))}
+          </ScrollArea>
+        </div>
+      )}
 
-          {/* Resultados de búsqueda */}
-          {searchResults.length > 0 && (
-            <div className="border-b border-border">
-              <div className="flex items-center justify-between px-4 py-2">
-                <span className="text-xs text-muted-foreground">{searchResults.length} resultados</span>
-                <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setSearchResults([])}>
-                  <X size={12} />
-                </Button>
-              </div>
-              <ScrollArea className="max-h-52">
-                {searchResults.map(place => (
-                  <button
-                    key={place.place_id}
-                    onClick={() => selectPlace(place)}
-                    className="w-full text-left px-4 py-2.5 hover:bg-secondary transition-colors border-b border-border/50 last:border-0"
-                  >
-                    <p className="text-sm font-medium line-clamp-1">{place.name}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{place.formatted_address}</p>
-                    {place.rating && (
-                      <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: 'var(--primary)' }}>
-                        <Star size={10} fill="var(--primary)" />
-                        {place.rating}
-                      </p>
-                    )}
-                  </button>
-                ))}
-              </ScrollArea>
-            </div>
-          )}
-
-          {showRoute ? (
-            /* Paradas del recorrido del itinerario */
-            <ScrollArea className="flex-1">
-              <div className="px-4 py-3 border-b border-border sticky top-0 z-10" style={{ background: 'var(--sidebar)' }}>
-                <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                  Recorrido · {routeStops.length} paradas
+      {showRoute ? (
+        /* Paradas del recorrido del itinerario */
+        <ScrollArea className="flex-1">
+          <div className="px-4 py-3 border-b border-border sticky top-0 z-10" style={{ background: 'var(--sidebar)' }}>
+            <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              Recorrido · {routeStops.length} paradas
+            </span>
+          </div>
+          <ol className="pb-4">
+            {routeStops.map((p, i) => (
+              <li key={p.key} className="flex items-start gap-3 px-4 py-3 border-b border-border/30">
+                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                  style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}>
+                  {i + 1}
                 </span>
-              </div>
-              <ol>
-                {routeStops.map((p, i) => (
-                  <li key={p.key} className="flex items-start gap-3 px-4 py-3 border-b border-border/30">
-                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                      style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}>
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium line-clamp-1">
-                        {p.label}{p.kind === 'origin' ? ' · salida' : p.kind === 'destination' ? ' · llegada' : ''}
-                      </p>
-                      <p className="text-xs text-muted-foreground line-clamp-1">{p.location}</p>
-                      {p.date && (
-                        <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-                          {format(parseISO(p.date), 'EEE dd MMM', { locale: es })}
-                        </p>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </ScrollArea>
-          ) : (
-          <>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium line-clamp-1">
+                    {p.label}{p.kind === 'origin' ? ' · salida' : p.kind === 'destination' ? ' · llegada' : ''}
+                  </p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">{p.location}</p>
+                  {p.date && (
+                    <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                      {format(parseISO(p.date), 'EEE dd MMM', { locale: es })}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </ScrollArea>
+      ) : (
+        <>
           {/* Filtro categorías */}
-          <div className="px-4 py-3 border-b border-border">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="px-4 py-3 border-b border-border shrink-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 onClick={() => setCategoryFilter('all')}
-                className="text-xs px-2 py-0.5 rounded-full border transition-all"
+                className="text-xs px-2.5 py-1 rounded-full border transition-all"
                 style={{
                   borderColor: categoryFilter === 'all' ? 'var(--primary)' : 'var(--border)',
                   color: categoryFilter === 'all' ? 'var(--primary)' : 'var(--muted-foreground)',
@@ -625,7 +612,7 @@ export function MapViewPage() {
                 <button
                   key={key}
                   onClick={() => setCategoryFilter(k => k === key ? 'all' : key)}
-                  className="text-xs px-2 py-0.5 rounded-full border transition-all"
+                  className="text-xs px-2.5 py-1 rounded-full border transition-all"
                   style={{
                     borderColor: categoryFilter === key ? PLACE_CATEGORY_COLORS[key] : 'var(--border)',
                     color: categoryFilter === key ? PLACE_CATEGORY_COLORS[key] : 'var(--muted-foreground)',
@@ -641,21 +628,20 @@ export function MapViewPage() {
           {/* Lista de favoritos */}
           <ScrollArea className="flex-1">
             {!filteredFavorites?.length ? (
-              <div className="p-6 text-center">
+              <div className="p-8 text-center">
                 <Bookmark size={28} className="mx-auto mb-3 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
                   Busca lugares y guárdalos como favoritos de este viaje
                 </p>
               </div>
             ) : (
-              <div>
+              <div className="pb-4">
                 {Object.entries(PLACE_CATEGORY_LABELS).map(([cat, label]) => {
                   const items = filteredFavorites?.filter(f => f.category === cat) ?? []
                   if (!items.length) return null
                   return (
                     <div key={cat}>
-                      <div className="px-4 py-2 sticky top-0 z-10"
-                        style={{ background: 'var(--sidebar)' }}>
+                      <div className="px-4 py-2 sticky top-0 z-10" style={{ background: 'var(--sidebar)' }}>
                         <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                           {label}
                         </span>
@@ -692,9 +678,50 @@ export function MapViewPage() {
               </div>
             )}
           </ScrollArea>
-          </>
-          )}
+        </>
+      )}
+    </>
+  )
+
+  return (
+    <APIProvider apiKey={API_KEY} libraries={['places']}>
+      <div className="flex h-full relative">
+        {/* Escritorio: barra lateral fija */}
+        <div className="hidden md:flex md:flex-col md:w-80 md:border-r border-border" style={{ background: 'var(--sidebar)' }}>
+          {panelContent}
         </div>
+
+        {/* Móvil: hoja inferior arrastrable. Se cierra deslizando el asa hacia abajo. */}
+        <AnimatePresence>
+          {panelOpen && (
+            <motion.div
+              className="md:hidden absolute inset-x-0 bottom-0 z-30 flex flex-col max-h-[80%] rounded-t-2xl border-t border-border shadow-2xl overflow-hidden"
+              style={{ background: 'var(--sidebar)' }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+              drag="y"
+              dragListener={false}
+              dragControls={dragControls}
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.9 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 90 || info.velocity.y > 600) setPanelOpen(false)
+              }}
+            >
+              {/* Asa: arrástrala hacia abajo (o tócala) para cerrar */}
+              <div
+                onPointerDown={(e) => dragControls.start(e)}
+                onClick={() => setPanelOpen(false)}
+                className="flex items-center justify-center pt-3 pb-2 shrink-0 cursor-grab active:cursor-grabbing touch-none"
+              >
+                <span className="w-10 h-1.5 rounded-full" style={{ background: 'var(--border)' }} />
+              </div>
+              {panelContent}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Mapa */}
         <div className="flex-1 relative">
