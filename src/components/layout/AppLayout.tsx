@@ -16,6 +16,10 @@ export function AppLayout() {
     mainRef.current?.scrollTo({ top: 0 })
   }, [location.pathname])
 
+  // El mapa es a pantalla completa: solo necesita el alto de la barra (sin la
+  // holgura extra de las páginas de contenido, que dejaría una franja de fondo).
+  const onMap = location.pathname.endsWith('/map')
+
   return (
     <TooltipProvider>
       {/* pt de safe-area: en PWA standalone el contenido se extiende tras la
@@ -30,7 +34,10 @@ export function AppLayout() {
         </div>
         {/* pb extra en móvil: altura de la barra inferior + safe-area + holgura,
             para que el último elemento no quede pegado/oculto tras el footer. */}
-        <main ref={mainRef} className="flex-1 overflow-auto pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-0">
+        <main
+          ref={mainRef}
+          className={`flex-1 overflow-auto md:pb-0 ${onMap ? 'pb-[calc(env(safe-area-inset-bottom)+3.5rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)]'}`}
+        >
           <Outlet />
         </main>
         {/* Navegación inferior solo en móvil */}
