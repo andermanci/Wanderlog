@@ -218,6 +218,8 @@ export type Database = {
           seat: string | null
           phone: string | null
           file_url: string | null
+          back_url: string | null
+          traveler_id: string | null
           notes: string | null
           created_at: string
         }
@@ -237,6 +239,8 @@ export type Database = {
           seat?: string | null
           phone?: string | null
           file_url?: string | null
+          back_url?: string | null
+          traveler_id?: string | null
           notes?: string | null
           created_at?: string
         }
@@ -256,7 +260,33 @@ export type Database = {
           seat?: string | null
           phone?: string | null
           file_url?: string | null
+          back_url?: string | null
+          traveler_id?: string | null
           notes?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      travelers: {
+        Row: {
+          id: string
+          trip_id: string
+          name: string
+          is_self: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          name: string
+          is_self?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          trip_id?: string
+          name?: string
+          is_self?: boolean
           created_at?: string
         }
         Relationships: []
@@ -538,6 +568,7 @@ export type TripCollaborator = Database['public']['Tables']['trip_collaborators'
 export type BankConnection = Database['public']['Tables']['bank_connections']['Row']
 export type ActivityAttachment = Database['public']['Tables']['activity_attachments']['Row']
 export type JournalPhoto = Database['public']['Tables']['journal_photos']['Row']
+export type Traveler = Database['public']['Tables']['travelers']['Row']
 
 export type TripStatus = Trip['status']
 export type ActivityType = Activity['type']

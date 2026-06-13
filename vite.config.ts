@@ -32,12 +32,22 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/auth\//, /supabase/],
         runtimeCaching: [
           {
-            // Adjuntos, portadas y QRs de Supabase Storage: disponibles offline.
+            // Adjuntos, portadas, DNIs y QRs de Supabase Storage: offline 60 días.
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'supabase-storage',
-              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // OpenCV + jscanify (recorte automático de documentos), bajo demanda.
+            urlPattern: /^https:\/\/(docs\.opencv\.org|cdn\.jsdelivr\.net\/npm\/jscanify).*/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'doc-scan-libs',
+              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

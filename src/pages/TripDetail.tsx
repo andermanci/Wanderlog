@@ -19,6 +19,7 @@ import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
 import { usePackingItems } from '@/lib/queries/packing'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
 import { ShareTripDialog } from '@/components/trips/ShareTripDialog'
+import { OfflineSaveButton } from '@/components/trips/OfflineSaveButton'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate, formatCurrency, STATUS_LABELS, STATUS_COLORS, countdownLabel, sumByCurrency, effectiveStatus } from '@/lib/utils'
 
@@ -281,6 +282,9 @@ export function TripDetail() {
           ))}
         </div>
       </div>
+
+      {/* Disponibilidad sin conexión */}
+      <OfflineSaveButton tripId={trip.id} />
 
       <TripFormDialog
         open={editOpen}

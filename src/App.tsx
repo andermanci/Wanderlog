@@ -34,7 +34,7 @@ const queryClient = new QueryClient({
       staleTime: 1000 * 60 * 5,
       // gcTime largo + persistencia en localStorage: el itinerario, los
       // documentos y los gastos siguen visibles sin conexión (modo viaje).
-      gcTime: 1000 * 60 * 60 * 24 * 7,
+      gcTime: 1000 * 60 * 60 * 24 * 60,
       retry: 1,
     },
   },
@@ -71,7 +71,7 @@ export default function App() {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 * 7 }}
+      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 * 60 }}
     >
       <BrowserRouter>
         <AuthListener />
