@@ -532,39 +532,40 @@ export function MapViewPage() {
         )}
       </div>
 
-      {/* Resultados de búsqueda */}
-      {searchResults.length > 0 && (
-        <div className="border-b border-border shrink-0">
-          <div className="flex items-center justify-between px-4 py-2">
+      {/* Resultados de búsqueda: ocupan toda la hoja y scrollean (en móvil
+          esto evita que solo se vean 3 resultados sin scroll). */}
+      {searchResults.length > 0 ? (
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border shrink-0">
             <span className="text-xs text-muted-foreground">{searchResults.length} resultados</span>
             <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => setSearchResults([])}>
               <X size={12} /> Limpiar
             </Button>
           </div>
-          <ScrollArea className="max-h-52">
-            {searchResults.map(place => (
-              <button
-                key={place.place_id}
-                onClick={() => selectPlace(place)}
-                className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors border-b border-border/50 last:border-0"
-              >
-                <p className="text-sm font-medium line-clamp-1">{place.name}</p>
-                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{place.formatted_address}</p>
-                {place.rating && (
-                  <p className="text-xs flex items-center gap-1 mt-1" style={{ color: 'var(--primary)' }}>
-                    <Star size={10} fill="var(--primary)" />
-                    {place.rating}
-                  </p>
-                )}
-              </button>
-            ))}
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="pb-4">
+              {searchResults.map(place => (
+                <button
+                  key={place.place_id}
+                  onClick={() => selectPlace(place)}
+                  className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors border-b border-border/50 last:border-0"
+                >
+                  <p className="text-sm font-medium line-clamp-1">{place.name}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{place.formatted_address}</p>
+                  {place.rating && (
+                    <p className="text-xs flex items-center gap-1 mt-1" style={{ color: 'var(--primary)' }}>
+                      <Star size={10} fill="var(--primary)" />
+                      {place.rating}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
           </ScrollArea>
         </div>
-      )}
-
-      {showRoute ? (
+      ) : showRoute ? (
         /* Paradas del recorrido del itinerario */
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="px-4 py-3 border-b border-border sticky top-0 z-10" style={{ background: 'var(--sidebar)' }}>
             <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
               Recorrido · {routeStops.length} paradas
@@ -626,7 +627,7 @@ export function MapViewPage() {
           </div>
 
           {/* Lista de favoritos */}
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0">
             {!filteredFavorites?.length ? (
               <div className="p-8 text-center">
                 <Bookmark size={28} className="mx-auto mb-3 text-muted-foreground" />
