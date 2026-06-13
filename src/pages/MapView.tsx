@@ -6,7 +6,7 @@ import { APIProvider, Map, AdvancedMarker, Pin, ColorScheme, useMap, useMapsLibr
 import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import {
   Search, Star, MapPin, ExternalLink, Bookmark, X, Calendar, Route,
-  LocateFixed, Loader2, List, Navigation, Pencil,
+  LocateFixed, Loader2, List, Navigation, Pencil, Eye, EyeOff,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -181,6 +181,9 @@ export function MapViewPage() {
   const [selectedTime, setSelectedTime] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [collectionFilter, setCollectionFilter] = useState<string>('all')
+  // Mostrar u ocultar capas en el mapa: lugares guardados y paradas del itinerario.
+  const [showFavOnMap, setShowFavOnMap] = useState(true)
+  const [showStopsOnMap, setShowStopsOnMap] = useState(true)
   // Colección y nota al guardar un favorito desde la tarjeta del lugar.
   const [saveCollection, setSaveCollection] = useState<string>('')
   const [saveNote, setSaveNote] = useState<string>('')
@@ -676,6 +679,28 @@ export function MapViewPage() {
         </ScrollArea>
       ) : (
         <>
+          {/* Capas del mapa: mostrar/ocultar lugares y paradas del itinerario */}
+          <div className="px-4 py-2.5 border-b border-border shrink-0 flex items-center gap-2">
+            <button
+              onClick={() => setShowFavOnMap(v => !v)}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors"
+              style={showFavOnMap
+                ? { borderColor: 'var(--primary)', color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 10%, transparent)' }
+                : { borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+            >
+              {showFavOnMap ? <Eye size={13} /> : <EyeOff size={13} />} Lugares
+            </button>
+            <button
+              onClick={() => setShowStopsOnMap(v => !v)}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors"
+              style={showStopsOnMap
+                ? { borderColor: 'var(--primary)', color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 10%, transparent)' }
+                : { borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+            >
+              {showStopsOnMap ? <Eye size={13} /> : <EyeOff size={13} />} Itinerario
+            </button>
+          </div>
+
           {/* Filtro categorías */}
           <div className="px-4 py-3 border-b border-border shrink-0">
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -877,7 +902,7 @@ export function MapViewPage() {
 
             {/* Paradas del itinerario con ubicación: pines numerados (del día filtrado).
                 El icono es de 24px pero el área pulsable ronda los 44px (padding). */}
-            {visiblePoints.map((p, i) => {
+            {showStopsOnMap && visiblePoints.map((p, i) => {
               const active = selected?.kind === 'stop' && selected.stop.key === p.key
               return (
                 <AdvancedMarker
@@ -912,7 +937,7 @@ export function MapViewPage() {
             )}
 
             {/* Marcadores de favoritos */}
-            {filteredFavorites?.map(place => {
+            {showFavOnMap && filteredFavorites?.map(place => {
               const active = selected?.kind === 'favorite' && selected.favorite.id === place.id
               return (
                 <AdvancedMarker
