@@ -152,9 +152,25 @@ export function useReorderActivities() {
       await Promise.all(promises)
       return updates
     },
-    onSuccess: (data) => {
-      const tripId = data[0]?.trip_id
-      if (tripId) qc.invalidateQueries({ queryKey: itineraryKeys.activities(tripId) })
+    // Actualización optimista: el nuevo orden se ve al instante (sin esperar al
+    // servidor), así el arrastrar-soltar no "salta" al sitio anterior.
+    onMutate: async (updates) => {
+      const tripId = updates[0]?.trip_id
+      if (!tripId) return {}
+      const key = itineraryKeys.activities(tripId)
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<Activity[]>(key)
+      const byId = new Map(updates.map(u => [u.id, u]))
+      qc.setQueryData<Activity[]>(key, (old) =>
+        old?.map(a => byId.has(a.id) ? { ...a, day_id: byId.get(a.id)!.day_id, order_index: byId.get(a.id)!.order_index } : a),
+      )
+      return { prev, tripId }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.tripId && ctx.prev) qc.setQueryData(itineraryKeys.activities(ctx.tripId), ctx.prev)
+    },
+    onSettled: (_d, _e, _v, ctx) => {
+      if (ctx?.tripId) qc.invalidateQueries({ queryKey: itineraryKeys.activities(ctx.tripId) })
     },
   })
 }

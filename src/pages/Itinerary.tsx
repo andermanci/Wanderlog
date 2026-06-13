@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
@@ -36,6 +36,7 @@ import { es } from 'date-fns/locale'
 export function ItineraryPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { data: trip } = useTrip(tripId!)
   const { data: days, isLoading: loadingDays } = useItineraryDays(tripId!)
   const { data: activities, isLoading: loadingActs } = useActivities(tripId!)
@@ -128,17 +129,18 @@ export function ItineraryPage() {
     [activities, days],
   )
 
-  // Si el viaje está en curso, salta directamente al día de hoy.
-  const scrolledToToday = useRef(false)
+  // Salta al día indicado en ?day=<fecha> (al volver del detalle de una
+  // actividad) o, si no, al día de hoy cuando el viaje está en curso.
+  const scrolled = useRef(false)
   useEffect(() => {
-    if (scrolledToToday.current || !days?.length) return
-    const today = format(new Date(), 'yyyy-MM-dd')
-    if (!days.some(d => d.date === today)) return
-    scrolledToToday.current = true
+    if (scrolled.current || !days?.length) return
+    const target = searchParams.get('day') || format(new Date(), 'yyyy-MM-dd')
+    if (!days.some(d => d.date === target)) return
+    scrolled.current = true
     setTimeout(() => {
-      document.getElementById(`day-${today}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.getElementById(`day-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 350)
-  }, [days])
+  }, [days, searchParams])
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event

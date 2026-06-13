@@ -4,7 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Plus, Receipt, Trash2, Loader2, Landmark, Zap, CloudOff } from 'lucide-react'
+import { Plus, Receipt, Trash2, Loader2, Landmark, Zap, CloudOff, ListPlus } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useExpenses, useCreateExpense, useDeleteExpense, type PendingExpense } from '@/lib/queries/expenses'
+import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { useAuthStore } from '@/store/authStore'
@@ -43,11 +44,37 @@ export function ExpensesPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const { data: trip } = useTrip(tripId!)
   const { data: expenses, isLoading } = useExpenses(tripId!)
+  const { data: activities } = useActivities(tripId!)
+  const { data: days } = useItineraryDays(tripId!)
   const { profile } = useAuthStore()
   const createExpense = useCreateExpense()
   const deleteExpense = useDeleteExpense()
 
   const [formOpen, setFormOpen] = useState(false)
+
+  // Actividades del itinerario con precio que aún NO se han registrado como
+  // gasto (se ofrecen para añadir; el enlace activity_id evita duplicar).
+  const dayDateById = new Map((days ?? []).map(d => [d.id, d.date]))
+  const linkedActs = new Set((expenses ?? []).map(e => e.activity_id).filter(Boolean))
+  const pendingActs = (activities ?? []).filter(a => a.price != null && a.price > 0 && !linkedActs.has(a.id))
+
+  function expenseCategoryFor(type: string) {
+    if (type === 'flight' || type === 'transport') return 'Transporte'
+    if (type === 'hotel') return 'Alojamiento'
+    if (type === 'restaurant') return 'Comida'
+    return 'Actividades'
+  }
+  function addActivityExpense(a: NonNullable<typeof activities>[number]) {
+    createExpense.mutate({
+      trip_id: tripId!,
+      activity_id: a.id,
+      description: a.title,
+      category: expenseCategoryFor(a.type),
+      amount: a.price!,
+      currency: profile?.default_currency ?? 'EUR',
+      date: dayDateById.get(a.day_id) ?? new Date().toISOString().slice(0, 10),
+    })
+  }
 
   // Gasto rápido: importe + categoría, fecha de hoy, divisa principal.
   const [quickAmount, setQuickAmount] = useState('')
@@ -123,6 +150,38 @@ export function ExpensesPage() {
           Añadir gasto
         </Button>
       </div>
+
+      {/* Actividades del itinerario con precio sin registrar como gasto */}
+      {pendingActs.length > 0 && (
+        <div className="p-4 rounded-xl mb-6" style={{ background: 'color-mix(in srgb, var(--primary) 6%, var(--card))', border: '1px solid color-mix(in srgb, var(--primary) 25%, transparent)' }}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <ListPlus size={15} style={{ color: 'var(--primary)' }} />
+              <span className="text-sm font-medium">Precios del itinerario</span>
+            </div>
+            <Button size="sm" variant="outline" className="h-7 text-xs flex-shrink-0"
+              disabled={createExpense.isPending}
+              onClick={() => pendingActs.forEach(addActivityExpense)}>
+              Añadir todos
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            {pendingActs.length} actividad{pendingActs.length > 1 ? 'es' : ''} del itinerario con precio. ¿Las registras como gasto?
+          </p>
+          <div className="space-y-1.5">
+            {pendingActs.map(a => (
+              <div key={a.id} className="flex items-center gap-2 text-sm">
+                <span className="flex-1 min-w-0 truncate">{a.title}</span>
+                <span className="font-medium tabular-nums flex-shrink-0">{formatCurrency(a.price!, profile?.default_currency ?? 'EUR')}</span>
+                <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 flex-shrink-0" style={{ color: 'var(--primary)' }}
+                  disabled={createExpense.isPending} onClick={() => addActivityExpense(a)}>
+                  <Plus size={13} /> Añadir
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Gasto rápido */}
       <div className="p-4 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>

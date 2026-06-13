@@ -86,7 +86,7 @@ export function ActivityDetailPage() {
       {/* Cabecera */}
       <div className="flex items-start gap-3 mb-6">
         <Button variant="ghost" size="icon" className="w-8 h-8 mt-1" asChild>
-          <Link to={`/trips/${tripId}/itinerary`}><ArrowLeft size={16} /></Link>
+          <Link to={`/trips/${tripId}/itinerary${day ? `?day=${day.date}` : ''}`}><ArrowLeft size={16} /></Link>
         </Button>
         <div className="flex-1 min-w-0">
           <h1 className="font-serif text-3xl font-medium flex items-center gap-2">

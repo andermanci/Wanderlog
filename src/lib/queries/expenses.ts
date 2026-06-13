@@ -30,7 +30,7 @@ export function useExpenses(tripId: string) {
 export function useCreateExpense() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (values: Omit<Expense, 'id' | 'created_at' | 'external_id' | 'source'>): Promise<PendingExpense> => {
+    mutationFn: async (values: Omit<Expense, 'id' | 'created_at' | 'external_id' | 'source' | 'activity_id'> & { activity_id?: string | null }): Promise<PendingExpense> => {
       // Generamos el id en cliente: permite encolar el gasto offline y que el
       // reintento sea idempotente (mismo id ⇒ el duplicado se descarta).
       const row: Expense = {
@@ -38,6 +38,7 @@ export function useCreateExpense() {
         created_at: new Date().toISOString(),
         external_id: null,
         source: 'manual',
+        activity_id: null,
         ...values,
       }
 
