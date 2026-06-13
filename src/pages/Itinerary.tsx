@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable,
 } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
 import {
@@ -406,8 +406,8 @@ export function ItineraryPage() {
                           </div>
                         )}
 
-                        {/* Actividades */}
-                        <div className="space-y-2 sm:ml-[52px]">
+                        {/* Actividades (zona soltable: permite mover actividades a este día) */}
+                        <DayDroppable id={day.id} className="space-y-2 sm:ml-[52px]">
                           <SortableContext items={dayActs.map(a => a.id)} strategy={verticalListSortingStrategy}>
                             {dayActs.length === 0 ? (
                               <div
@@ -430,7 +430,7 @@ export function ItineraryPage() {
                               ))
                             )}
                           </SortableContext>
-                        </div>
+                        </DayDroppable>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -477,6 +477,21 @@ export function ItineraryPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+// Zona soltable por día: permite arrastrar una actividad a este día aunque
+// todavía no tenga ninguna (resalta el día al pasar por encima arrastrando).
+function DayDroppable({ id, className, children }: { id: string; className?: string; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id })
+  return (
+    <div
+      ref={setNodeRef}
+      className={className}
+      style={isOver ? { outline: '2px dashed color-mix(in srgb, var(--primary) 55%, transparent)', outlineOffset: 4, borderRadius: 12 } : undefined}
+    >
+      {children}
     </div>
   )
 }
