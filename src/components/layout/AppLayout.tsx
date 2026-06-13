@@ -28,8 +28,9 @@ export function AppLayout() {
         <div className="hidden md:flex h-full">
           <Sidebar tripId={tripId} />
         </div>
-        {/* pb extra en móvil para no quedar tapado por la navegación inferior */}
-        <main ref={mainRef} className="flex-1 overflow-auto pb-16 md:pb-0">
+        {/* pb extra en móvil: altura de la barra inferior + safe-area + holgura,
+            para que el último elemento no quede pegado/oculto tras el footer. */}
+        <main ref={mainRef} className="flex-1 overflow-auto pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-0">
           <Outlet />
         </main>
         {/* Navegación inferior solo en móvil */}
