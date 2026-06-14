@@ -97,7 +97,7 @@ export function useUpsertDays() {
 export function useCreateActivity() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (values: Omit<Activity, 'id' | 'created_at'>) => {
+    mutationFn: async (values: Omit<Activity, 'id' | 'created_at' | 'day_orders'>) => {
       const { data, error } = await supabase
         .from('activities')
         .insert(values)
@@ -151,18 +151,29 @@ export function useDeleteActivity() {
   })
 }
 
+// Cada update es heterogéneo: las actividades normales cambian day_id+order_index;
+// los hoteles (banner multi-día) solo cambian su mapa de orden por día `day_orders`.
+type ReorderUpdate = {
+  id: string
+  trip_id: string
+  day_id?: string
+  order_index?: number
+  day_orders?: Record<string, number>
+}
+
 export function useReorderActivities() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (updates: Array<{ id: string; day_id: string; order_index: number; trip_id: string }>) => {
-      const promises = updates.map(({ id, day_id, order_index }) =>
-        supabase.from('activities').update({ day_id, order_index }).eq('id', id)
+    mutationFn: async (updates: ReorderUpdate[]) => {
+      const promises = updates.map(({ id, trip_id: _t, ...patch }) =>
+        supabase.from('activities').update(patch).eq('id', id)
       )
       await Promise.all(promises)
       return updates
     },
     // Actualización optimista: el nuevo orden se ve al instante (sin esperar al
-    // servidor), así el arrastrar-soltar no "salta" al sitio anterior.
+    // servidor), así el arrastrar-soltar no "salta" al sitio anterior. Solo se
+    // fusionan los campos presentes en cada update.
     onMutate: async (updates) => {
       const tripId = updates[0]?.trip_id
       if (!tripId) return {}
@@ -171,7 +182,12 @@ export function useReorderActivities() {
       const prev = qc.getQueryData<Activity[]>(key)
       const byId = new Map(updates.map(u => [u.id, u]))
       qc.setQueryData<Activity[]>(key, (old) =>
-        old?.map(a => byId.has(a.id) ? { ...a, day_id: byId.get(a.id)!.day_id, order_index: byId.get(a.id)!.order_index } : a),
+        old?.map(a => {
+          const u = byId.get(a.id)
+          if (!u) return a
+          const { id: _id, trip_id: _t, ...patch } = u
+          return { ...a, ...patch }
+        }),
       )
       return { prev, tripId }
     },

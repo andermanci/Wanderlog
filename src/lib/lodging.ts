@@ -32,3 +32,12 @@ export function lodgingByDayMap(
   })
   return map
 }
+
+// Clave de orden de una actividad DENTRO de un día concreto.
+// El hotel se muestra como banner en varios días, así que su posición se guarda
+// por día en `day_orders` (mapa díaId → índice). El resto vive en un solo día y
+// usa su `order_index`. Sin posición guardada, el hotel cae al final del día.
+export function dayOrderOf(a: Activity, dayId: string): number {
+  if (a.type === 'hotel') return a.day_orders?.[dayId] ?? Number.MAX_SAFE_INTEGER
+  return a.order_index
+}

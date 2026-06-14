@@ -29,7 +29,7 @@ import {
 import { useTrip } from '@/lib/queries/trips'
 import { useTripAttachments } from '@/lib/queries/attachments'
 import { buildRoutePoints } from '@/lib/route'
-import { lodgingByDayMap, type Lodging } from '@/lib/lodging'
+import { lodgingByDayMap, dayOrderOf, type Lodging } from '@/lib/lodging'
 import { TripHeader } from '@/components/trips/TripHeader'
 import type { Activity, ItineraryDay } from '@/types/database'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
@@ -130,7 +130,7 @@ export function ItineraryPage() {
   function combinedItemsFor(dayId: string): Activity[] {
     const acts = (activitiesByDay.get(dayId) ?? []).filter(a => a.type !== 'hotel')
     const lodgings = (lodgingByDay.get(dayId) ?? []).map(l => l.activity)
-    return [...acts, ...lodgings].sort((a, b) => a.order_index - b.order_index)
+    return [...acts, ...lodgings].sort((a, b) => dayOrderOf(a, dayId) - dayOrderOf(b, dayId))
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -140,7 +140,7 @@ export function ItineraryPage() {
     // Los ids tienen ámbito por día: "activityId::dayId" (un hotel aparece en
     // varios días). La zona soltable del día usa solo "dayId".
     const parse = (id: string) => { const [aid, dId] = id.split('::'); return { aid, dId } }
-    const { aid: activeAid } = parse(String(active.id))
+    const { aid: activeAid, dId: sourceDay } = parse(String(active.id))
     const activeActivity = activities?.find(a => a.id === activeAid)
     if (!activeActivity) return
 
@@ -148,21 +148,26 @@ export function ItineraryPage() {
     // Día donde se suelta (item con ámbito, o el contenedor del día sin "::").
     const dropDayId = overP.dId ?? String(over.id)
 
-    const items = combinedItemsFor(dropDayId).filter(a => a.id !== activeAid)
+    // El hotel se reordena DENTRO de su propio día de arrastre (no cambia de día);
+    // el resto puede moverse al día destino.
+    const isHotel = activeActivity.type === 'hotel'
+    const targetDay = isHotel ? sourceDay : dropDayId
+
+    const items = combinedItemsFor(targetDay).filter(a => a.id !== activeAid)
     let newIndex = items.length
-    if (overP.dId && overP.aid) {
+    if (overP.dId === targetDay && overP.aid) {
       const idx = items.findIndex(a => a.id === overP.aid)
       if (idx !== -1) newIndex = idx
     }
 
     const reordered = [...items.slice(0, newIndex), activeActivity, ...items.slice(newIndex)]
-    const updates = reordered.map((a, i) => ({
-      id: a.id,
-      // Los hoteles conservan su día de entrada; el resto adopta el día destino.
-      day_id: a.type === 'hotel' ? a.day_id : dropDayId,
-      order_index: i,
-      trip_id: tripId!,
-    }))
+    // El hotel guarda su posición SOLO en este día (day_orders); el resto adopta el
+    // día destino con su order_index. Así reordenar un día no afecta a los demás.
+    const updates = reordered.map((a, i) =>
+      a.type === 'hotel'
+        ? { id: a.id, trip_id: tripId!, day_orders: { ...(a.day_orders ?? {}), [targetDay]: i } }
+        : { id: a.id, trip_id: tripId!, day_id: targetDay, order_index: i },
+    )
     reorderActivities.mutate(updates)
   }
 
@@ -226,7 +231,7 @@ export function ItineraryPage() {
               const dayLodging = lodgingByDay.get(day.id) ?? []
               const dayItems = [
                 ...dayActs.map(a => ({ id: a.id, order: a.order_index, act: a, lodge: null as Lodging | null })),
-                ...dayLodging.map(l => ({ id: l.activity.id, order: l.activity.order_index, act: null as Activity | null, lodge: l })),
+                ...dayLodging.map(l => ({ id: l.activity.id, order: dayOrderOf(l.activity, day.id), act: null as Activity | null, lodge: l })),
               ].sort((x, y) => x.order - y.order)
               const collapsed = collapsedDays.has(day.id)
               const dateLabel = format(parseISO(day.date), "EEEE dd 'de' MMMM", { locale: es })

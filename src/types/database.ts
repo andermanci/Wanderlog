@@ -149,6 +149,7 @@ export type Database = {
           destination_lat: number | null
           destination_lng: number | null
           cover_image_url: string | null
+          day_orders: Record<string, number>
           created_at: string
         }
         Insert: {
@@ -176,6 +177,7 @@ export type Database = {
           destination_lat?: number | null
           destination_lng?: number | null
           cover_image_url?: string | null
+          day_orders?: Record<string, number>
           created_at?: string
         }
         Update: {
@@ -203,6 +205,7 @@ export type Database = {
           destination_lat?: number | null
           destination_lng?: number | null
           cover_image_url?: string | null
+          day_orders?: Record<string, number>
           created_at?: string
         }
         Relationships: []
