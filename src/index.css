@@ -198,6 +198,18 @@
   body { background: #fff; }
 }
 
+/* Los inputs nativos de fecha/hora tienen un ancho mínimo intrínseco (sobre
+   todo en iOS) que ignora width:100% y desborda en móvil. Los forzamos a
+   encogerse dentro de su contenedor. */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"],
+input[type="month"],
+input[type="week"] {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* Scrollbar personalizado */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
