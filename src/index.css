@@ -206,8 +206,15 @@ input[type="datetime-local"],
 input[type="time"],
 input[type="month"],
 input[type="week"] {
+  /* display:block (no flex) + width:100% para que iOS no use su ancho
+     intrínseco y el control se ajuste al contenedor. */
+  display: block;
+  width: 100%;
   min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 /* Scrollbar personalizado */
