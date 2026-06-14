@@ -304,6 +304,7 @@ export type Database = {
         Row: {
           id: string
           trip_id: string
+          name: string
           sections: GuideSection[]
           imported_at: string | null
           created_at: string
@@ -312,6 +313,7 @@ export type Database = {
         Insert: {
           id?: string
           trip_id: string
+          name?: string
           sections?: GuideSection[]
           imported_at?: string | null
           created_at?: string
@@ -320,6 +322,7 @@ export type Database = {
         Update: {
           id?: string
           trip_id?: string
+          name?: string
           sections?: GuideSection[]
           imported_at?: string | null
           created_at?: string
