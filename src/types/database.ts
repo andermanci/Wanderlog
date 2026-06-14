@@ -300,6 +300,33 @@ export type Database = {
         }
         Relationships: []
       }
+      destination_guides: {
+        Row: {
+          id: string
+          trip_id: string
+          sections: GuideSection[]
+          imported_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          sections?: GuideSection[]
+          imported_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          trip_id?: string
+          sections?: GuideSection[]
+          imported_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           id: string
@@ -611,6 +638,19 @@ export type BankConnection = Database['public']['Tables']['bank_connections']['R
 export type ActivityAttachment = Database['public']['Tables']['activity_attachments']['Row']
 export type JournalPhoto = Database['public']['Tables']['journal_photos']['Row']
 export type Traveler = Database['public']['Tables']['travelers']['Row']
+export type DestinationGuide = Database['public']['Tables']['destination_guides']['Row']
+
+// Sección de la guía del destino (historia, costumbres, idioma...). Se importa
+// de Wikivoyage/Wikipedia y luego es editable; `edited` marca lo tocado a mano
+// para que "volver a importar" no lo pise. `source`/`url` = atribución (CC BY-SA).
+export interface GuideSection {
+  id: string
+  title: string
+  body: string
+  source?: 'Wikivoyage' | 'Wikipedia' | 'manual'
+  url?: string
+  edited?: boolean
+}
 
 export type TripStatus = Trip['status']
 export type ActivityType = Activity['type']

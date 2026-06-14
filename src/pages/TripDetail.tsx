@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import {
   MapPin, Calendar, DollarSign, FileText,
   Map as MapIcon, Package, Bell, Receipt, Pencil, ArrowRight, UserPlus, Users,
-  CalendarClock, ChevronRight, Clock, Heart, Bookmark,
+  CalendarClock, ChevronRight, Clock, Heart, Bookmark, BookOpen,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -28,6 +28,7 @@ const QUICK_LINKS = [
   { label: 'Itinerario', icon: Calendar, path: 'itinerary' },
   { label: 'Mapa', icon: MapIcon, path: 'map' },
   { label: 'Lugares', icon: Bookmark, path: 'places' },
+  { label: 'Guía del destino', icon: BookOpen, path: 'guide' },
   { label: 'Documentos', icon: FileText, path: 'documents' },
   { label: 'Equipaje', icon: Package, path: 'packing' },
   { label: 'Gastos', icon: Receipt, path: 'expenses' },

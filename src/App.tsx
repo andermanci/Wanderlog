@@ -27,6 +27,7 @@ import { CalendarPage } from '@/pages/CalendarPage'
 import { RemindersPage } from '@/pages/RemindersPage'
 import { PackingPage } from '@/pages/PackingPage'
 import { ExpensesPage } from '@/pages/ExpensesPage'
+import { GuidePage } from '@/pages/GuidePage'
 import { SettingsPage } from '@/pages/Settings'
 
 const queryClient = new QueryClient({
@@ -103,6 +104,7 @@ export default function App() {
               <Route path="/trips/:tripId/reminders" element={<RemindersPage />} />
               <Route path="/trips/:tripId/packing" element={<PackingPage />} />
               <Route path="/trips/:tripId/expenses" element={<ExpensesPage />} />
+              <Route path="/trips/:tripId/guide" element={<GuidePage />} />
 
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/settings" element={<SettingsPage />} />
