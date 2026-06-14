@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  Bookmark, Star, MapPin, Plus, Pencil, Trash2, ExternalLink, Calendar, Search, FolderOpen,
+  Bookmark, Star, MapPin, Plus, Pencil, Trash2, ExternalLink, Calendar, Search, FolderOpen, BookOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +18,7 @@ import {
 import { TripHeader } from '@/components/trips/TripHeader'
 import { AddToItineraryDialog, type PendingPlace } from '@/components/places/AddToItineraryDialog'
 import { useFavoritePlaces, useUpdateFavoritePlace, useDeleteFavoritePlace } from '@/lib/queries/places'
+import { useDestinationGuides } from '@/lib/queries/guide'
 import { PlaceIcon } from '@/components/places/PlaceIcon'
 import { PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
 import type { FavoritePlace } from '@/types/database'
@@ -27,11 +28,15 @@ const NONE = '__none'
 export function SavedPlacesPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const { data: places, isLoading } = useFavoritePlaces(tripId!)
+  const { data: guides } = useDestinationGuides(tripId!)
   const updatePlace = useUpdateFavoritePlace()
   const deletePlace = useDeleteFavoritePlace()
 
+  const guideNameById = useMemo(() => new Map((guides ?? []).map(g => [g.id, g.name])), [guides])
+
   const [editing, setEditing] = useState<FavoritePlace | null>(null)
   const [editCollection, setEditCollection] = useState('')
+  const [editGuideId, setEditGuideId] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editLink, setEditLink] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<FavoritePlace | null>(null)
@@ -57,6 +62,7 @@ export function SavedPlacesPage() {
   function openEdit(p: FavoritePlace) {
     setEditing(p)
     setEditCollection(p.collection ?? '')
+    setEditGuideId(p.guide_id ?? '')
     setEditNotes(p.notes ?? '')
     setEditLink(p.link ?? '')
   }
@@ -65,6 +71,7 @@ export function SavedPlacesPage() {
     await updatePlace.mutateAsync({
       id: editing.id,
       collection: editCollection.trim() || null,
+      guide_id: editGuideId || null,
       notes: editNotes.trim() || null,
       link: editLink.trim() || null,
     })
@@ -137,6 +144,13 @@ export function SavedPlacesPage() {
                               <Star size={10} fill="var(--primary)" /> {p.rating}
                             </span>
                           )}
+                          {p.guide_id && guideNameById.has(p.guide_id) && (
+                            <Link to={`/trips/${tripId}/guide`}
+                              className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full hover:opacity-80"
+                              style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
+                              <BookOpen size={10} /> {guideNameById.get(p.guide_id)}
+                            </Link>
+                          )}
                         </div>
                         {p.address && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{p.address}</p>}
                       </div>
@@ -188,6 +202,16 @@ export function SavedPlacesPage() {
                 {collections.map(c => <option key={c} value={c} />)}
               </datalist>
             </div>
+            {(guides?.length ?? 0) > 0 && (
+              <div className="space-y-1.5">
+                <Label>Destino (guía)</Label>
+                <select value={editGuideId} onChange={(e) => setEditGuideId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:border-primary">
+                  <option value="">Sin destino</option>
+                  {guides!.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Nota</Label>
               <Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} placeholder="Por qué te interesa, qué pedir…" />

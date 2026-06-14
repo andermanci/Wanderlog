@@ -20,6 +20,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { DatePicker } from '@/components/ui/date-picker'
 import { useFavoritePlaces, useSaveFavoritePlace, useDeleteFavoritePlace, useUpdateFavoritePlace } from '@/lib/queries/places'
+import { useDestinationGuides } from '@/lib/queries/guide'
 import { useCreateActivity, useItineraryDays, useUpsertDays, useActivities } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
 import { placeTypeToCategory, getCategoryColor } from '@/lib/maps'
@@ -152,6 +153,7 @@ export function MapViewPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const { data: trip } = useTrip(tripId!)
   const { data: favorites } = useFavoritePlaces(tripId!)
+  const { data: guides } = useDestinationGuides(tripId!)
   const { data: days } = useItineraryDays(tripId!)
   const { data: activities } = useActivities(tripId!)
   const saveFavorite = useSaveFavoritePlace()
@@ -190,6 +192,7 @@ export function MapViewPage() {
   // Edición de un favorito ya guardado (lista, nota, enlace).
   const [editFav, setEditFav] = useState<FavoritePlace | null>(null)
   const [editCollection, setEditCollection] = useState('')
+  const [editGuideId, setEditGuideId] = useState('')
   const [editNote, setEditNote] = useState('')
   const [editLink, setEditLink] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -478,6 +481,7 @@ export function MapViewPage() {
   function openEditFav(f: FavoritePlace) {
     setEditFav(f)
     setEditCollection(f.collection ?? '')
+    setEditGuideId(f.guide_id ?? '')
     setEditNote(f.notes ?? '')
     setEditLink(f.link ?? '')
   }
@@ -486,6 +490,7 @@ export function MapViewPage() {
     const updated = await updateFavorite.mutateAsync({
       id: editFav.id,
       collection: editCollection.trim() || null,
+      guide_id: editGuideId || null,
       notes: editNote.trim() || null,
       link: editLink.trim() || null,
     })
@@ -1252,6 +1257,16 @@ export function MapViewPage() {
                 {placeCollections.map(c => <option key={c} value={c} />)}
               </datalist>
             </div>
+            {(guides?.length ?? 0) > 0 && (
+              <div className="space-y-1.5">
+                <Label>Destino (guía)</Label>
+                <select value={editGuideId} onChange={(e) => setEditGuideId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:border-primary">
+                  <option value="">Sin destino</option>
+                  {guides!.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Nota personal</Label>
               <Textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} rows={3} placeholder="Qué pedir, por qué te interesa…" />
