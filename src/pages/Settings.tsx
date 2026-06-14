@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { User, Globe, Loader2, LogOut } from 'lucide-react'
+import { User, Globe, Loader2, LogOut, Bell, BellOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { useSignOut } from '@/hooks/useAuth'
+import { enablePush, disablePush, getPushStatus, type PushStatus } from '@/lib/push'
 import { toast } from 'sonner'
 
 const schema = z.object({
@@ -28,6 +29,27 @@ export function SettingsPage() {
   const { profile, user, setProfile } = useAuthStore()
   const signOut = useSignOut()
   const [saving, setSaving] = useState(false)
+
+  // Notificaciones push
+  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null)
+  const [pushBusy, setPushBusy] = useState(false)
+  useEffect(() => { getPushStatus().then(setPushStatus) }, [])
+
+  async function togglePush() {
+    if (!user) return
+    setPushBusy(true)
+    try {
+      const next = pushStatus === 'enabled' ? await disablePush() : await enablePush(user.id)
+      setPushStatus(next)
+      if (next === 'enabled') toast.success('Notificaciones activadas')
+      else if (next === 'denied') toast.error('Permiso denegado en el navegador')
+      else if (next === 'unconfigured') toast.error('Push no configurado en el servidor')
+    } catch {
+      toast.error('No se pudieron cambiar las notificaciones')
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
@@ -144,6 +166,48 @@ export function SettingsPage() {
         </section>
 
         <Separator className="my-8" />
+
+        {/* Notificaciones */}
+        <section className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Bell size={18} style={{ color: 'var(--primary)' }} />
+            <h2 className="font-serif text-xl">Notificaciones</h2>
+          </div>
+          <div className="p-6 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            {pushStatus === 'unsupported' ? (
+              <p className="text-sm text-muted-foreground">Tu navegador no admite notificaciones push.</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">Avisos del viaje</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Recibe recordatorios (vuelos, check-in…) aunque la app esté cerrada.
+                    </p>
+                  </div>
+                  <Button
+                    variant={pushStatus === 'enabled' ? 'outline' : 'default'}
+                    className="gap-1.5 flex-shrink-0"
+                    disabled={pushBusy || pushStatus === 'denied'}
+                    onClick={togglePush}
+                    style={pushStatus === 'enabled' ? undefined : { background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+                  >
+                    {pushBusy ? <Loader2 size={15} className="animate-spin" /> : pushStatus === 'enabled' ? <BellOff size={15} /> : <Bell size={15} />}
+                    {pushStatus === 'enabled' ? 'Desactivar' : 'Activar'}
+                  </Button>
+                </div>
+                {pushStatus === 'denied' && (
+                  <p className="text-xs text-destructive mt-3">Has bloqueado las notificaciones; actívalas en los ajustes del navegador.</p>
+                )}
+                <p className="text-[11px] text-muted-foreground mt-3">
+                  En iPhone, instala antes la app en la pantalla de inicio (requiere iOS 16.4+).
+                </p>
+              </>
+            )}
+          </div>
+        </section>
+
+        <Separator className="mb-8" />
 
         {/* Sesión */}
         <section className="mb-8">

@@ -20,6 +20,7 @@ import { usePackingItems } from '@/lib/queries/packing'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
 import { ShareTripDialog } from '@/components/trips/ShareTripDialog'
 import { OfflineSaveButton } from '@/components/trips/OfflineSaveButton'
+import { TodayHub } from '@/components/trips/TodayHub'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate, formatCurrency, STATUS_LABELS, STATUS_COLORS, countdownLabel, sumByCurrency, effectiveStatus } from '@/lib/utils'
 
@@ -164,6 +165,11 @@ export function TripDetail() {
           </div>
         </div>
       </motion.div>
+
+      {/* Centro del día: solo cuando el viaje está en curso */}
+      {status === 'in_progress' && (
+        <TodayHub trip={trip} activities={activities} days={days} />
+      )}
 
       {/* Description */}
       {trip.description && (

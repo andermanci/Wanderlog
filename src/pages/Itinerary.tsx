@@ -28,9 +28,10 @@ import {
 import { useTrip } from '@/lib/queries/trips'
 import { useTripAttachments } from '@/lib/queries/attachments'
 import { buildRoutePoints } from '@/lib/route'
+import { lodgingByDayMap } from '@/lib/lodging'
 import { TripHeader } from '@/components/trips/TripHeader'
 import type { Activity, ItineraryDay } from '@/types/database'
-import { eachDayOfInterval, parseISO, format, differenceInCalendarDays } from 'date-fns'
+import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export function ItineraryPage() {
@@ -101,27 +102,8 @@ export function ItineraryPage() {
     return map
   }, [activities])
 
-  // ALOJAMIENTO (hotel): se muestra como banner en CADA día de la estancia
-  // (entrada → noches → salida), no como una actividad puntual.
-  type Lodging = { activity: Activity; role: 'in' | 'mid' | 'out' | 'single'; night: number; nights: number }
-  const lodgingByDay = useMemo(() => {
-    const map = new Map<string, Lodging[]>()
-    const dateById = new Map((days ?? []).map(d => [d.id, d.date]))
-    activities?.filter(a => a.type === 'hotel').forEach(a => {
-      const inDate = dateById.get(a.day_id)
-      if (!inDate) return
-      const outDate = (a.end_day_id && dateById.get(a.end_day_id)) || inDate
-      const nights = Math.max(0, differenceInCalendarDays(parseISO(outDate), parseISO(inDate)))
-      ;(days ?? []).forEach(d => {
-        if (d.date < inDate || d.date > outDate) return
-        const offset = differenceInCalendarDays(parseISO(d.date), parseISO(inDate))
-        const role: Lodging['role'] = inDate === outDate ? 'single'
-          : d.date === inDate ? 'in' : d.date === outDate ? 'out' : 'mid'
-        map.set(d.id, [...(map.get(d.id) ?? []), { activity: a, role, night: offset + 1, nights }])
-      })
-    })
-    return map
-  }, [activities, days])
+  // ALOJAMIENTO (hotel): banner en CADA día de la estancia (entrada → noches → salida).
+  const lodgingByDay = useMemo(() => lodgingByDayMap(activities, days), [activities, days])
 
   // ¿Hay al menos 2 paradas para mostrar el botón de recorrido?
   const hasRoute = useMemo(
