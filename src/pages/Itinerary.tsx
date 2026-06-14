@@ -211,10 +211,12 @@ export function ItineraryPage() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <div className="space-y-8">
             {days?.map((day, dayIdx) => {
-              // Los hoteles no son bloques en la línea de tiempo: van como banner de estancia.
-              const dayActs = (activitiesByDay.get(day.id) ?? []).filter(a => a.type !== 'hotel')
+              // Todas las actividades (incl. hoteles) son bloques arrastrables.
+              // El hotel se muestra como bloque en su día de entrada; las noches
+              // intermedias y la salida van como banner informativo (no arrastrable).
+              const dayActs = activitiesByDay.get(day.id) ?? []
               const dayArrivals = arrivalsByDay.get(day.id) ?? []
-              const dayLodging = lodgingByDay.get(day.id) ?? []
+              const dayLodging = (lodgingByDay.get(day.id) ?? []).filter(l => l.role === 'mid' || l.role === 'out')
               const collapsed = collapsedDays.has(day.id)
               const dateLabel = format(parseISO(day.date), "EEEE dd 'de' MMMM", { locale: es })
 

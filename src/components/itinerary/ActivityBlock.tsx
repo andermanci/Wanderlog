@@ -92,7 +92,7 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
               {activity.end_day_id && activity.end_day_id !== activity.day_id && (
                 <span className="text-[11px] px-1.5 py-0.5 rounded-full font-medium"
                   style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
-                  llega otro día
+                  {activity.type === 'hotel' ? 'estancia' : 'llega otro día'}
                 </span>
               )}
               {activity.type === 'transport' && (activity.origin || activity.destination) ? (
