@@ -213,3 +213,29 @@ export function useUpdateDayNotes() {
     },
   })
 }
+
+// Asigna (o quita) la ciudad/guía de destino de un día. guide_id = null lo desasocia.
+export function useUpdateDayGuide() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, guideId, tripId }: { id: string; guideId: string | null; tripId: string }) => {
+      const { error } = await supabase.from('itinerary_days').update({ guide_id: guideId }).eq('id', id)
+      if (error) throw error
+      return { tripId }
+    },
+    onMutate: async ({ id, guideId, tripId }) => {
+      const key = itineraryKeys.days(tripId)
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<ItineraryDay[]>(key)
+      qc.setQueryData<ItineraryDay[]>(key, (old) => old?.map(d => d.id === id ? { ...d, guide_id: guideId } : d))
+      return { prev, tripId }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.tripId && ctx.prev) qc.setQueryData(itineraryKeys.days(ctx.tripId), ctx.prev)
+      toast.error('No se pudo asignar la ciudad')
+    },
+    onSettled: (_d, _e, vars) => {
+      qc.invalidateQueries({ queryKey: itineraryKeys.days(vars.tripId) })
+    },
+  })
+}

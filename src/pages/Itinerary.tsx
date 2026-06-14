@@ -9,7 +9,7 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, ChevronDown, Pencil, Route, BookOpen, CornerDownRight, BedDouble, GripVertical } from 'lucide-react'
+import { Plus, ChevronDown, Pencil, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -24,8 +24,9 @@ import { useJournalPhotos } from '@/lib/queries/journal'
 import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
 import {
   useItineraryDays, useActivities, useUpsertDays,
-  useDeleteActivity, useReorderActivities, useUpdateDayNotes,
+  useDeleteActivity, useReorderActivities, useUpdateDayNotes, useUpdateDayGuide,
 } from '@/lib/queries/itinerary'
+import { useDestinationGuides } from '@/lib/queries/guide'
 import { useTrip } from '@/lib/queries/trips'
 import { useTripAttachments } from '@/lib/queries/attachments'
 import { buildRoutePoints } from '@/lib/route'
@@ -47,6 +48,8 @@ export function ItineraryPage() {
   const deleteActivity = useDeleteActivity()
   const reorderActivities = useReorderActivities()
   const updateDayNotes = useUpdateDayNotes()
+  const updateDayGuide = useUpdateDayGuide()
+  const { data: guides } = useDestinationGuides(tripId!)
 
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
   const [journalDay, setJournalDay] = useState<ItineraryDay | null>(null)
@@ -265,6 +268,27 @@ export function ItineraryPage() {
                         Día {dayIdx + 1} · {dayActs.length} actividades
                         {dayArrivals.length > 0 && ` · ${dayArrivals.length} llegada${dayArrivals.length > 1 ? 's' : ''}`}
                       </p>
+                      {/* Ciudad / guía del destino del día */}
+                      {(guides?.length ?? 0) > 0 && (
+                        <div className="flex items-center gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
+                          <MapPin size={12} className="text-muted-foreground flex-shrink-0" />
+                          <select
+                            value={day.guide_id ?? ''}
+                            onChange={(e) => updateDayGuide.mutate({ id: day.id, guideId: e.target.value || null, tripId: tripId! })}
+                            className="text-xs bg-transparent border border-border rounded px-1.5 py-0.5 max-w-[160px] text-muted-foreground focus:outline-none focus:border-primary"
+                          >
+                            <option value="">Sin ciudad</option>
+                            {guides!.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                          </select>
+                          {day.guide_id && (
+                            <Link to={`/trips/${tripId}/guide`} onClick={(e) => e.stopPropagation()}
+                              title="Ver guía del destino"
+                              className="text-primary hover:opacity-80 flex-shrink-0">
+                              <BookOpen size={13} />
+                            </Link>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {weather?.[day.date] && (
                       <span

@@ -28,7 +28,7 @@ export function useSaveFavoritePlace() {
   const qc = useQueryClient()
   const { user } = useAuthStore()
   return useMutation({
-    mutationFn: async (values: Omit<FavoritePlace, 'id' | 'user_id' | 'created_at'>) => {
+    mutationFn: async (values: Omit<FavoritePlace, 'id' | 'user_id' | 'created_at' | 'guide_id'>) => {
       const { data, error } = await supabase
         .from('favorite_places')
         .insert({ ...values, user_id: user!.id })

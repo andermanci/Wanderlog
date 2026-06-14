@@ -82,6 +82,7 @@ export type Database = {
           date: string
           notes: string | null
           journal: string | null
+          guide_id: string | null
         }
         Insert: {
           id?: string
@@ -89,6 +90,7 @@ export type Database = {
           date: string
           notes?: string | null
           journal?: string | null
+          guide_id?: string | null
         }
         Update: {
           id?: string
@@ -96,6 +98,7 @@ export type Database = {
           date?: string
           notes?: string | null
           journal?: string | null
+          guide_id?: string | null
         }
         Relationships: []
       }
@@ -306,6 +309,9 @@ export type Database = {
           trip_id: string
           name: string
           sections: GuideSection[]
+          cover_image_url: string | null
+          order_index: number
+          facts: GuideFacts
           imported_at: string | null
           created_at: string
           updated_at: string
@@ -315,6 +321,9 @@ export type Database = {
           trip_id: string
           name?: string
           sections?: GuideSection[]
+          cover_image_url?: string | null
+          order_index?: number
+          facts?: GuideFacts
           imported_at?: string | null
           created_at?: string
           updated_at?: string
@@ -324,6 +333,9 @@ export type Database = {
           trip_id?: string
           name?: string
           sections?: GuideSection[]
+          cover_image_url?: string | null
+          order_index?: number
+          facts?: GuideFacts
           imported_at?: string | null
           created_at?: string
           updated_at?: string
@@ -372,6 +384,7 @@ export type Database = {
           notes: string | null
           link: string | null
           collection: string | null
+          guide_id: string | null
           created_at: string
         }
         Insert: {
@@ -388,6 +401,7 @@ export type Database = {
           notes?: string | null
           link?: string | null
           collection?: string | null
+          guide_id?: string | null
           created_at?: string
         }
         Update: {
@@ -404,6 +418,7 @@ export type Database = {
           notes?: string | null
           link?: string | null
           collection?: string | null
+          guide_id?: string | null
           created_at?: string
         }
         Relationships: []
@@ -653,6 +668,17 @@ export interface GuideSection {
   source?: 'Wikivoyage' | 'Wikipedia' | 'manual'
   url?: string
   edited?: boolean
+}
+
+// Datos rápidos del destino (chips). Best-effort desde Wikidata; campos vacíos
+// se ocultan. Todo opcional.
+export interface GuideFacts {
+  currency?: string
+  languages?: string
+  emergency?: string
+  plug?: string
+  voltage?: string
+  callingCode?: string
 }
 
 export type TripStatus = Trip['status']

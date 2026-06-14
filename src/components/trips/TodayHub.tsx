@@ -2,9 +2,10 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Clock, BedDouble, Receipt, Map as MapIcon, CalendarDays, ChevronRight } from 'lucide-react'
+import { Clock, BedDouble, Receipt, Map as MapIcon, CalendarDays, ChevronRight, BookOpen } from 'lucide-react'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
+import { useDestinationGuides } from '@/lib/queries/guide'
 import { lodgingByDayMap } from '@/lib/lodging'
 import { ACTIVITY_COLORS } from '@/lib/utils'
 import type { Trip, Activity, ItineraryDay } from '@/types/database'
@@ -22,8 +23,10 @@ export function TodayHub({ trip, activities, days }: {
   days: ItineraryDay[] | undefined
 }) {
   const { data: weather } = useTripWeather(trip, days, activities)
+  const { data: guides } = useDestinationGuides(trip.id)
   const todayStr = format(new Date(), 'yyyy-MM-dd')
   const todayDay = days?.find(d => d.date === todayStr)
+  const todayGuide = todayDay?.guide_id ? guides?.find(g => g.id === todayDay.guide_id) : undefined
 
   const todayActs = useMemo(() => {
     if (!todayDay) return []
@@ -62,6 +65,18 @@ export function TodayHub({ trip, activities, days }: {
           </span>
         )}
       </div>
+
+      {/* Ciudad de hoy (guía del destino) */}
+      {todayGuide && (
+        <Link to={`/trips/${trip.id}/guide`}
+          className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-full text-sm transition-colors hover:brightness-105"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <BookOpen size={14} style={{ color: 'var(--primary)' }} />
+          <span className="text-muted-foreground">Hoy en</span>
+          <span className="font-medium">{todayGuide.name}</span>
+          <ChevronRight size={14} className="text-muted-foreground" />
+        </Link>
+      )}
 
       {/* Ahora / A continuación */}
       {featured ? (
