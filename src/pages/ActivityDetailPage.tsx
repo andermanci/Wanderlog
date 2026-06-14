@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Clock, MapPin, Euro, ExternalLink, Pencil, FileText, Navigation,
-  ArrowLeft, Upload, Loader2, X, Calendar, Trash2, Map as MapIcon,
+  ArrowLeft, Upload, Loader2, X, Calendar, Trash2, Map as MapIcon, Bell,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { useActivities, useItineraryDays, useDeleteActivity } from '@/lib/queries/itinerary'
+import { useCreateReminder } from '@/lib/queries/reminders'
 import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useAuthStore } from '@/store/authStore'
 import { ACTIVITY_COLORS, ACTIVITY_LABELS, formatDate } from '@/lib/utils'
@@ -30,6 +31,7 @@ export function ActivityDetailPage() {
   const addAttachment = useAddAttachment(tripId!, activityId!)
   const deleteAttachment = useDeleteAttachment(tripId!)
   const deleteActivity = useDeleteActivity()
+  const createReminder = useCreateReminder()
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -38,6 +40,21 @@ export function ActivityDetailPage() {
   const day = days?.find(d => d.id === activity?.day_id)
   const endDay = activity?.end_day_id ? days?.find(d => d.id === activity.end_day_id) : null
   const attachments = (tripAttachments ?? []).filter(a => a.activity_id === activityId)
+
+  // Crea un recordatorio relativo a la hora de la actividad (X antes).
+  function remindBefore(hoursBefore: number, label: string) {
+    if (!activity || !day || !activity.start_time) return
+    const base = new Date(`${day.date}T${activity.start_time}`)
+    const when = new Date(base.getTime() - hoursBefore * 3600 * 1000)
+    if (when.getTime() < Date.now()) { toast.error('Esa hora ya ha pasado'); return }
+    createReminder.mutate({
+      trip_id: tripId!,
+      activity_id: activity.id,
+      title: `${activity.title} · ${label}`,
+      remind_at: when.toISOString(),
+      type: activity.type === 'flight' ? 'flight' : 'custom',
+    })
+  }
 
   async function handleUpload(file: File) {
     if (!user || !activityId) return
@@ -206,6 +223,26 @@ export function ActivityDetailPage() {
               <MapIcon size={15} /> Ver en el mapa del viaje
             </Link>
           </Button>
+        )}
+
+        {/* Recordarme antes (crea un aviso relativo a la hora de la actividad) */}
+        {day && activity.start_time && (
+          <div className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-1.5 mb-3">
+              <Bell size={14} style={{ color: 'var(--primary)' }} />
+              <span className="text-sm font-medium">Recordarme antes</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[{ h: 1, l: '1 h antes' }, { h: 3, l: '3 h antes' }, { h: 24, l: '1 día antes' }].map(({ h, l }) => (
+                <Button key={h} size="sm" variant="outline" className="text-xs gap-1.5"
+                  disabled={createReminder.isPending}
+                  onClick={() => remindBefore(h, l)}>
+                  <Bell size={12} /> {l}
+                </Button>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">Activa las notificaciones en Ajustes para recibirlos.</p>
+          </div>
         )}
 
         {/* Descripción / notas / enlace */}
