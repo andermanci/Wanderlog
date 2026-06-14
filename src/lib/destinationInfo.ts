@@ -1,3 +1,4 @@
+import TurndownService from 'turndown'
 import type { GuideSection } from '@/types/database'
 
 // Importa un borrador de "guía del destino" desde APIs públicas de Wikimedia
@@ -31,17 +32,36 @@ async function getJson(base: string, params: Record<string, string>): Promise<an
   return res.json()
 }
 
-// Convierte el HTML de una sección en texto limpio (sin refs, enlaces de edición,
-// tablas/infoboxes ni imágenes). Limita la longitud para no cargar en exceso.
-function htmlToText(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  doc.querySelectorAll('.mw-editsection, sup.reference, style, table, .thumb, .mw-empty-elt, .noprint').forEach(el => el.remove())
-  const text = (doc.body.textContent ?? '')
+const turndown = new TurndownService({ headingStyle: 'atx', bulletListMarker: '-', emDelimiter: '_' })
+
+// Convierte el HTML de una sección de Wikivoyage en Markdown limpio: conserva el
+// formato (listas, negritas, subtítulos, enlaces) pero quita ruido (enlaces de
+// edición, referencias, tablas/infoboxes, imágenes, navegación). Los enlaces
+// relativos se vuelven absolutos para que funcionen; las anclas internas se
+// dejan como texto. `origin` = host del wiki (es/en) para la atribución de enlaces.
+function htmlToMarkdown(html: string, origin: string): string {
+  const root = new DOMParser().parseFromString(html, 'text/html').body
+  root.querySelectorAll(
+    '.mw-editsection, sup.reference, sup.noprint, style, table, figure, img, .thumb, .mw-empty-elt, .noprint, .navbox, .metadata, .ambox, .hatnote, .printfooter, #toc, .toc, .mw-jump-link',
+  ).forEach(el => el.remove())
+
+  // El primer encabezado es el título de la sección (ya lo mostramos aparte).
+  const firstHeading = root.querySelector('.mw-heading, h1, h2, h3, h4')
+  if (firstHeading) (firstHeading.closest('.mw-heading') ?? firstHeading).remove()
+
+  // Enlaces relativos → absolutos; anclas internas (#) → solo texto.
+  root.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href') ?? ''
+    if (href.startsWith('#')) { a.replaceWith(...Array.from(a.childNodes)); return }
+    if (href.startsWith('./')) a.setAttribute('href', `${origin}/wiki/${href.slice(2)}`)
+    else if (href.startsWith('/')) a.setAttribute('href', origin + href)
+  })
+
+  const md = turndown.turndown(root.innerHTML)
     .replace(/\[\d+\]/g, '')
     .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]+\n/g, '\n')
     .trim()
-  return text.length > 4000 ? text.slice(0, 4000).trimEnd() + '…' : text
+  return md.length > 6000 ? md.slice(0, 6000).trimEnd() + '…' : md
 }
 
 async function resolveTitle(base: string, query: string): Promise<string | null> {
@@ -77,10 +97,16 @@ async function wikipediaOverview(destination: string): Promise<GuideSection | nu
   }
 }
 
-// Devuelve un mapa { idSección -> texto } leyendo las secciones de Wikivoyage.
-async function wikivoyageSections(destination: string): Promise<{ texts: Map<string, string>; url: string | null }> {
-  const texts = new Map<string, string>()
+interface VoyageSection { body: string; url: string }
+
+// Lee las secciones de Wikivoyage para cada sección de la guía. Recorre ES y
+// luego EN, RELLENANDO las que falten (la versión española suele ser más pobre),
+// y guarda por sección el enlace a su fuente real (es/en) para la atribución.
+async function wikivoyageSections(destination: string): Promise<Map<string, VoyageSection>> {
+  const out = new Map<string, VoyageSection>()
   for (const base of [WIKIVOYAGE_ES, WIKIVOYAGE_EN]) {
+    // Si ya tenemos todas las secciones, no hace falta ir a por el siguiente wiki.
+    if (out.size >= SECTION_MAP.length) break
     const title = await resolveTitle(base, destination)
     if (!title) continue
     let list: any
@@ -90,27 +116,26 @@ async function wikivoyageSections(destination: string): Promise<{ texts: Map<str
     const sections: any[] = list?.parse?.sections ?? []
     if (!sections.length) continue
     const lang = base === WIKIVOYAGE_ES ? 'es' : 'en'
-    const pageUrl = `https://${lang}.wikivoyage.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
+    const origin = `https://${lang}.wikivoyage.org`
+    const pageUrl = `${origin}/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
 
     for (const target of SECTION_MAP) {
+      if (out.has(target.id)) continue // ya rellena (p. ej. desde ES)
       const matches = sections.filter(s => target.headings.some(h => norm(String(s.line ?? '')).includes(h)))
       if (!matches.length) continue
       const parts: string[] = []
       for (const m of matches) {
         try {
           const sec = await getJson(base, { action: 'parse', prop: 'text', section: String(m.index), page: title })
-          const txt = htmlToText(sec?.parse?.text?.['*'] ?? '')
+          const txt = htmlToMarkdown(sec?.parse?.text?.['*'] ?? '', origin)
           if (txt) parts.push(txt)
         } catch { /* ignora secciones sueltas */ }
       }
       const body = parts.join('\n\n').trim()
-      if (body && !texts.has(target.id)) texts.set(target.id, body)
+      if (body) out.set(target.id, { body, url: pageUrl })
     }
-    // Si la versión ES dio algo, no hace falta caer a EN.
-    if (texts.size) return { texts, url: pageUrl }
-    return { texts, url: pageUrl }
   }
-  return { texts, url: null }
+  return out
 }
 
 export async function fetchDestinationInfo(destination: string): Promise<GuideSection[]> {
@@ -127,13 +152,13 @@ export async function fetchDestinationInfo(destination: string): Promise<GuideSe
   }
 
   for (const target of SECTION_MAP) {
-    const body = voyage.texts.get(target.id) ?? ''
+    const found = voyage.get(target.id)
     sections.push({
       id: target.id,
       title: target.title,
-      body,
-      source: body ? 'Wikivoyage' : 'manual',
-      url: body ? voyage.url ?? undefined : undefined,
+      body: found?.body ?? '',
+      source: found ? 'Wikivoyage' : 'manual',
+      url: found?.url,
       edited: false,
     })
   }

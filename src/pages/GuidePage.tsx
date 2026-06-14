@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TripHeader } from '@/components/trips/TripHeader'
+import { MarkdownView } from '@/components/MarkdownView'
 import { useTrip } from '@/lib/queries/trips'
 import { useDestinationGuide, useSaveDestinationGuide } from '@/lib/queries/guide'
 import { fetchDestinationInfo } from '@/lib/destinationInfo'
@@ -205,15 +206,20 @@ export function GuidePage() {
 
                 <div className="px-4 py-3">
                   {editing ? (
-                    <Textarea
-                      value={draftBody}
-                      onChange={e => setDraftBody(e.target.value)}
-                      rows={8}
-                      placeholder="Escribe aquí la información…"
-                      className="resize-y"
-                    />
+                    <div className="space-y-1.5">
+                      <Textarea
+                        value={draftBody}
+                        onChange={e => setDraftBody(e.target.value)}
+                        rows={10}
+                        placeholder="Escribe aquí la información…"
+                        className="resize-y font-mono text-xs leading-relaxed"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Admite <span className="font-medium">Markdown</span>: **negrita**, listas con «- », ## subtítulos, [enlaces](url).
+                      </p>
+                    </div>
                   ) : s.body.trim() ? (
-                    <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{s.body}</p>
+                    <MarkdownView content={s.body} />
                   ) : (
                     <p className="text-sm text-muted-foreground italic">Sin información. Pulsa el lápiz para añadirla.</p>
                   )}
