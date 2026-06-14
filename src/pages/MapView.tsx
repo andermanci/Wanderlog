@@ -514,6 +514,7 @@ export function MapViewPage() {
       notes: null,
       order_index: 0,
       place_id: place.place_id,
+      cover_image_url: null,
       origin: null,
       destination: null,
       lat: place.lat,

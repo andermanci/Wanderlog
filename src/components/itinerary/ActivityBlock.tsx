@@ -57,11 +57,20 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
         <GripVertical size={14} />
       </button>
 
-      {/* Icon */}
-      <span className="flex-shrink-0 mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center"
-        style={{ background: `color-mix(in srgb, ${color} 14%, transparent)` }}>
-        <ActivityIcon type={activity.type} size={15} style={{ color }} />
-      </span>
+      {/* Portada (si hay) o icono del tipo */}
+      {activity.cover_image_url ? (
+        <img
+          src={activity.cover_image_url}
+          alt=""
+          className="flex-shrink-0 w-11 h-11 rounded-lg object-cover border border-border"
+          loading="lazy"
+        />
+      ) : (
+        <span className="flex-shrink-0 mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{ background: `color-mix(in srgb, ${color} 14%, transparent)` }}>
+          <ActivityIcon type={activity.type} size={15} style={{ color }} />
+        </span>
+      )}
 
       {/* Content */}
       <div className="flex-1 min-w-0">

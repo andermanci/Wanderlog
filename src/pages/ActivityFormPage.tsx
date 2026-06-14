@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, ArrowLeft, X } from 'lucide-react'
+import { Loader2, ArrowLeft, X, ImageIcon } from 'lucide-react'
 import { parseISO } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,8 +14,10 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LocationPicker, type LatLng } from '@/components/itinerary/LocationPicker'
 import { TripHeader } from '@/components/trips/TripHeader'
-import { useCreateActivity, useUpdateActivity, useItineraryDays, useActivities } from '@/lib/queries/itinerary'
+import { useCreateActivity, useUpdateActivity, useItineraryDays, useActivities, uploadActivityCover } from '@/lib/queries/itinerary'
+import { useAuthStore } from '@/store/authStore'
 import { ACTIVITY_LABELS } from '@/lib/utils'
+import { toast } from 'sonner'
 import type { Activity, ItineraryDay } from '@/types/database'
 
 const schema = z.object({
@@ -92,8 +94,23 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
   defaultDayId?: string
 }) {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const createActivity = useCreateActivity()
   const updateActivity = useUpdateActivity()
+
+  // Foto de portada (subida por el usuario o tomada de Google al asociar un lugar).
+  const [coverUrl, setCoverUrl] = useState<string | null>(activity?.cover_image_url ?? null)
+  const [coverUploading, setCoverUploading] = useState(false)
+  const coverRef = useRef<HTMLInputElement>(null)
+
+  async function uploadCover(file: File) {
+    if (!user) return
+    if (file.size > 10 * 1024 * 1024) { toast.error('La imagen supera 10 MB'); return }
+    setCoverUploading(true)
+    try { setCoverUrl(await uploadActivityCover(file, user.id, tripId)) }
+    catch { toast.error('No se pudo subir la imagen') }
+    finally { setCoverUploading(false) }
+  }
 
   const [coords, setCoords] = useState<{ address?: LatLng | null; origin?: LatLng | null; destination?: LatLng | null }>(() => ({
     address: activity?.lat != null && activity?.lng != null ? { lat: activity.lat, lng: activity.lng } : null,
@@ -153,6 +170,7 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
       notes: values.notes ?? null,
       order_index: activity?.order_index ?? 0,
       place_id: activity?.place_id ?? null,
+      cover_image_url: coverUrl,
       lat: !isTransport && values.address ? coords.address?.lat ?? null : null,
       lng: !isTransport && values.address ? coords.address?.lng ?? null : null,
       origin_lat: isTransport && values.origin ? coords.origin?.lat ?? null : null,
@@ -270,11 +288,51 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
           <Label>Dirección</Label>
           <LocationPicker
             value={watch('address')}
-            onChange={(v, c) => { setValue('address', v, { shouldDirty: true }); setCoords(prev => ({ ...prev, address: c ?? null })) }}
+            onChange={(v, c, meta) => {
+              setValue('address', v, { shouldDirty: true })
+              setCoords(prev => ({ ...prev, address: c ?? null }))
+              // Si el lugar trae foto de Google y aún no hay portada, la usamos.
+              if (meta?.photoUrl && !coverUrl) setCoverUrl(meta.photoUrl)
+            }}
             placeholder="Buscar o elegir en el mapa"
           />
         </div>
       )}
+
+      {/* Foto de portada (para visualizar la actividad en el itinerario) */}
+      <div className="space-y-1.5">
+        <Label>Foto</Label>
+        <input
+          ref={coverRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCover(f); e.target.value = '' }}
+        />
+        {coverUrl ? (
+          <div className="relative rounded-lg overflow-hidden border border-border">
+            <img src={coverUrl} alt="Portada" className="w-full h-36 object-cover" />
+            <div className="absolute top-1.5 right-1.5 flex gap-1.5">
+              <Button type="button" size="sm" variant="secondary" className="h-7 text-xs" onClick={() => coverRef.current?.click()}>
+                Cambiar
+              </Button>
+              <Button type="button" size="icon" variant="secondary" className="w-7 h-7" onClick={() => setCoverUrl(null)} title="Quitar">
+                <X size={13} />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => coverRef.current?.click()}
+            disabled={coverUploading}
+            className="w-full h-24 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+          >
+            {coverUploading ? <Loader2 size={18} className="animate-spin" /> : <ImageIcon size={18} />}
+            <span className="text-xs">{coverUploading ? 'Subiendo…' : 'Añadir una foto'}</span>
+          </button>
+        )}
+      </div>
 
       <div className="space-y-1.5">
         <Label>Descripción</Label>

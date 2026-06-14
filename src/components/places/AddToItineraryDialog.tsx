@@ -54,6 +54,7 @@ export function AddToItineraryDialog({ open, onOpenChange, tripId, place }: Prop
       notes: null,
       order_index: 0,
       place_id: place.place_id,
+      cover_image_url: null,
       origin: null,
       destination: null,
       lat: place.lat,

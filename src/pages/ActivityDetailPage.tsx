@@ -137,6 +137,16 @@ export function ActivityDetailPage() {
       </div>
 
       <div className="space-y-5">
+        {/* Foto de portada */}
+        {activity.cover_image_url && (
+          <img
+            src={activity.cover_image_url}
+            alt={activity.title}
+            className="w-full h-48 object-cover rounded-xl border border-border"
+            loading="lazy"
+          />
+        )}
+
         {/* Transporte: origen → destino + ruta */}
         {isTransport && (
           <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>

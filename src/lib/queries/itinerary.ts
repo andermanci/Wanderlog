@@ -5,6 +5,15 @@ import { useAuthStore } from '@/store/authStore'
 import type { Activity, ItineraryDay } from '@/types/database'
 import { toast } from 'sonner'
 
+// Sube una foto de portada de actividad al bucket público (offline-cacheable).
+export async function uploadActivityCover(file: File, userId: string, tripId: string): Promise<string> {
+  const ext = file.name.split('.').pop() || 'jpg'
+  const path = `${userId}/${tripId}/covers/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from('attachments').upload(path, file)
+  if (error) throw error
+  return supabase.storage.from('attachments').getPublicUrl(path).data.publicUrl
+}
+
 export const itineraryKeys = {
   days: (tripId: string) => ['itinerary', 'days', tripId] as const,
   activities: (tripId: string) => ['itinerary', 'activities', tripId] as const,

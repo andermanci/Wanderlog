@@ -13,15 +13,17 @@ const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
 
 export interface LatLng { lat: number; lng: number }
 
+export interface PlaceMeta { photoUrl?: string | null }
+
 interface LocationPickerProps {
   value?: string
-  onChange: (address: string, coords?: LatLng | null) => void
+  onChange: (address: string, coords?: LatLng | null, meta?: PlaceMeta) => void
   placeholder?: string
   center?: LatLng
 }
 
-interface Pending { address: string; lat?: number; lng?: number }
-interface SearchHit { name: string; address: string; lat: number; lng: number }
+interface Pending { address: string; lat?: number; lng?: number; photoUrl?: string | null }
+interface SearchHit { name: string; address: string; lat: number; lng: number; photoUrl?: string | null }
 
 export function LocationPicker({ value, onChange, placeholder = 'Seleccionar ubicación', center }: LocationPickerProps) {
   const [open, setOpen] = useState(false)
@@ -58,7 +60,7 @@ export function LocationPicker({ value, onChange, placeholder = 'Seleccionar ubi
             <Inner
               initial={value}
               center={center}
-              onPick={(addr, coords) => { onChange(addr, coords); setOpen(false) }}
+              onPick={(addr, coords, meta) => { onChange(addr, coords, meta); setOpen(false) }}
               onCancel={() => setOpen(false)}
             />
           )}
@@ -71,7 +73,7 @@ export function LocationPicker({ value, onChange, placeholder = 'Seleccionar ubi
 function Inner({ initial, center, onPick, onCancel }: {
   initial?: string
   center?: LatLng
-  onPick: (address: string, coords?: LatLng | null) => void
+  onPick: (address: string, coords?: LatLng | null, meta?: PlaceMeta) => void
   onCancel: () => void
 }) {
   const [query, setQuery] = useState('')
@@ -104,17 +106,23 @@ function Inner({ initial, center, onPick, onCancel }: {
       if (google.maps.places.Place?.searchByText) {
         const { places } = await google.maps.places.Place.searchByText({
           textQuery: q,
-          fields: ['displayName', 'formattedAddress', 'location'],
+          fields: ['displayName', 'formattedAddress', 'location', 'photos'],
           maxResultCount: 8,
           ...(bias ? { locationBias: bias } : {}),
         })
         if (places?.length) {
-          setResults(places.filter(p => p.location).map(p => ({
-            name: p.displayName ?? '',
-            address: p.formattedAddress ?? p.displayName ?? '',
-            lat: p.location!.lat(),
-            lng: p.location!.lng(),
-          })))
+          setResults(places.filter(p => p.location).map(p => {
+            let photoUrl: string | null = null
+            // API nueva: getURI({maxWidthPx}); los tipos instalados aún no lo recogen.
+            try { photoUrl = (p.photos?.[0] as unknown as { getURI?: (o: { maxWidthPx: number }) => string })?.getURI?.({ maxWidthPx: 800 }) ?? null } catch { /* sin foto */ }
+            return {
+              name: p.displayName ?? '',
+              address: p.formattedAddress ?? p.displayName ?? '',
+              lat: p.location!.lat(),
+              lng: p.location!.lng(),
+              photoUrl,
+            }
+          }))
           return
         }
       }
@@ -137,7 +145,7 @@ function Inner({ initial, center, onPick, onCancel }: {
   }, [query, mapInstance])
 
   function choose(hit: SearchHit) {
-    setPending({ address: hit.address, lat: hit.lat, lng: hit.lng })
+    setPending({ address: hit.address, lat: hit.lat, lng: hit.lng, photoUrl: hit.photoUrl })
     setResults([])
     mapInstance?.panTo({ lat: hit.lat, lng: hit.lng })
     mapInstance?.setZoom(15)
@@ -224,6 +232,7 @@ function Inner({ initial, center, onPick, onCancel }: {
             onClick={() => pending?.address && onPick(
               pending.address,
               pending.lat != null && pending.lng != null ? { lat: pending.lat, lng: pending.lng } : null,
+              { photoUrl: pending.photoUrl ?? null },
             )}
             style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
           >
