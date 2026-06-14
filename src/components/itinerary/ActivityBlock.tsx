@@ -12,12 +12,14 @@ interface ActivityBlockProps {
   onEdit: (a: Activity) => void
   onDelete: (a: Activity) => void
   onOpen?: (a: Activity) => void
+  /** Id de arrastre con ámbito por día ("activityId::dayId"). */
+  sortableId?: string
 }
 
-export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, onOpen }: ActivityBlockProps) {
+export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, onOpen, sortableId }: ActivityBlockProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: activity.id })
+  } = useSortable({ id: sortableId ?? activity.id })
 
   const style = {
     transform: CSS.Transform.toString(transform),

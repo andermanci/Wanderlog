@@ -6,9 +6,10 @@ import {
 } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
 import {
-  SortableContext, verticalListSortingStrategy,
+  SortableContext, verticalListSortingStrategy, useSortable,
 } from '@dnd-kit/sortable'
-import { Plus, ChevronDown, Pencil, Route, BookOpen, CornerDownRight, BedDouble } from 'lucide-react'
+import { CSS } from '@dnd-kit/utilities'
+import { Plus, ChevronDown, Pencil, Route, BookOpen, CornerDownRight, BedDouble, GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -28,7 +29,7 @@ import {
 import { useTrip } from '@/lib/queries/trips'
 import { useTripAttachments } from '@/lib/queries/attachments'
 import { buildRoutePoints } from '@/lib/route'
-import { lodgingByDayMap } from '@/lib/lodging'
+import { lodgingByDayMap, type Lodging } from '@/lib/lodging'
 import { TripHeader } from '@/components/trips/TripHeader'
 import type { Activity, ItineraryDay } from '@/types/database'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
@@ -124,38 +125,44 @@ export function ItineraryPage() {
     }, 350)
   }, [days, searchParams])
 
+  // Items ordenables de un día: actividades no-hotel del día + hoteles que lo
+  // cubren (como banner), ordenados por order_index.
+  function combinedItemsFor(dayId: string): Activity[] {
+    const acts = (activitiesByDay.get(dayId) ?? []).filter(a => a.type !== 'hotel')
+    const lodgings = (lodgingByDay.get(dayId) ?? []).map(l => l.activity)
+    return [...acts, ...lodgings].sort((a, b) => a.order_index - b.order_index)
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    const activeActivity = activities?.find(a => a.id === active.id)
+    // Los ids tienen ámbito por día: "activityId::dayId" (un hotel aparece en
+    // varios días). La zona soltable del día usa solo "dayId".
+    const parse = (id: string) => { const [aid, dId] = id.split('::'); return { aid, dId } }
+    const { aid: activeAid } = parse(String(active.id))
+    const activeActivity = activities?.find(a => a.id === activeAid)
     if (!activeActivity) return
 
-    const overActivity = activities?.find(a => a.id === over.id)
-    const overDay = days?.find(d => d.id === over.id)
+    const overP = parse(String(over.id))
+    // Día donde se suelta (item con ámbito, o el contenedor del día sin "::").
+    const dropDayId = overP.dId ?? String(over.id)
 
-    const targetDayId = overActivity?.day_id ?? overDay?.id ?? activeActivity.day_id
-    const dayActivities = (activitiesByDay.get(targetDayId) ?? []).filter(a => a.id !== active.id)
-
-    let newIndex = dayActivities.length
-    if (overActivity) {
-      newIndex = dayActivities.findIndex(a => a.id === overActivity.id)
-      if (newIndex === -1) newIndex = dayActivities.length
+    const items = combinedItemsFor(dropDayId).filter(a => a.id !== activeAid)
+    let newIndex = items.length
+    if (overP.dId && overP.aid) {
+      const idx = items.findIndex(a => a.id === overP.aid)
+      if (idx !== -1) newIndex = idx
     }
 
-    const reordered = [
-      ...dayActivities.slice(0, newIndex),
-      activeActivity,
-      ...dayActivities.slice(newIndex),
-    ]
-
+    const reordered = [...items.slice(0, newIndex), activeActivity, ...items.slice(newIndex)]
     const updates = reordered.map((a, i) => ({
       id: a.id,
-      day_id: targetDayId,
+      // Los hoteles conservan su día de entrada; el resto adopta el día destino.
+      day_id: a.type === 'hotel' ? a.day_id : dropDayId,
       order_index: i,
       trip_id: tripId!,
     }))
-
     reorderActivities.mutate(updates)
   }
 
@@ -211,12 +218,16 @@ export function ItineraryPage() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <div className="space-y-8">
             {days?.map((day, dayIdx) => {
-              // Todas las actividades (incl. hoteles) son bloques arrastrables.
-              // El hotel se muestra como bloque en su día de entrada; las noches
-              // intermedias y la salida van como banner informativo (no arrastrable).
-              const dayActs = activitiesByDay.get(day.id) ?? []
+              // Los hoteles se muestran como banner de estancia en cada día, pero
+              // se ordenan junto al resto: lista combinada (actividades no-hotel +
+              // banners de hotel) ordenada por order_index, toda arrastrable.
+              const dayActs = (activitiesByDay.get(day.id) ?? []).filter(a => a.type !== 'hotel')
               const dayArrivals = arrivalsByDay.get(day.id) ?? []
-              const dayLodging = (lodgingByDay.get(day.id) ?? []).filter(l => l.role === 'mid' || l.role === 'out')
+              const dayLodging = lodgingByDay.get(day.id) ?? []
+              const dayItems = [
+                ...dayActs.map(a => ({ id: a.id, order: a.order_index, act: a, lodge: null as Lodging | null })),
+                ...dayLodging.map(l => ({ id: l.activity.id, order: l.activity.order_index, act: null as Activity | null, lodge: l })),
+              ].sort((x, y) => x.order - y.order)
               const collapsed = collapsedDays.has(day.id)
               const dateLabel = format(parseISO(day.date), "EEEE dd 'de' MMMM", { locale: es })
 
@@ -339,31 +350,6 @@ export function ItineraryPage() {
                           )}
                         </div>
 
-                        {/* Alojamiento: banner de estancia en cada día (dónde duermes) */}
-                        {dayLodging.length > 0 && (
-                          <div className="space-y-1.5 sm:ml-[52px] mb-2">
-                            {dayLodging.map(l => {
-                              const roleLabel =
-                                l.role === 'single' ? '1 noche'
-                                  : l.role === 'out' ? 'Salida'
-                                    : l.role === 'in' ? `Entrada · noche 1/${l.nights}`
-                                      : `Noche ${l.night}/${l.nights}`
-                              return (
-                                <Link
-                                  key={`lodge-${l.activity.id}`}
-                                  to={`/trips/${tripId}/itinerary/${l.activity.id}`}
-                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors hover:brightness-105"
-                                  style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--primary) 22%, transparent)' }}
-                                >
-                                  <BedDouble size={15} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
-                                  <span className="flex-1 min-w-0 truncate font-medium">{l.activity.title}</span>
-                                  <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: 'var(--primary)' }}>{roleLabel}</span>
-                                </Link>
-                              )
-                            })}
-                          </div>
-                        )}
-
                         {/* Llegadas del día anterior (continuación, no se repiten enteras) */}
                         {dayArrivals.length > 0 && (
                           <div className="space-y-1.5 sm:ml-[52px] mb-2">
@@ -390,10 +376,10 @@ export function ItineraryPage() {
                           </div>
                         )}
 
-                        {/* Actividades (zona soltable: permite mover actividades a este día) */}
+                        {/* Actividades + estancias (lista combinada, arrastrable) */}
                         <DayDroppable id={day.id} className="space-y-2 sm:ml-[52px]">
-                          <SortableContext items={dayActs.map(a => a.id)} strategy={verticalListSortingStrategy}>
-                            {dayActs.length === 0 ? (
+                          <SortableContext items={dayItems.map(it => `${it.id}::${day.id}`)} strategy={verticalListSortingStrategy}>
+                            {dayItems.length === 0 ? (
                               <div
                                 className="flex items-center justify-center h-16 rounded-lg border border-dashed border-border text-muted-foreground text-sm cursor-pointer hover:border-primary transition-colors"
                                 onClick={() => navigate(`/trips/${tripId}/itinerary/new?day=${day.id}`)}
@@ -402,11 +388,14 @@ export function ItineraryPage() {
                                 Añadir actividad para este día
                               </div>
                             ) : (
-                              dayActs.map(activity => (
+                              dayItems.map(it => it.lodge ? (
+                                <SortableLodgingBanner key={it.id} sortableId={`${it.id}::${day.id}`} lodging={it.lodge} tripId={tripId!} />
+                              ) : (
                                 <ActivityBlock
-                                  key={activity.id}
-                                  activity={activity}
-                                  attachments={tripAttachments?.filter(a => a.activity_id === activity.id)}
+                                  key={it.id}
+                                  sortableId={`${it.id}::${day.id}`}
+                                  activity={it.act!}
+                                  attachments={tripAttachments?.filter(a => a.activity_id === it.id)}
                                   onEdit={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}/edit`)}
                                   onDelete={setDeleteTarget}
                                   onOpen={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}`)}
@@ -476,6 +465,40 @@ function DayDroppable({ id, className, children }: { id: string; className?: str
       style={isOver ? { outline: '2px dashed color-mix(in srgb, var(--primary) 55%, transparent)', outlineOffset: 4, borderRadius: 12 } : undefined}
     >
       {children}
+    </div>
+  )
+}
+
+// Banner de estancia (hotel) arrastrable: se ordena junto al resto de
+// actividades del día. El asa arrastra; el cuerpo abre el detalle.
+function SortableLodgingBanner({ sortableId, lodging, tripId }: { sortableId: string; lodging: Lodging; tripId: string }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId })
+  const l = lodging
+  const roleLabel = l.role === 'single' ? '1 noche'
+    : l.role === 'out' ? 'Salida'
+      : l.role === 'in' ? `Entrada · noche 1/${l.nights}`
+        : `Noche ${l.night}/${l.nights}`
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--primary) 22%, transparent)',
+      }}
+      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
+    >
+      <button {...attributes} {...listeners} onClick={(e) => e.stopPropagation()}
+        className="flex-shrink-0 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+        <GripVertical size={13} />
+      </button>
+      <BedDouble size={15} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
+      <Link to={`/trips/${tripId}/itinerary/${l.activity.id}`} className="flex-1 min-w-0 truncate font-medium hover:underline">
+        {l.activity.title}
+      </Link>
+      <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: 'var(--primary)' }}>{roleLabel}</span>
     </div>
   )
 }
