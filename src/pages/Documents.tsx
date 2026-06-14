@@ -453,7 +453,7 @@ export function DocumentsPage() {
           </DialogHeader>
           {pForm && (
             <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Tipo</Label>
                   <Select value={pForm.category} onValueChange={(v) => setPForm({ ...pForm, category: v })}>
@@ -478,7 +478,7 @@ export function DocumentsPage() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Nº de documento</Label>
                   <Input value={pForm.number} onChange={(e) => setPForm({ ...pForm, number: e.target.value })} placeholder="XX0000000" className="font-mono" />
@@ -488,7 +488,7 @@ export function DocumentsPage() {
                   <Input type="date" value={pForm.expiry} onChange={(e) => setPForm({ ...pForm, expiry: e.target.value })} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <IdPhotoInput label="Anverso" value={pForm.front} tripId={tripId!} onChange={(url) => setPForm({ ...pForm, front: url })} />
                 <IdPhotoInput label="Reverso" value={pForm.back} tripId={tripId!} onChange={(url) => setPForm({ ...pForm, back: url })} />
               </div>
@@ -530,7 +530,7 @@ export function DocumentsPage() {
               <Input {...register('title')} placeholder="Ej: Vuelo Madrid → París" />
               {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>{isInsurance ? 'Aseguradora' : 'Proveedor'}</Label>
                 <Input {...register('provider')} placeholder={isInsurance ? 'Mapfre…' : isStay ? 'Booking, Hertz…' : 'Iberia, Renfe…'} />
@@ -541,7 +541,7 @@ export function DocumentsPage() {
               </div>
             </div>
             {(isTransport || isOther) && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Localizador</Label>
                   <Input {...register('locator')} placeholder="ABC123" className="font-mono" />
@@ -553,7 +553,7 @@ export function DocumentsPage() {
               </div>
             )}
             {(isTransport || isOther) && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Origen</Label>
                   <Input {...register('origin')} placeholder="Madrid" />
@@ -570,7 +570,7 @@ export function DocumentsPage() {
                 <Input type="datetime-local" {...register('datetime_start')} />
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>{isStay ? (cat === 'hotel' ? 'Entrada' : 'Recogida') : isInsurance ? 'Inicio cobertura' : 'Fecha/hora inicio'}</Label>
                   <Input type="datetime-local" {...register('datetime_start')} />
