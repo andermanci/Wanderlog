@@ -16,6 +16,7 @@ import { useExpenses } from '@/lib/queries/expenses'
 import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
 import { usePackingItems } from '@/lib/queries/packing'
 import { useDocuments } from '@/lib/queries/documents'
+import { useExchangeRates, sumConverted } from '@/lib/queries/rates'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
 import { ShareTripDialog } from '@/components/trips/ShareTripDialog'
 import { OfflineSaveButton } from '@/components/trips/OfflineSaveButton'
@@ -55,8 +56,9 @@ export function TripDetail() {
 
   const mainCurrency = profile?.default_currency ?? 'EUR'
   const totalsByCurrency = sumByCurrency(expenses ?? [])
-  const totalGastos = totalsByCurrency[mainCurrency] ?? 0
   const otherTotals = Object.entries(totalsByCurrency).filter(([c]) => c !== mainCurrency)
+  const { data: rates } = useExchangeRates(mainCurrency)
+  const totalGastos = sumConverted(expenses ?? [], mainCurrency, rates).total
   const presupuesto = trip?.budget_total ?? 0
   const pct = presupuesto > 0 ? Math.min((totalGastos / presupuesto) * 100, 100) : 0
 

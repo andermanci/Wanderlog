@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useExpenses, useCreateExpense, useDeleteExpense, type PendingExpense } from '@/lib/queries/expenses'
+import { useExchangeRates, sumConverted } from '@/lib/queries/rates'
 import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
 import { TripHeader } from '@/components/trips/TripHeader'
@@ -105,9 +106,12 @@ export function ExpensesPage() {
   // y las gráficas usan la divisa principal del usuario.
   const mainCurrency = profile?.default_currency ?? 'EUR'
   const totalsByCurrency = sumByCurrency(expenses ?? [])
-  const total = totalsByCurrency[mainCurrency] ?? 0
   const otherTotals = Object.entries(totalsByCurrency).filter(([c]) => c !== mainCurrency)
   const mainExpenses = (expenses ?? []).filter(e => e.currency === mainCurrency)
+  // Total REAL: convierte todas las divisas a la principal (tipo de cambio en vivo).
+  const { data: rates } = useExchangeRates(mainCurrency)
+  const { total, missing } = sumConverted(expenses ?? [], mainCurrency, rates)
+  const hasConversion = otherTotals.length > 0 && missing.length < otherTotals.length
   const budget = trip?.budget_total ?? 0
   const pct = budget > 0 ? Math.min((total / budget) * 100, 100) : 0
 
@@ -249,9 +253,10 @@ export function ExpensesPage() {
                 : `Disponible: ${formatCurrency(budget - total, mainCurrency)}`}
             </span>
           </div>
-          {otherTotals.length > 0 && (
+          {hasConversion && (
             <p className="text-xs text-muted-foreground mt-2">
-              No incluye los gastos en otras divisas: {otherTotals.map(([c, v]) => formatCurrency(v, c)).join(' · ')}
+              Incluye conversión de {otherTotals.map(([c]) => c).join(', ')} a {mainCurrency} (cambio aproximado).
+              {missing.length > 0 && ` No se pudo convertir: ${missing.join(', ')}.`}
             </p>
           )}
         </div>
@@ -261,10 +266,10 @@ export function ExpensesPage() {
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <p className="text-lg sm:text-2xl font-serif font-medium truncate" style={{ color: 'var(--primary)' }}>{formatCurrency(total, mainCurrency)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Total gastado</p>
+          <p className="text-xs text-muted-foreground mt-1">Total gastado{hasConversion ? ` (en ${mainCurrency})` : ''}</p>
           {otherTotals.length > 0 && (
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              + {otherTotals.map(([c, v]) => formatCurrency(v, c)).join(' · ')}
+              incl. {otherTotals.map(([c, v]) => formatCurrency(v, c)).join(' · ')}
             </p>
           )}
         </div>
