@@ -830,8 +830,7 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile, onOpen }: {
       transition={{ delay: i * 0.05 }}
       onClick={() => onOpen(doc)}
       role="button"
-      className="group flex items-start gap-3 p-4 rounded-xl cursor-pointer transition-all hover:shadow-md hover:ring-1 hover:ring-primary/40 active:scale-[0.99]"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      className="group flex items-start gap-3 p-4 rounded-xl border border-border bg-card cursor-pointer transition-all hover:border-primary hover:bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))] hover:shadow-md active:scale-[0.98]"
     >
       <span className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
         style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)' }}>
