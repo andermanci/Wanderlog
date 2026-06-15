@@ -130,6 +130,18 @@ export async function signInWithGoogle() {
   if (error) throw error
 }
 
+// Acceso por email sin contraseña: enviamos un "enlace mágico". Al pulsarlo en
+// el correo, el usuario entra. Alternativa inclusiva para quien no usa Google.
+export async function signInWithEmail(email: string) {
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
+    },
+  })
+  if (error) throw error
+}
+
 export function useSignOut() {
   const { setSession, setProfile } = useAuthStore()
   const qc = useQueryClient()

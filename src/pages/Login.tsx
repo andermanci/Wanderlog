@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Compass } from 'lucide-react'
+import { Compass, Mail, Loader2, MailCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { signInWithGoogle } from '@/hooks/useAuth'
+import { Input } from '@/components/ui/input'
+import { signInWithGoogle, signInWithEmail } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
 
@@ -15,11 +16,29 @@ export function LoginPage() {
     if (session) navigate('/dashboard', { replace: true })
   }, [session, navigate])
 
+  const [email, setEmail] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+
   async function handleGoogleLogin() {
     try {
       await signInWithGoogle()
     } catch {
       toast.error('Error al iniciar sesión con Google')
+    }
+  }
+
+  async function handleEmailLogin(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim()) return
+    setSending(true)
+    try {
+      await signInWithEmail(email.trim())
+      setSent(true)
+    } catch {
+      toast.error('No se pudo enviar el enlace. Revisa el email e inténtalo de nuevo.')
+    } finally {
+      setSending(false)
     }
   }
 
@@ -98,9 +117,50 @@ export function LoginPage() {
             Continuar con Google
           </Button>
 
+          {/* Acceso por email (enlace mágico) */}
+          <div className="w-full flex items-center gap-4">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">o con tu email</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {sent ? (
+            <div className="w-full text-center flex flex-col items-center gap-2 p-4 rounded-xl"
+              style={{ background: 'var(--secondary)', border: '1px solid var(--border)' }}>
+              <MailCheck size={28} style={{ color: 'var(--primary)' }} aria-hidden="true" />
+              <p className="font-medium">Revisa tu correo</p>
+              <p className="text-sm text-muted-foreground">
+                Te hemos enviado un enlace a <strong>{email}</strong>. Ábrelo en este dispositivo para entrar.
+              </p>
+              <button onClick={() => setSent(false)} className="text-sm text-primary hover:underline mt-1">
+                Usar otro email
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleEmailLogin} className="w-full flex flex-col gap-2">
+              <div className="relative">
+                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
+                <Input
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                  aria-label="Correo electrónico"
+                  className="pl-9 h-12"
+                />
+              </div>
+              <Button type="submit" variant="outline" className="w-full h-12 gap-2" disabled={sending}>
+                {sending ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Mail size={16} aria-hidden="true" />}
+                Enviarme un enlace de acceso
+              </Button>
+            </form>
+          )}
+
           <p className="text-xs text-muted-foreground text-center">
-            Al continuar, aceptas el uso de tu cuenta de Google para autenticarte.<br />
-            Tus datos son privados y solo tú puedes verlos.
+            Sin contraseñas. Tus datos son privados y solo tú puedes verlos.
           </p>
         </motion.div>
 
