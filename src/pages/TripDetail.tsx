@@ -116,8 +116,8 @@ export function TripDetail() {
         <div className="absolute top-4 right-4 flex items-center gap-2">
           {isOwner ? (
             <Button size="icon" variant="ghost" onClick={() => setShareOpen(true)}
-              className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white" title="Compartir viaje">
-              <UserPlus size={16} />
+              className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white" title="Compartir viaje" aria-label="Compartir viaje">
+              <UserPlus size={16} aria-hidden="true" />
             </Button>
           ) : (
             <span className="glass-dark rounded-lg px-2.5 h-9 flex items-center gap-1.5 text-white/90 text-xs" title="Compartido contigo">
@@ -125,8 +125,8 @@ export function TripDetail() {
             </span>
           )}
           <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)}
-            className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white" title="Editar viaje">
-            <Pencil size={16} />
+            className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white" title="Editar viaje" aria-label="Editar viaje">
+            <Pencil size={16} aria-hidden="true" />
           </Button>
         </div>
 

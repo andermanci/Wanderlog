@@ -69,10 +69,11 @@ export function Sidebar({ tripId }: SidebarProps) {
       {/* Toggle */}
       <button
         onClick={() => setCollapsed(c => !c)}
+        aria-label={collapsed ? 'Expandir menú' : 'Plegar menú'}
         className="absolute -right-3 top-6 z-10 w-6 h-6 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary transition-colors"
         style={{ background: 'var(--card)' }}
       >
-        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+        {collapsed ? <ChevronRight size={12} aria-hidden="true" /> : <ChevronLeft size={12} aria-hidden="true" />}
       </button>
 
       {/* Logo */}
@@ -177,10 +178,11 @@ export function Sidebar({ tripId }: SidebarProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="flex-shrink-0 w-7 h-7 text-muted-foreground hover:text-destructive"
+              className="flex-shrink-0 w-8 h-8 text-muted-foreground hover:text-destructive"
               onClick={signOut}
+              aria-label="Cerrar sesión"
             >
-              <LogOut size={14} />
+              <LogOut size={14} aria-hidden="true" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right"><p>Cerrar sesión</p></TooltipContent>

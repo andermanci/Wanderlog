@@ -54,9 +54,10 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
-        className="flex-shrink-0 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5"
+        aria-label={`Reordenar ${activity.title}`}
+        className="flex-shrink-0 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5"
       >
-        <GripVertical size={14} />
+        <GripVertical size={16} aria-hidden="true" />
       </button>
 
       {/* Media box: mismo tamaño siempre (foto o icono del tipo), para que todas
@@ -71,7 +72,7 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
       ) : (
         <span className="flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center"
           style={{ background: `color-mix(in srgb, ${color} 14%, transparent)` }}>
-          <ActivityIcon type={activity.type} size={19} style={{ color }} />
+          <ActivityIcon type={activity.type} size={19} style={{ color }} aria-hidden="true" />
         </span>
       )}
 
@@ -150,24 +151,25 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
           </div>
 
           {/* Actions */}
-          <div className="flex gap-1 opacity-60 hover:opacity-100 transition-opacity flex-shrink-0">
+          <div className="flex gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0">
             {activity.external_link && (
-              <Button size="icon" variant="ghost" className="w-6 h-6" asChild>
-                <a href={activity.external_link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-                  <ExternalLink size={11} />
+              <Button size="icon" variant="ghost" className="w-8 h-8" asChild>
+                <a href={activity.external_link} target="_blank" rel="noreferrer" aria-label="Abrir enlace" onClick={(e) => e.stopPropagation()}>
+                  <ExternalLink size={14} aria-hidden="true" />
                 </a>
               </Button>
             )}
-            <Button size="icon" variant="ghost" className="w-6 h-6" onClick={(e) => { e.stopPropagation(); onEdit(activity) }}>
-              <Pencil size={11} />
+            <Button size="icon" variant="ghost" className="w-8 h-8" aria-label={`Editar ${activity.title}`} onClick={(e) => { e.stopPropagation(); onEdit(activity) }}>
+              <Pencil size={14} aria-hidden="true" />
             </Button>
             <Button
               size="icon"
               variant="ghost"
-              className="w-6 h-6 text-destructive hover:text-destructive"
+              className="w-8 h-8 text-destructive hover:text-destructive"
+              aria-label={`Eliminar ${activity.title}`}
               onClick={(e) => { e.stopPropagation(); onDelete(activity) }}
             >
-              <Trash2 size={11} />
+              <Trash2 size={14} aria-hidden="true" />
             </Button>
           </div>
         </div>
