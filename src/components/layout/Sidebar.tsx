@@ -95,15 +95,15 @@ export function Sidebar({ tripId }: SidebarProps) {
         </AnimatePresence>
       </div>
 
-      {/* Nav trip (volver) */}
+      {/* Nav trip (volver) — alineado con los ítems del menú de abajo */}
       {tripId && !collapsed && (
-        <div className="px-3 pt-3">
+        <div className="px-2 pt-2">
           <NavLink to="/dashboard"
-            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-1 px-2 rounded-md hover:bg-secondary">
-            <ChevronLeft size={14} />
+            className="flex items-center gap-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-2 px-3 rounded-lg hover:bg-secondary">
+            <ChevronLeft size={14} className="shrink-0" />
             <span>Todos los viajes</span>
           </NavLink>
-          <p className="text-xs text-muted-foreground mt-2 mb-1 px-2 uppercase tracking-widest">Este viaje</p>
+          <p className="text-[11px] font-medium text-muted-foreground/70 mt-3 mb-0.5 px-3 uppercase tracking-wider">Este viaje</p>
         </div>
       )}
 
