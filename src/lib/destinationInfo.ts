@@ -113,32 +113,32 @@ interface WikiData {
   qid?: string
 }
 
-// Wikipedia (es): resumen/historia + foto de portada + QID de Wikidata (para los
-// datos rápidos). Una sola llamada con extracts|pageimages|pageprops.
+// Wikipedia (es): usa el endpoint REST "summary", que ya devuelve un resumen
+// CONCISO (no el intro completo) + descripción de una línea + portada + QID de
+// Wikidata, todo en una sola llamada. Mucho más breve que el volcado anterior.
 async function wikipediaData(destination: string): Promise<WikiData> {
   const title = await resolveTitle(WIKIPEDIA_ES, destination)
   if (!title) return { overview: null }
   try {
-    const data = await getJson(WIKIPEDIA_ES, {
-      action: 'query', prop: 'extracts|pageimages|pageprops',
-      exintro: '1', explaintext: '1', piprop: 'thumbnail', pithumbsize: '800',
-      ppprop: 'wikibase_item', redirects: '1', titles: title,
-    })
-    const page: any = Object.values(data?.query?.pages ?? {})[0]
-    const extract: string = page?.extract ?? ''
-    const overview: GuideSection | null = extract.trim() ? {
+    const res = await fetch(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data: any = await res.json()
+    const extract = (data.extract ?? '').trim()
+    const desc = (data.description ?? '').trim()
+    const summary = extract ? trimAt(extract, 600) : ''
+    // Descripción de una línea en negrita + resumen conciso.
+    const body = summary
+      ? (desc ? `**${desc.charAt(0).toUpperCase()}${desc.slice(1)}.**\n\n${summary}` : summary)
+      : ''
+    const overview: GuideSection | null = body ? {
       id: 'resumen',
       title: 'Resumen e historia',
-      body: trimAt(extract.trim(), 600),
+      body,
       source: 'Wikipedia',
-      url: `https://es.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
+      url: data.content_urls?.desktop?.page ?? `https://es.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
       edited: false,
     } : null
-    return {
-      overview,
-      coverImageUrl: page?.thumbnail?.source,
-      qid: page?.pageprops?.wikibase_item,
-    }
+    return { overview, coverImageUrl: data.thumbnail?.source, qid: data.wikibase_item }
   } catch {
     return { overview: null }
   }
