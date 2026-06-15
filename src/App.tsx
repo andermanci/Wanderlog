@@ -5,6 +5,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { flushOutbox } from '@/lib/offline'
 
 import { useAuthListener } from '@/hooks/useAuth'
@@ -78,6 +79,7 @@ export default function App() {
       <BrowserRouter>
         <AuthListener />
         <OfflineSync />
+        <ErrorBoundary>
         <Routes>
           {/* Públicas */}
           <Route path="/login" element={<LoginPage />} />
@@ -113,6 +115,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </ErrorBoundary>
 
         <Toaster
           position="top-right"

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Outlet, useParams, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
+import { OfflineBanner } from '@/components/OfflineBanner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 export function AppLayout() {
@@ -22,24 +23,34 @@ export function AppLayout() {
 
   return (
     <TooltipProvider>
+      {/* Saltar al contenido: primer elemento tabulable, visible solo al enfocar */}
+      <a href="#contenido"
+        className="sr-only focus:not-sr-only focus:fixed focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-card focus:border focus:border-border focus:shadow-lg text-sm font-medium">
+        Saltar al contenido
+      </a>
       {/* pt de safe-area: en PWA standalone el contenido se extiende tras la
           barra de estado del móvil (notch); así nada queda tapado por ella */}
       <div
-        className="flex h-dvh overflow-hidden bg-background"
+        className="flex flex-col h-dvh overflow-hidden bg-background"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        {/* Sidebar solo en escritorio */}
-        <div className="hidden md:flex h-full">
-          <Sidebar tripId={tripId} />
+        <OfflineBanner />
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar solo en escritorio */}
+          <div className="hidden md:flex h-full">
+            <Sidebar tripId={tripId} />
+          </div>
+          {/* pb extra en móvil: altura de la barra inferior + safe-area + holgura,
+              para que el último elemento no quede pegado/oculto tras el footer. */}
+          <main
+            id="contenido"
+            ref={mainRef}
+            tabIndex={-1}
+            className={`flex-1 overflow-auto outline-none md:pb-0 ${onMap ? 'pb-[calc(env(safe-area-inset-bottom)+3.5rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)]'}`}
+          >
+            <Outlet />
+          </main>
         </div>
-        {/* pb extra en móvil: altura de la barra inferior + safe-area + holgura,
-            para que el último elemento no quede pegado/oculto tras el footer. */}
-        <main
-          ref={mainRef}
-          className={`flex-1 overflow-auto md:pb-0 ${onMap ? 'pb-[calc(env(safe-area-inset-bottom)+3.5rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)]'}`}
-        >
-          <Outlet />
-        </main>
         {/* Navegación inferior solo en móvil */}
         <BottomNav tripId={tripId} />
       </div>

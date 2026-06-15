@@ -3,7 +3,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { User, Globe, Loader2, LogOut, Bell, BellOff } from 'lucide-react'
+import { User, Globe, Loader2, LogOut, Bell, BellOff, Sun, Moon, Monitor, Type } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
+import { useA11yStore } from '@/store/a11yStore'
 import { useSignOut } from '@/hooks/useAuth'
 import { enablePush, disablePush, getPushStatus, type PushStatus } from '@/lib/push'
 import { toast } from 'sonner'
@@ -27,6 +28,7 @@ const CURRENCIES = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'MXN', 'ARS', 'COP', 'BRL
 
 export function SettingsPage() {
   const { profile, user, setProfile } = useAuthStore()
+  const { theme, textSize, setTheme, setTextSize } = useA11yStore()
   const signOut = useSignOut()
   const [saving, setSaving] = useState(false)
 
@@ -162,6 +164,63 @@ export function SettingsPage() {
               {saving && <Loader2 size={14} className="animate-spin mr-2" />}
               Guardar preferencias
             </Button>
+          </div>
+        </section>
+
+        <Separator className="my-8" />
+
+        {/* Apariencia y accesibilidad */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Type size={18} style={{ color: 'var(--primary)' }} aria-hidden="true" />
+            <h2 className="font-serif text-xl">Apariencia</h2>
+          </div>
+          <div className="p-6 rounded-xl space-y-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            {/* Tema */}
+            <div className="space-y-2">
+              <Label>Tema</Label>
+              <div className="grid grid-cols-3 gap-2 max-w-sm">
+                {([
+                  { v: 'system', label: 'Automático', Icon: Monitor },
+                  { v: 'light', label: 'Claro', Icon: Sun },
+                  { v: 'dark', label: 'Oscuro', Icon: Moon },
+                ] as const).map(({ v, label, Icon }) => (
+                  <button key={v} type="button" onClick={() => setTheme(v)} aria-pressed={theme === v}
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-lg border text-xs font-medium transition-colors"
+                    style={{
+                      borderColor: theme === v ? 'var(--primary)' : 'var(--border)',
+                      background: theme === v ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
+                      color: theme === v ? 'var(--primary)' : 'var(--muted-foreground)',
+                    }}>
+                    <Icon size={18} aria-hidden="true" /> {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">«Automático» sigue el tema de tu dispositivo.</p>
+            </div>
+
+            {/* Tamaño de texto */}
+            <div className="space-y-2">
+              <Label>Tamaño del texto</Label>
+              <div className="grid grid-cols-2 gap-2 max-w-sm">
+                {([
+                  { v: 'normal', label: 'Normal' },
+                  { v: 'large', label: 'Grande' },
+                ] as const).map(({ v, label }) => (
+                  <button key={v} type="button" onClick={() => setTextSize(v)} aria-pressed={textSize === v}
+                    className="py-3 rounded-lg border font-medium transition-colors"
+                    style={{
+                      borderColor: textSize === v ? 'var(--primary)' : 'var(--border)',
+                      background: textSize === v ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
+                      color: textSize === v ? 'var(--primary)' : 'var(--muted-foreground)',
+                      fontSize: v === 'large' ? '1.05rem' : undefined,
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Aumenta el tamaño de toda la interfaz para leer más cómodo.</p>
+            </div>
           </div>
         </section>
 
