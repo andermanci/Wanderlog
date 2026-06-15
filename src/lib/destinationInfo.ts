@@ -29,6 +29,35 @@ function norm(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(DIACRITICS, '').trim()
 }
 
+// Corta un texto en un límite de frase/párrafo cercano a `max`.
+function trimAt(text: string, max: number): string {
+  if (text.length <= max) return text
+  const slice = text.slice(0, max)
+  const stop = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('.\n'), slice.lastIndexOf('\n'))
+  return (stop > max * 0.5 ? slice.slice(0, stop + 1) : slice).trim() + '…'
+}
+
+// Condensa el Markdown para que la guía sea esquemática: conserva el primer
+// párrafo y las listas (recortadas a unos pocos puntos), descartando el resto al
+// superar el presupuesto de caracteres.
+function condenseMarkdown(md: string, maxChars = 800, maxItems = 6): string {
+  const blocks = md.split(/\n{2,}/).map(b => b.trim()).filter(Boolean)
+  const out: string[] = []
+  let len = 0
+  for (const b of blocks) {
+    const lines = b.split('\n').filter(l => l.trim())
+    const isList = lines.length > 0 && lines.every(l => /^\s*([-*]|\d+\.)\s/.test(l))
+    let block = b
+    if (isList) {
+      block = lines.slice(0, maxItems).join('\n') + (lines.length > maxItems ? '\n- …' : '')
+    }
+    if (len + block.length > maxChars && out.length) break
+    out.push(block)
+    len += block.length
+  }
+  return out.join('\n\n')
+}
+
 async function getJson(base: string, params: Record<string, string>): Promise<any> {
   const url = `${base}?${new URLSearchParams({ format: 'json', origin: '*', ...params })}`
   const res = await fetch(url)
@@ -65,7 +94,8 @@ function htmlToMarkdown(html: string, origin: string): string {
     .replace(/\[\d+\]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-  return md.length > 6000 ? md.slice(0, 6000).trimEnd() + '…' : md
+  // Esquemático: primer párrafo + listas recortadas (no el volcado completo).
+  return condenseMarkdown(md, 800, 6)
 }
 
 async function resolveTitle(base: string, query: string): Promise<string | null> {
@@ -99,7 +129,7 @@ async function wikipediaData(destination: string): Promise<WikiData> {
     const overview: GuideSection | null = extract.trim() ? {
       id: 'resumen',
       title: 'Resumen e historia',
-      body: extract.trim(),
+      body: trimAt(extract.trim(), 600),
       source: 'Wikipedia',
       url: `https://es.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
       edited: false,
