@@ -953,14 +953,28 @@ export function MapViewPage() {
                   onClick={() => selectFavorite(place)}
                 >
                   <div
-                    className={cn(
-                      'w-9 h-9 rounded-full border-[2.5px] border-white flex items-center justify-center shadow-lg cursor-pointer transition-transform',
-                      active ? 'scale-125 ring-2 ring-white' : 'hover:scale-110',
-                    )}
-                    style={{ background: getCategoryColor(place.category) }}
+                    className={cn('cursor-pointer transition-transform', active ? 'scale-125' : 'hover:scale-110')}
                     title={`${place.name} · ${PLACE_CATEGORY_LABELS[place.category]}`}
                   >
-                    <PlaceIcon category={place.category} size={17} className="text-white" strokeWidth={2.4} />
+                    {/* Pin en forma de lágrima (no círculo): se distingue claramente
+                        de los iconos POI de Google, que son círculos con glifo. */}
+                    <div
+                      className="flex items-center justify-center"
+                      style={{
+                        width: 30, height: 30,
+                        background: getCategoryColor(place.category),
+                        border: '2.5px solid white',
+                        borderRadius: '50% 50% 50% 0',
+                        transform: 'rotate(45deg)',
+                        boxShadow: active
+                          ? '0 0 0 3px color-mix(in srgb, white 85%, transparent), 0 4px 10px rgba(0,0,0,0.4)'
+                          : '0 2px 6px rgba(0,0,0,0.35)',
+                      }}
+                    >
+                      <span className="flex" style={{ transform: 'rotate(-45deg)' }}>
+                        <PlaceIcon category={place.category} size={15} className="text-white" strokeWidth={2.4} />
+                      </span>
+                    </div>
                   </div>
                 </AdvancedMarker>
               )

@@ -1,18 +1,19 @@
-import { Utensils, BedDouble, Landmark, Coffee, Wine, ShoppingBag, MapPin, type LucideProps } from 'lucide-react'
+import { UtensilsCrossed, BedDouble, Landmark, Coffee, Martini, Store, Bookmark, type LucideProps } from 'lucide-react'
 
-// Icono por tipo de lugar, compartido por el mapa y la lista. Iconos de línea
-// (lucide) en lugar de emoji: se distinguen mejor de un vistazo.
+// Icono por tipo de lugar, compartido por el mapa y la lista. Elegidos para
+// distinguirse de los glifos POI de Google (tenedor/cuchara, copa, bolsa…):
+// usamos cubiertos cruzados, copa de cóctel, tienda, etc.
 const ICONS: Record<string, React.ComponentType<LucideProps>> = {
-  restaurant: Utensils,
+  restaurant: UtensilsCrossed,
   hotel: BedDouble,
   attraction: Landmark,
   cafe: Coffee,
-  bar: Wine,
-  shop: ShoppingBag,
-  other: MapPin,
+  bar: Martini,
+  shop: Store,
+  other: Bookmark,
 }
 
 export function PlaceIcon({ category, ...props }: { category: string } & LucideProps) {
-  const Icon = ICONS[category] ?? MapPin
+  const Icon = ICONS[category] ?? Bookmark
   return <Icon {...props} />
 }
