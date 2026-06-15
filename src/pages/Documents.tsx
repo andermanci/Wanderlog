@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { motion } from 'framer-motion'
 import {
   Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, Calendar,
-  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair,
+  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair, ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -829,7 +829,8 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile, onOpen }: {
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: i * 0.05 }}
       onClick={() => onOpen(doc)}
-      className="group flex items-start gap-4 p-4 rounded-xl cursor-pointer transition-colors hover:border-primary/40"
+      role="button"
+      className="group flex items-start gap-3 p-4 rounded-xl cursor-pointer transition-all hover:shadow-md hover:ring-1 hover:ring-primary/40 active:scale-[0.99]"
       style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
     >
       <span className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
@@ -883,6 +884,7 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile, onOpen }: {
           </div>
         </div>
       </div>
+      <ChevronRight size={18} className="self-center flex-shrink-0 text-muted-foreground/40 group-hover:text-primary transition-colors" />
     </motion.div>
   )
 }
