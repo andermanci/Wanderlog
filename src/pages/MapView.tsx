@@ -954,25 +954,24 @@ export function MapViewPage() {
                 >
                   <div
                     className={cn('cursor-pointer transition-transform', active ? 'scale-125' : 'hover:scale-110')}
+                    style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.35))' }}
                     title={`${place.name} · ${PLACE_CATEGORY_LABELS[place.category]}`}
                   >
-                    {/* Pin en forma de lágrima (no círculo): se distingue claramente
-                        de los iconos POI de Google, que son círculos con glifo. */}
-                    <div
-                      className="flex items-center justify-center"
-                      style={{
-                        width: 30, height: 30,
-                        background: getCategoryColor(place.category),
-                        border: '2.5px solid white',
-                        borderRadius: '50% 50% 50% 0',
-                        transform: 'rotate(45deg)',
-                        boxShadow: active
-                          ? '0 0 0 3px color-mix(in srgb, white 85%, transparent), 0 4px 10px rgba(0,0,0,0.4)'
-                          : '0 2px 6px rgba(0,0,0,0.35)',
-                      }}
-                    >
-                      <span className="flex" style={{ transform: 'rotate(-45deg)' }}>
-                        <PlaceIcon category={place.category} size={15} className="text-white" strokeWidth={2.4} />
+                    {/* Pin propio: gota de color con DISCO BLANCO y el glifo en color
+                        (al revés que los POI de Google: círculo pequeño + glifo blanco).
+                        SVG para que la punta caiga exacta sobre el sitio. */}
+                    <div style={{ position: 'relative', width: 32, height: 42 }}>
+                      <svg width="32" height="42" viewBox="0 0 32 42">
+                        <path
+                          d="M16 1 C7.7 1 1 7.7 1 16 C1 26 16 41 16 41 C16 41 31 26 31 16 C31 7.7 24.3 1 16 1 Z"
+                          fill={getCategoryColor(place.category)}
+                          stroke="#ffffff"
+                          strokeWidth={2}
+                        />
+                        <circle cx="16" cy="16" r={active ? 10 : 9.5} fill="#ffffff" />
+                      </svg>
+                      <span style={{ position: 'absolute', left: 0, right: 0, top: 9, display: 'flex', justifyContent: 'center' }}>
+                        <PlaceIcon category={place.category} size={14} strokeWidth={2.4} style={{ color: getCategoryColor(place.category) }} />
                       </span>
                     </div>
                   </div>
