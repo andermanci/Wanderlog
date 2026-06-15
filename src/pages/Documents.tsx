@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { motion } from 'framer-motion'
 import {
   Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, Calendar,
-  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye,
+  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -138,6 +138,7 @@ export function DocumentsPage() {
   // Visores
   const [viewId, setViewId] = useState<{ front: string | null; back: string | null; title: string; subtitle: string | null } | null>(null)
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
+  const [detailDoc, setDetailDoc] = useState<Document | null>(null)
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
@@ -351,7 +352,7 @@ export function DocumentsPage() {
                     <div className="space-y-2">
                       {docs.map((doc, i) => (
                         <DocRow key={doc.id} doc={doc} i={i} onEdit={openEdit} onDelete={setDeleteTarget}
-                          onOpenFile={(url, name) => setLightbox({ url, name })} />
+                          onOpenFile={(url, name) => setLightbox({ url, name })} onOpen={setDetailDoc} />
                       ))}
                     </div>
                   </div>
@@ -409,6 +410,15 @@ export function DocumentsPage() {
           )}
         </div>
       )}
+
+      {/* ---- Detalle de reserva/billete ---- */}
+      <DocDetailDialog
+        doc={detailDoc}
+        onClose={() => setDetailDoc(null)}
+        onEdit={(d) => { setDetailDoc(null); openEdit(d) }}
+        onDelete={(d) => { setDetailDoc(null); setDeleteTarget(d) }}
+        onOpenFile={(url, name) => setLightbox({ url, name })}
+      />
 
       {/* ---- Visores ---- */}
       <IdCardViewer
@@ -711,19 +721,115 @@ function PersonalDocCard({ doc, travelerName, onView, onEdit, onDelete }: {
   )
 }
 
-function DocRow({ doc, i, onEdit, onDelete, onOpenFile }: {
+// Detalle de una reserva/billete: todos los campos + notas + archivo.
+function DocDetailDialog({ doc, onClose, onEdit, onDelete, onOpenFile }: {
+  doc: Document | null
+  onClose: () => void
+  onEdit: (d: Document) => void
+  onDelete: (d: Document) => void
+  onOpenFile: (url: string, name: string) => void
+}) {
+  if (!doc) return null
+  const isImg = doc.file_url ? /\.(png|jpe?g|webp|gif)$/i.test(doc.file_url) : false
+  const Field = ({ icon: Icon, label, children }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; children: React.ReactNode }) => (
+    <div className="flex items-start gap-3 py-2 border-b border-border last:border-0">
+      <Icon size={15} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="text-sm break-words">{children}</div>
+      </div>
+    </div>
+  )
+
+  return (
+    <Dialog open={!!doc} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)' }}>
+              <DocIcon category={doc.category} size={16} style={{ color: 'var(--primary)' }} />
+            </span>
+            <div className="min-w-0">
+              <DialogTitle className="font-serif truncate pr-6">{doc.title}</DialogTitle>
+              <p className="text-xs text-muted-foreground">{DOCUMENT_LABELS[doc.category] ?? 'Documento'}</p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="py-1">
+          {doc.provider && <Field icon={FileText} label="Proveedor">{doc.provider}</Field>}
+          {doc.locator && (
+            <Field icon={Hash} label="Localizador">
+              <span className="font-mono px-1.5 py-0.5 rounded text-xs"
+                style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>{doc.locator}</span>
+            </Field>
+          )}
+          {doc.confirmation_number && <Field icon={Hash} label="Nº de confirmación">{doc.confirmation_number}</Field>}
+          {(doc.origin || doc.destination) && (
+            <Field icon={MapPin} label="Trayecto">{doc.origin}{doc.origin && doc.destination ? ' → ' : ''}{doc.destination}</Field>
+          )}
+          {doc.seat && <Field icon={Armchair} label="Asiento">{doc.seat}</Field>}
+          {doc.datetime_start && (
+            <Field icon={Clock} label="Fecha y hora">
+              {formatDate(doc.datetime_start, 'dd MMM yyyy · HH:mm')}
+              {doc.datetime_end && ` — ${formatDate(doc.datetime_end, 'dd MMM yyyy · HH:mm')}`}
+            </Field>
+          )}
+          {doc.phone && <Field icon={Phone} label="Teléfono"><a href={`tel:${doc.phone}`} className="text-primary hover:underline">{doc.phone}</a></Field>}
+          {doc.link && (
+            <Field icon={ExternalLink} label="Enlace">
+              <a href={doc.link} target="_blank" rel="noreferrer" className="text-primary hover:underline break-all">{doc.link}</a>
+            </Field>
+          )}
+          {doc.notes && (
+            <Field icon={StickyNote} label="Notas"><p className="whitespace-pre-wrap leading-relaxed">{doc.notes}</p></Field>
+          )}
+
+          {doc.file_url && (
+            <div className="mt-3">
+              {isImg ? (
+                <button type="button" onClick={() => onOpenFile(doc.file_url!, doc.title)} className="block w-full">
+                  <img src={doc.file_url} alt={doc.title} className="w-full max-h-56 object-cover rounded-lg border border-border" />
+                </button>
+              ) : (
+                <Button variant="outline" className="w-full gap-2" onClick={() => onOpenFile(doc.file_url!, doc.title)}>
+                  <Eye size={15} /> Ver archivo adjunto
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" className="gap-1.5 text-destructive hover:text-destructive mr-auto" onClick={() => onDelete(doc)}>
+            <Trash2 size={14} /> Eliminar
+          </Button>
+          <Button variant="outline" className="gap-1.5" onClick={() => onEdit(doc)}>
+            <Pencil size={14} /> Editar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DocRow({ doc, i, onEdit, onDelete, onOpenFile, onOpen }: {
   doc: Document
   i: number
   onEdit: (d: Document) => void
   onDelete: (d: Document) => void
   onOpenFile: (url: string, name: string) => void
+  onOpen: (d: Document) => void
 }) {
+  const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn() }
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: i * 0.05 }}
-      className="group flex items-start gap-4 p-4 rounded-xl"
+      onClick={() => onOpen(doc)}
+      className="group flex items-start gap-4 p-4 rounded-xl cursor-pointer transition-colors hover:border-primary/40"
       style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
     >
       <span className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
@@ -759,19 +865,19 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile }: {
           </div>
           <div className="flex gap-1 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0">
             {doc.file_url && (
-              <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => onOpenFile(doc.file_url!, doc.title)} title="Ver archivo">
+              <Button size="icon" variant="ghost" className="w-7 h-7" onClick={stop(() => onOpenFile(doc.file_url!, doc.title))} title="Ver archivo">
                 <Eye size={13} />
               </Button>
             )}
             {doc.link && (
               <Button size="icon" variant="ghost" className="w-7 h-7" asChild>
-                <a href={doc.link} target="_blank" rel="noreferrer"><ExternalLink size={12} /></a>
+                <a href={doc.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={12} /></a>
               </Button>
             )}
-            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => onEdit(doc)}>
+            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={stop(() => onEdit(doc))}>
               <Pencil size={12} />
             </Button>
-            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive" onClick={() => onDelete(doc)}>
+            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive" onClick={stop(() => onDelete(doc))}>
               <Trash2 size={12} />
             </Button>
           </div>
