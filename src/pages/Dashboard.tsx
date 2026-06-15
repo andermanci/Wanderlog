@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Search, SlidersHorizontal, Bell, MapPin, Calendar, CalendarClock, Clock, ChevronRight } from 'lucide-react'
+import { Plus, Search, SlidersHorizontal, Bell, MapPin, Calendar, CalendarClock, Clock, ChevronRight, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { TripCard } from '@/components/trips/TripCard'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
-import { useTrips, useDeleteTrip } from '@/lib/queries/trips'
+import { useTrips, useDeleteTrip, useCreateTrip } from '@/lib/queries/trips'
+import { OnboardingWelcome } from '@/components/OnboardingWelcome'
 import { usePendingReminders } from '@/lib/queries/reminders'
 import { useTodayActivities } from '@/lib/queries/itinerary'
 import { useAuthStore } from '@/store/authStore'
@@ -30,12 +31,48 @@ export function Dashboard() {
   const { data: reminders } = usePendingReminders()
   const { data: todayActs } = useTodayActivities()
   const deleteTrip = useDeleteTrip()
+  const createTrip = useCreateTrip()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [formOpen, setFormOpen] = useState(false)
   const [editTrip, setEditTrip] = useState<Trip | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Trip | null>(null)
+  const [showWelcome, setShowWelcome] = useState(false)
+  const [seeding, setSeeding] = useState(false)
+
+  // Bienvenida de primer uso (una sola vez).
+  useEffect(() => {
+    if (!localStorage.getItem('wanderlog-welcome-seen')) setShowWelcome(true)
+  }, [])
+  function closeWelcome() {
+    localStorage.setItem('wanderlog-welcome-seen', '1')
+    setShowWelcome(false)
+  }
+
+  // Crea un viaje de ejemplo para explorar la app sin partir de cero.
+  async function createExample() {
+    setSeeding(true)
+    const today = new Date()
+    const start = new Date(today.getTime() + 30 * 864e5)
+    const end = new Date(today.getTime() + 34 * 864e5)
+    const iso = (d: Date) => d.toISOString().slice(0, 10)
+    try {
+      await createTrip.mutateAsync({
+        name: 'Escapada a Lisboa (ejemplo)',
+        description: 'Un viaje de ejemplo para que veas cómo funciona. Edítalo o bórralo cuando quieras.',
+        destination: 'Lisboa, Portugal',
+        start_date: iso(start),
+        end_date: iso(end),
+        cover_image_url: null,
+        status: 'planning',
+        budget_total: 600,
+        tags: ['ejemplo'],
+      })
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   const filteredTrips = useMemo(() => {
     if (!trips) return []
@@ -204,14 +241,20 @@ export function Dashboard() {
                   : 'Planifica tu próximo viaje y mantén todo organizado en un solo lugar.'}
               </p>
               {!search && statusFilter === 'all' && (
-                <Button
-                  className="mt-6 gap-2"
-                  onClick={() => { setEditTrip(null); setFormOpen(true) }}
-                  style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
-                >
-                  <Plus size={16} />
-                  Crear primer viaje
-                </Button>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                  <Button
+                    className="gap-2"
+                    onClick={() => { setEditTrip(null); setFormOpen(true) }}
+                    style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    Crear primer viaje
+                  </Button>
+                  <Button variant="outline" className="gap-2" onClick={createExample} disabled={seeding}>
+                    {seeding ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}
+                    Probar con un ejemplo
+                  </Button>
+                </div>
               )}
             </motion.div>
           ) : (
@@ -299,6 +342,8 @@ export function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <OnboardingWelcome open={showWelcome} onClose={closeWelcome} />
     </div>
   )
 }

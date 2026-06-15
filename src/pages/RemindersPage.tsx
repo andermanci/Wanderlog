@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
 import { Bell, Plus, Trash2, Loader2, BellOff, Sparkles } from 'lucide-react'
+import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -196,11 +197,8 @@ export function RemindersPage() {
           ))}
         </div>
       ) : !reminders?.length && suggestions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <BellOff size={48} className="mb-4 text-muted-foreground" />
-          <h3 className="font-serif text-xl mb-2">Sin recordatorios</h3>
-          <p className="text-muted-foreground text-sm">Crea avisos para no olvidar nada importante</p>
-        </div>
+        <EmptyState icon={BellOff} title="Sin recordatorios"
+          description="Crea avisos para no olvidar nada importante: facturar, salir hacia el aeropuerto, una reserva…" />
       ) : (
         <div className="space-y-6">
           {pending.length > 0 && (

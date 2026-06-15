@@ -13,6 +13,7 @@ import {
   useDeletePackingItem, useBulkCreatePackingItems,
 } from '@/lib/queries/packing'
 import { TripHeader } from '@/components/trips/TripHeader'
+import { EmptyState } from '@/components/EmptyState'
 import type { PackingItem } from '@/types/database'
 
 const PACKING_TEMPLATES = [
@@ -194,11 +195,8 @@ export function PackingPage() {
           ))}
         </div>
       ) : !items?.length ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Package size={48} className="mb-4 text-muted-foreground" />
-          <h3 className="font-serif text-xl mb-2">Lista vacía</h3>
-          <p className="text-muted-foreground text-sm mb-4">Añade items o usa una plantilla para empezar</p>
-        </div>
+        <EmptyState icon={Package} title="Lista vacía"
+          description="Añade lo que te quieres llevar, o empieza con una plantilla (básico, playa, montaña)." />
       ) : (
         <div className="space-y-4">
           {Object.entries(grouped ?? {}).map(([cat, catItems]) => {
