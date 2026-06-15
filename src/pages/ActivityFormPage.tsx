@@ -256,7 +256,7 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
             placeholder="Mismo día"
           />
           {watch('end_day_id') && (
-            <Button type="button" variant="ghost" size="icon" className="flex-shrink-0" title="Mismo día"
+            <Button type="button" variant="ghost" size="icon" className="flex-shrink-0" aria-label="Mismo día" title="Mismo día"
               onClick={() => setValue('end_day_id', '')}>
               <X size={15} />
             </Button>
@@ -316,7 +316,7 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
               <Button type="button" size="sm" variant="secondary" className="h-7 text-xs" onClick={() => coverRef.current?.click()}>
                 Cambiar
               </Button>
-              <Button type="button" size="icon" variant="secondary" className="w-7 h-7" onClick={() => setCoverUrl(null)} title="Quitar">
+              <Button type="button" size="icon" variant="secondary" className="w-7 h-7" onClick={() => setCoverUrl(null)} aria-label="Quitar" title="Quitar">
                 <X size={13} />
               </Button>
             </div>

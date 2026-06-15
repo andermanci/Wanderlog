@@ -17,6 +17,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { TripHeader } from '@/components/trips/TripHeader'
@@ -70,6 +74,7 @@ export function GuidePage() {
 
   const [newName, setNewName] = useState('')
   const [adding, setAdding] = useState(false)
+  const [detectList, setDetectList] = useState<string[] | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -123,8 +128,13 @@ export function GuidePage() {
     const existing = new Set((guides ?? []).map(g => normalize(g.name)))
     const toCreate = tokens.filter(t => !existing.has(normalize(t)))
     if (!toCreate.length) { toast('No hay destinos nuevos que detectar'); return }
-    if (!confirm(`¿Crear guías para: ${toCreate.join(', ')}?`)) return
-    ;(async () => { for (const t of toCreate) await addAndImport(t) })()
+    setDetectList(toCreate)
+  }
+
+  async function runDetect() {
+    const list = detectList ?? []
+    setDetectList(null)
+    for (const t of list) await addAndImport(t)
   }
 
   const hasGuides = (guides?.length ?? 0) > 0
@@ -214,6 +224,25 @@ export function GuidePage() {
           </div>
         </div>
       )}
+
+      {/* Confirmar creación de destinos detectados */}
+      <AlertDialog open={!!detectList} onOpenChange={(o) => !o && setDetectList(null)}>
+        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">¿Crear guías de destino?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se crearán e importarán guías para: <strong>{(detectList ?? []).join(', ')}</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={runDetect}
+              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+              Crear e importar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -239,6 +268,7 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
   const [draftBody, setDraftBody] = useState('')
+  const [confirmDel, setConfirmDel] = useState(false)
   const [daysOpen, setDaysOpen] = useState(false)
 
   const sections = guide.sections ?? []
@@ -311,7 +341,7 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
       {/* Cabecera del destino */}
       <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: 'color-mix(in srgb, var(--primary) 6%, transparent)' }}>
         <button {...attributes} {...listeners} onClick={e => e.stopPropagation()}
-          className="flex-shrink-0 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing" title="Arrastrar para ordenar">
+          className="flex-shrink-0 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing" aria-label="Arrastrar para ordenar" title="Arrastrar para ordenar">
           <GripVertical size={16} />
         </button>
         <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
@@ -333,21 +363,21 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
         <div className="flex items-center gap-1 flex-shrink-0">
           {editingName ? (
             <>
-              <Button size="icon" variant="ghost" className="w-8 h-8 text-primary" onClick={saveName} title="Guardar"><Check size={16} /></Button>
-              <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => { setEditingName(false); setNameDraft(guide.name) }} title="Cancelar"><X size={16} /></Button>
+              <Button size="icon" variant="ghost" className="w-8 h-8 text-primary" onClick={saveName} aria-label="Guardar" title="Guardar"><Check size={16} /></Button>
+              <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => { setEditingName(false); setNameDraft(guide.name) }} aria-label="Cancelar" title="Cancelar"><X size={16} /></Button>
             </>
           ) : (
             <>
-              <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => setDaysOpen(true)} title="Asignar días">
+              <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => setDaysOpen(true)} aria-label="Asignar días">
                 <CalendarDays size={14} /><span className="hidden sm:inline">Días{assignedDays.length ? ` (${assignedDays.length})` : ''}</span>
               </Button>
               <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={reimport} disabled={busy}>
                 {importing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                 <span className="hidden sm:inline">{filled > 0 ? 'Reimportar' : 'Importar'}</span>
               </Button>
-              <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => { setEditingName(true); setNameDraft(guide.name) }} title="Renombrar"><Pencil size={14} /></Button>
+              <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => { setEditingName(true); setNameDraft(guide.name) }} aria-label="Renombrar destino" title="Renombrar destino"><Pencil size={14} /></Button>
               <Button size="icon" variant="ghost" className="w-8 h-8 text-destructive hover:text-destructive"
-                onClick={() => { if (confirm(`¿Eliminar la guía de ${guide.name}?`)) del.mutate({ id: guide.id, tripId }) }} title="Eliminar destino"><Trash2 size={14} /></Button>
+                onClick={() => setConfirmDel(true)} aria-label="Eliminar destino"><Trash2 size={14} aria-hidden="true" /></Button>
             </>
           )}
         </div>
@@ -391,13 +421,13 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
                         )}
                         {editing ? (
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <Button size="icon" variant="ghost" className="w-7 h-7 text-primary" onClick={() => saveEdit(s)} disabled={busy} title="Guardar"><Check size={15} /></Button>
-                            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={cancelEdit} title="Cancelar"><X size={15} /></Button>
+                            <Button size="icon" variant="ghost" className="w-7 h-7 text-primary" onClick={() => saveEdit(s)} disabled={busy} aria-label="Guardar" title="Guardar"><Check size={15} /></Button>
+                            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={cancelEdit} aria-label="Cancelar" title="Cancelar"><X size={15} /></Button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1 flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity">
-                            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => startEdit(s)} title="Editar"><Pencil size={13} /></Button>
-                            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive" onClick={() => deleteSection(s)} title="Eliminar"><Trash2 size={13} /></Button>
+                            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => startEdit(s)} aria-label="Editar sección" title="Editar sección"><Pencil size={13} /></Button>
+                            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive" onClick={() => deleteSection(s)} aria-label="Eliminar sección" title="Eliminar sección"><Trash2 size={13} /></Button>
                           </div>
                         )}
                       </div>
@@ -460,6 +490,21 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmar borrado del destino */}
+      <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
+        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">¿Eliminar la guía de {guide.name}?</AlertDialogTitle>
+            <AlertDialogDescription>Se borrará esta guía de destino y todas sus secciones. No afecta a tus días ni lugares.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90"
+              onClick={() => del.mutate({ id: guide.id, tripId })}>Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

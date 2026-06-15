@@ -110,7 +110,7 @@ export function ActivityDetailPage() {
             </Button>
             <Button
               variant="ghost" size="icon" className="w-9 h-9 text-destructive hover:text-destructive"
-              onClick={() => setConfirmDelete(true)} title="Eliminar"
+              onClick={() => setConfirmDelete(true)} aria-label="Eliminar" title="Eliminar"
             >
               <Trash2 size={15} />
             </Button>
@@ -176,7 +176,7 @@ export function ActivityDetailPage() {
             {activity.origin && activity.destination && (
               <>
                 <iframe
-                  title="Ruta"
+                  aria-label="Ruta" title="Ruta"
                   src={`https://maps.google.com/maps?saddr=${encodeURIComponent(activity.origin)}&daddr=${encodeURIComponent(activity.destination)}&output=embed`}
                   className="w-full h-56 rounded-lg border border-border"
                   loading="lazy"
@@ -206,7 +206,7 @@ export function ActivityDetailPage() {
               </Button>
             </div>
             <iframe
-              title="Mapa"
+              aria-label="Mapa" title="Mapa"
               src={activity.lat != null && activity.lng != null
                 ? `https://maps.google.com/maps?q=${activity.lat},${activity.lng}&z=15&output=embed`
                 : `https://maps.google.com/maps?q=${mapsQuery}&z=14&output=embed`}
@@ -291,7 +291,7 @@ export function ActivityDetailPage() {
                   <button
                     type="button"
                     onClick={() => deleteAttachment.mutate(att.id)}
-                    title="Eliminar"
+                    aria-label="Eliminar" title="Eliminar"
                     className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-background border border-border flex items-center justify-center text-destructive hover:bg-destructive hover:text-white shadow transition-colors"
                   >
                     <X size={12} />

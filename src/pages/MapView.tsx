@@ -581,7 +581,7 @@ export function MapViewPage() {
           <button
             onClick={searchPlaces}
             disabled={searching}
-            title="Buscar"
+            aria-label="Buscar" title="Buscar"
             className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-100"
           >
             {searching ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
@@ -1013,7 +1013,7 @@ export function MapViewPage() {
                 size="icon"
                 onClick={locateMe}
                 disabled={locating}
-                title="Dónde estoy"
+                aria-label="Dónde estoy" title="Dónde estoy"
                 className="absolute bottom-20 right-4 md:bottom-6 z-10 rounded-full w-12 h-12 md:w-11 md:h-11 shadow-xl"
                 style={{ background: 'var(--card)', color: 'var(--primary)', border: '1px solid var(--border)' }}
               >

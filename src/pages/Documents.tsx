@@ -287,7 +287,7 @@ export function DocumentsPage() {
                             <Plus size={13} /> Documento
                           </Button>
                           <Button size="icon" variant="ghost" className="w-8 h-8 text-destructive hover:text-destructive"
-                            onClick={() => setDeleteTravTarget(t)} title="Eliminar viajero">
+                            onClick={() => setDeleteTravTarget(t)} aria-label="Eliminar viajero" title="Eliminar viajero">
                             <Trash2 size={13} />
                           </Button>
                         </div>
@@ -395,7 +395,7 @@ export function DocumentsPage() {
                                 <span className="text-xs truncate max-w-[160px]">{att.name}</span>
                               </button>
                               <button type="button" onClick={() => setDeleteAttTarget(att)}
-                                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive flex-shrink-0" title="Eliminar adjunto">
+                                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive flex-shrink-0" aria-label="Eliminar adjunto" title="Eliminar adjunto">
                                 <Trash2 size={13} />
                               </button>
                             </div>
@@ -865,7 +865,7 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile, onOpen }: {
           </div>
           <div className="flex gap-1 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0">
             {doc.file_url && (
-              <Button size="icon" variant="ghost" className="w-7 h-7" onClick={stop(() => onOpenFile(doc.file_url!, doc.title))} title="Ver archivo">
+              <Button size="icon" variant="ghost" className="w-7 h-7" onClick={stop(() => onOpenFile(doc.file_url!, doc.title))} aria-label="Ver archivo" title="Ver archivo">
                 <Eye size={13} />
               </Button>
             )}

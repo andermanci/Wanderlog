@@ -97,7 +97,7 @@ export function DayJournalDialog({ open, onClose, tripId, day }: DayJournalDialo
                   type="button"
                   onClick={() => deletePhoto.mutate(p.id)}
                   className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-background border border-border flex items-center justify-center text-destructive hover:bg-destructive hover:text-white shadow transition-colors"
-                  title="Eliminar foto"
+                  aria-label="Eliminar foto" title="Eliminar foto"
                 >
                   <Trash2 size={11} />
                 </button>

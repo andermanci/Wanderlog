@@ -373,7 +373,7 @@ export function ExpensesPage() {
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium line-clamp-1">{expense.description}</p>
                   {(expense as PendingExpense)._pending && (
-                    <span title="Pendiente de subir (sin conexión)">
+                    <span aria-label="Pendiente de subir (sin conexión)" title="Pendiente de subir (sin conexión)">
                       <CloudOff size={12} className="text-muted-foreground flex-shrink-0" />
                     </span>
                   )}

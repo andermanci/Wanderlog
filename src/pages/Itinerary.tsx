@@ -282,7 +282,7 @@ export function ItineraryPage() {
                           </select>
                           {day.guide_id && (
                             <Link to={`/trips/${tripId}/guide`} onClick={(e) => e.stopPropagation()}
-                              title="Ver guía del destino"
+                              aria-label="Ver guía del destino" title="Ver guía del destino"
                               className="text-primary hover:opacity-80 flex-shrink-0">
                               <BookOpen size={13} />
                             </Link>
@@ -293,7 +293,7 @@ export function ItineraryPage() {
                     {weather?.[day.date] && (
                       <span
                         className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0"
-                        title="Previsión del día"
+                        aria-label="Previsión del día" title="Previsión del día"
                       >
                         <span className="text-base leading-none">{weatherIcon(weather[day.date].code)}</span>
                         <span className="font-medium text-foreground">{weather[day.date].tmax}°</span>
@@ -304,7 +304,7 @@ export function ItineraryPage() {
                       size="icon"
                       variant="ghost"
                       className="w-7 h-7 relative"
-                      title="Diario del día"
+                      aria-label="Diario del día" title="Diario del día"
                       onClick={(e) => {
                         e.stopPropagation()
                         setJournalDay(day)

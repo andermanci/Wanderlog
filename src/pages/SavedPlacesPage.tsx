@@ -167,15 +167,15 @@ export function SavedPlacesPage() {
                         <Calendar size={12} /> Itinerario
                       </Button>
                       {p.link && (
-                        <Button size="icon" variant="ghost" className="w-8 h-8" asChild title="Enlace">
+                        <Button size="icon" variant="ghost" className="w-8 h-8" asChild aria-label="Enlace" title="Enlace">
                           <a href={p.link} target="_blank" rel="noreferrer"><ExternalLink size={13} /></a>
                         </Button>
                       )}
-                      <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => openEdit(p)} title="Editar">
+                      <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => openEdit(p)} aria-label="Editar" title="Editar">
                         <Pencil size={13} />
                       </Button>
                       <Button size="icon" variant="ghost" className="w-8 h-8 text-destructive hover:text-destructive ml-auto"
-                        onClick={() => setDeleteTarget(p)} title="Eliminar">
+                        onClick={() => setDeleteTarget(p)} aria-label="Eliminar" title="Eliminar">
                         <Trash2 size={13} />
                       </Button>
                     </div>

@@ -41,7 +41,7 @@ export function LocationPicker({ value, onChange, placeholder = 'Seleccionar ubi
           <span className={cn('truncate', !value && 'text-muted-foreground')}>{value || placeholder}</span>
         </Button>
         {value && (
-          <Button type="button" variant="ghost" size="icon" onClick={() => onChange('', null)} title="Quitar">
+          <Button type="button" variant="ghost" size="icon" onClick={() => onChange('', null)} aria-label="Quitar" title="Quitar">
             <X size={14} />
           </Button>
         )}
