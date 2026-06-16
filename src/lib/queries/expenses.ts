@@ -30,7 +30,7 @@ export function useExpenses(tripId: string) {
 export function useCreateExpense() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (values: Omit<Expense, 'id' | 'created_at' | 'external_id' | 'source' | 'activity_id'> & { activity_id?: string | null }): Promise<PendingExpense> => {
+    mutationFn: async (values: Omit<Expense, 'id' | 'created_at' | 'external_id' | 'source' | 'activity_id' | 'paid_by' | 'split_between'> & { activity_id?: string | null; paid_by?: string | null; split_between?: string[] }): Promise<PendingExpense> => {
       // Generamos el id en cliente: permite encolar el gasto offline y que el
       // reintento sea idempotente (mismo id ⇒ el duplicado se descarta).
       const row: Expense = {
@@ -40,6 +40,8 @@ export function useCreateExpense() {
         source: 'manual',
         activity_id: null,
         ...values,
+        paid_by: values.paid_by ?? null,
+        split_between: values.split_between ?? [],
       }
 
       const queueOffline = (): PendingExpense => {

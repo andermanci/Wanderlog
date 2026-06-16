@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Plus, Receipt, Trash2, Loader2, Landmark, Zap, CloudOff, ListPlus } from 'lucide-react'
+import { Plus, Receipt, Trash2, Loader2, Landmark, Zap, CloudOff, ListPlus, Users, ArrowRight } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -21,8 +21,11 @@ import { useExpenses, useCreateExpense, useDeleteExpense, type PendingExpense } 
 import { useExchangeRates, sumConverted } from '@/lib/queries/rates'
 import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
+import { useTravelers } from '@/lib/queries/travelers'
+import { Checkbox } from '@/components/ui/checkbox'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { useAuthStore } from '@/store/authStore'
+import { computeBalances, settleBalances } from '@/lib/split'
 import { EXPENSE_CATEGORIES, formatCurrency, formatDate, sumByCurrency } from '@/lib/utils'
 import type { Expense } from '@/types/database'
 
@@ -51,7 +54,18 @@ export function ExpensesPage() {
   const createExpense = useCreateExpense()
   const deleteExpense = useDeleteExpense()
 
+  const { data: travelers } = useTravelers(tripId!)
   const [formOpen, setFormOpen] = useState(false)
+  const [payer, setPayer] = useState('')
+  const [split, setSplit] = useState<string[]>([])
+
+  // Al abrir el formulario, por defecto repartir entre todos y pagar "yo".
+  useEffect(() => {
+    if (formOpen && travelers?.length) {
+      setSplit(travelers.map(t => t.id))
+      setPayer(travelers.find(t => t.is_self)?.id ?? travelers[0]?.id ?? '')
+    }
+  }, [formOpen, travelers])
 
   // Actividades del itinerario con precio que aún NO se han registrado como
   // gasto (se ofrecen para añadir; el enlace activity_id evita duplicar).
@@ -112,6 +126,13 @@ export function ExpensesPage() {
   const { data: rates } = useExchangeRates(mainCurrency)
   const { total, missing } = sumConverted(expenses ?? [], mainCurrency, rates)
   const hasConversion = otherTotals.length > 0 && missing.length < otherTotals.length
+
+  // Reparto entre viajeros (gastos compartidos), en la divisa principal.
+  const travelerName = (id: string) => travelers?.find(t => t.id === id)?.name ?? '—'
+  const balances = (travelers?.length ?? 0) >= 2
+    ? computeBalances(expenses ?? [], travelers ?? [], mainCurrency, rates) : []
+  const settlements = settleBalances(balances)
+  const hasSplitData = balances.some(b => b.paid || b.owes)
   const budget = trip?.budget_total ?? 0
   const pct = budget > 0 ? Math.min((total / budget) * 100, 100) : 0
 
@@ -131,8 +152,14 @@ export function ExpensesPage() {
   const dayChartData = byDay.map(([date, value]) => ({ name: formatDate(date, 'dd MMM'), value }))
   const avgPerDay = byDay.length > 0 ? total / byDay.length : 0
 
+  const canSplit = (travelers?.length ?? 0) >= 2
+
   async function onSubmit(values: FormValues) {
-    await createExpense.mutateAsync({ ...values, trip_id: tripId! })
+    await createExpense.mutateAsync({
+      ...values, trip_id: tripId!,
+      paid_by: canSplit ? (payer || null) : null,
+      split_between: canSplit ? split : [],
+    })
     setFormOpen(false)
     reset({ category: 'Otros', currency: 'EUR', date: new Date().toISOString().slice(0, 10) })
   }
@@ -258,6 +285,51 @@ export function ExpensesPage() {
               Incluye conversión de {otherTotals.map(([c]) => c).join(', ')} a {mainCurrency} (cambio aproximado).
               {missing.length > 0 && ` No se pudo convertir: ${missing.join(', ')}.`}
             </p>
+          )}
+        </div>
+      )}
+
+      {/* Reparto entre viajeros */}
+      {hasSplitData && (
+        <div className="rounded-xl p-5 mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Users size={16} style={{ color: 'var(--primary)' }} aria-hidden="true" />
+            <span className="font-medium">Reparto entre viajeros</span>
+            <span className="text-xs text-muted-foreground">en {mainCurrency}</span>
+          </div>
+
+          {/* Saldos */}
+          <div className="space-y-1.5 mb-4">
+            {balances.map(b => (
+              <div key={b.travelerId} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{travelerName(b.travelerId)}</span>
+                <span className="tabular-nums font-medium"
+                  style={{ color: b.net > 0.01 ? '#15803d' : b.net < -0.01 ? 'var(--destructive)' : 'var(--muted-foreground)' }}>
+                  {b.net > 0.01 ? `le deben ${formatCurrency(b.net, mainCurrency)}`
+                    : b.net < -0.01 ? `debe ${formatCurrency(-b.net, mainCurrency)}`
+                      : 'en paz'}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Liquidación sugerida */}
+          {settlements.length > 0 && (
+            <div className="pt-3 border-t border-border">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Cómo saldar cuentas</p>
+              <div className="space-y-1.5">
+                {settlements.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <span className="font-medium">{travelerName(s.from)}</span>
+                    <ArrowRight size={14} className="text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                    <span className="font-medium">{travelerName(s.to)}</span>
+                    <span className="ml-auto tabular-nums font-medium" style={{ color: 'var(--primary)' }}>
+                      {formatCurrency(s.amount, mainCurrency)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -455,6 +527,38 @@ export function ExpensesPage() {
               <Label>Fecha *</Label>
               <Input type="date" {...register('date')} />
             </div>
+
+            {/* Reparto entre viajeros (si hay 2 o más) */}
+            {canSplit && (
+              <div className="space-y-3 pt-1 rounded-lg p-3" style={{ background: 'var(--secondary)' }}>
+                <div className="space-y-1.5">
+                  <Label>¿Quién paga?</Label>
+                  <Select value={payer} onValueChange={setPayer}>
+                    <SelectTrigger><SelectValue placeholder="Pagador" /></SelectTrigger>
+                    <SelectContent>
+                      {travelers!.map(t => <SelectItem key={t.id} value={t.id}>{t.name}{t.is_self ? ' (yo)' : ''}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Repartir entre</Label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {travelers!.map(t => {
+                      const on = split.includes(t.id)
+                      return (
+                        <label key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-card">
+                          <Checkbox checked={on} onCheckedChange={(v) =>
+                            setSplit(s => v === true ? [...s, t.id] : s.filter(x => x !== t.id))} />
+                          <span className="text-sm truncate">{t.name}{t.is_self ? ' (yo)' : ''}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">A partes iguales entre los marcados. Déjalo sin marcar para un gasto personal.</p>
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={isSubmitting}

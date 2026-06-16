@@ -499,6 +499,8 @@ export type Database = {
           external_id: string | null
           source: string
           activity_id: string | null
+          paid_by: string | null
+          split_between: string[]
         }
         Insert: {
           id?: string
@@ -512,6 +514,8 @@ export type Database = {
           external_id?: string | null
           source?: string
           activity_id?: string | null
+          paid_by?: string | null
+          split_between?: string[]
         }
         Update: {
           id?: string
@@ -525,6 +529,8 @@ export type Database = {
           external_id?: string | null
           source?: string
           activity_id?: string | null
+          paid_by?: string | null
+          split_between?: string[]
         }
         Relationships: []
       }
