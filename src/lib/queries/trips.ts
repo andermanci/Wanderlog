@@ -77,7 +77,8 @@ export function useTrip(id: string) {
 export function useCreateTrip() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (values: Omit<Trip, 'id' | 'user_id' | 'created_at'>) => {
+    // default_currency es opcional al crear: la BD aplica 'EUR' por defecto.
+    mutationFn: async (values: Omit<Trip, 'id' | 'user_id' | 'created_at' | 'default_currency'> & { default_currency?: string }) => {
       // getSession es rápido (no hace red salvo que el token esté caducado,
       // y entonces refresca vía processLock sin colgarse).
       const { data: { session } } = await supabase.auth.getSession()
