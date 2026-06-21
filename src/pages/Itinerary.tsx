@@ -20,19 +20,21 @@ import {
 } from '@/components/ui/alert-dialog'
 import { ActivityBlock } from '@/components/itinerary/ActivityBlock'
 import { DayJournalDialog } from '@/components/itinerary/DayJournalDialog'
+import { DayAlerts } from '@/components/itinerary/DayAlerts'
 import { useJournalPhotos } from '@/lib/queries/journal'
 import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
 import {
   useItineraryDays, useActivities, useUpsertDays,
   useDeleteActivity, useReorderActivities, useUpdateDayNotes, useUpdateDayGuide,
 } from '@/lib/queries/itinerary'
+import { useDayAlerts } from '@/lib/queries/dayAlerts'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { useTrip } from '@/lib/queries/trips'
 import { useTripAttachments } from '@/lib/queries/attachments'
 import { buildRoutePoints } from '@/lib/route'
 import { lodgingByDayMap, dayOrderOf, type Lodging } from '@/lib/lodging'
 import { TripHeader } from '@/components/trips/TripHeader'
-import type { Activity, ItineraryDay } from '@/types/database'
+import type { Activity, DayAlert, ItineraryDay } from '@/types/database'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -50,6 +52,7 @@ export function ItineraryPage() {
   const updateDayNotes = useUpdateDayNotes()
   const updateDayGuide = useUpdateDayGuide()
   const { data: guides } = useDestinationGuides(tripId!)
+  const { data: dayAlerts } = useDayAlerts(tripId!)
 
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
   const [journalDay, setJournalDay] = useState<ItineraryDay | null>(null)
@@ -108,6 +111,15 @@ export function ItineraryPage() {
 
   // ALOJAMIENTO (hotel): banner en CADA día de la estancia (entrada → noches → salida).
   const lodgingByDay = useMemo(() => lodgingByDayMap(activities, days), [activities, days])
+
+  // ALERTAS destacadas (callouts) agrupadas por día.
+  const alertsByDay = useMemo(() => {
+    const map = new Map<string, DayAlert[]>()
+    dayAlerts?.forEach(a => {
+      map.set(a.day_id, [...(map.get(a.day_id) ?? []), a])
+    })
+    return map
+  }, [dayAlerts])
 
   // ¿Hay al menos 2 paradas para mostrar el botón de recorrido?
   const hasRoute = useMemo(
@@ -342,6 +354,9 @@ export function ItineraryPage() {
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden"
                       >
+                        {/* Alertas destacadas del día */}
+                        <DayAlerts tripId={tripId!} day={day} alerts={alertsByDay.get(day.id) ?? []} />
+
                         {/* Notas del día */}
                         <div className="mb-3 sm:ml-[52px]">
                           {editingNotes === day.id ? (

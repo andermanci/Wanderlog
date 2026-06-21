@@ -102,6 +102,39 @@ export type Database = {
         }
         Relationships: []
       }
+      day_alerts: {
+        Row: {
+          id: string
+          trip_id: string
+          day_id: string
+          text: string
+          level: 'tip' | 'info' | 'warning'
+          reminder_id: string | null
+          order_index: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          day_id: string
+          text: string
+          level?: 'tip' | 'info' | 'warning'
+          reminder_id?: string | null
+          order_index?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          trip_id?: string
+          day_id?: string
+          text?: string
+          level?: 'tip' | 'info' | 'warning'
+          reminder_id?: string | null
+          order_index?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
       journal_photos: {
         Row: {
           id: string
@@ -663,6 +696,7 @@ export type ActivityAttachment = Database['public']['Tables']['activity_attachme
 export type JournalPhoto = Database['public']['Tables']['journal_photos']['Row']
 export type Traveler = Database['public']['Tables']['travelers']['Row']
 export type DestinationGuide = Database['public']['Tables']['destination_guides']['Row']
+export type DayAlert = Database['public']['Tables']['day_alerts']['Row']
 
 // Sección de la guía del destino (historia, costumbres, idioma...). Se importa
 // de Wikivoyage/Wikipedia y luego es editable; `edited` marca lo tocado a mano
@@ -692,3 +726,4 @@ export type ActivityType = Activity['type']
 export type DocumentCategory = Document['category']
 export type PlaceCategory = FavoritePlace['category']
 export type ReminderType = Reminder['type']
+export type DayAlertLevel = DayAlert['level']
