@@ -203,12 +203,12 @@ export function ItineraryPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section="Itinerario" />
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-6">
         <div>
           <h1 className="font-serif text-2xl font-medium">Itinerario</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Plan día a día</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Toggle Editar / Ver */}
           <div className="flex items-center p-0.5 rounded-lg" style={{ background: 'var(--secondary)' }} role="group" aria-label="Modo del itinerario">
             <button
@@ -236,9 +236,9 @@ export function ItineraryPage() {
           </div>
           {hasRoute && (
             <Button variant="outline" className="gap-2" asChild>
-              <Link to={`/trips/${tripId}/map?route=1`}>
+              <Link to={`/trips/${tripId}/map?route=1`} aria-label="Ver recorrido" title="Ver recorrido">
                 <Route size={16} />
-                Ver recorrido
+                <span className="hidden sm:inline">Ver recorrido</span>
               </Link>
             </Button>
           )}
@@ -247,9 +247,10 @@ export function ItineraryPage() {
               onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}
               style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
               className="gap-2"
+              aria-label="Añadir actividad" title="Añadir actividad"
             >
               <Plus size={16} />
-              Añadir actividad
+              <span className="hidden sm:inline">Añadir actividad</span>
             </Button>
           )}
         </div>
