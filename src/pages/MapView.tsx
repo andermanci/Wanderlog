@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -566,8 +565,8 @@ export function MapViewPage() {
   const panelContent = (
     <>
       {/* Búsqueda */}
-      <div className="p-4 space-y-3 border-b border-border shrink-0">
-        <nav className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+      <div className="p-3 sm:p-4 space-y-2.5 sm:space-y-3 border-b border-border shrink-0">
+        <nav className="hidden md:flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
           <Link to="/dashboard" className="hover:text-foreground transition-colors">Viajes</Link>
           <span className="opacity-50">›</span>
           <Link to={`/trips/${tripId}`} className="hover:text-foreground transition-colors truncate max-w-[110px]">
@@ -620,7 +619,7 @@ export function MapViewPage() {
               <X size={12} /> Limpiar
             </Button>
           </div>
-          <ScrollArea className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
             <div className="pb-4">
               {searchResults.map(place => (
                 <button
@@ -639,11 +638,11 @@ export function MapViewPage() {
                 </button>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       ) : showRoute ? (
         /* Paradas del recorrido del itinerario */
-        <ScrollArea className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="px-4 py-3 border-b border-border sticky top-0 z-10" style={{ background: 'var(--sidebar)' }}>
             <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
               Recorrido · {routeStops.length} paradas
@@ -682,7 +681,7 @@ export function MapViewPage() {
               )
             })}
           </ol>
-        </ScrollArea>
+        </div>
       ) : (
         <>
           {/* Capas del mapa: mostrar/ocultar lugares y paradas del itinerario */}
@@ -708,8 +707,8 @@ export function MapViewPage() {
           </div>
 
           {/* Filtro categorías */}
-          <div className="px-4 py-3 border-b border-border shrink-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="px-4 py-2.5 sm:py-3 border-b border-border shrink-0">
+            <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto md:flex-wrap [&>button]:shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <button
                 onClick={() => setCategoryFilter('all')}
                 className="text-xs px-2.5 py-1 rounded-full border transition-all"
@@ -739,7 +738,7 @@ export function MapViewPage() {
 
             {/* Filtro por lista/colección */}
             {placeCollections.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-border/50">
+              <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto md:flex-wrap [&>button]:shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden mt-2 pt-2 border-t border-border/50">
                 <button
                   onClick={() => setCollectionFilter('all')}
                   className="text-xs px-2.5 py-1 rounded-full border transition-all"
@@ -770,7 +769,7 @@ export function MapViewPage() {
           </div>
 
           {/* Lista de favoritos */}
-          <ScrollArea className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
             {!filteredFavorites?.length ? (
               <div className="p-8 text-center">
                 <Bookmark size={28} className="mx-auto mb-3 text-muted-foreground" />
@@ -821,7 +820,7 @@ export function MapViewPage() {
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </>
       )}
     </>
@@ -839,7 +838,7 @@ export function MapViewPage() {
         <AnimatePresence>
           {panelOpen && (
             <motion.div
-              className="md:hidden absolute inset-x-0 bottom-0 z-30 flex flex-col max-h-[75dvh] rounded-t-2xl border-t border-border shadow-2xl overflow-hidden"
+              className="md:hidden absolute inset-x-0 bottom-0 z-30 flex flex-col max-h-[88dvh] rounded-t-2xl border-t border-border shadow-2xl overflow-hidden"
               style={{ background: 'var(--sidebar)' }}
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
@@ -875,7 +874,7 @@ export function MapViewPage() {
               className="absolute top-3 left-3 right-3 z-10 flex gap-1.5 overflow-x-auto"
               style={{ scrollbarWidth: 'none' }}
             >
-              {[{ date: 'all', n: 0 }, ...dayChips].map(({ date, n }) => {
+              {[{ date: 'all', n: 0 }, ...dayChips].map(({ date }) => {
                 const active = dayFilter === date
                 return (
                   <button
@@ -886,7 +885,7 @@ export function MapViewPage() {
                       ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
                       : { background: 'var(--card)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
                   >
-                    {date === 'all' ? 'Todos' : `Día ${n}`}
+                    {date === 'all' ? 'Todos' : format(parseISO(date), 'EEE dd MMM', { locale: es })}
                   </button>
                 )
               })}
