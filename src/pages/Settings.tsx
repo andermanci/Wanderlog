@@ -7,7 +7,7 @@ import { User, Globe, Loader2, LogOut, Bell, BellOff, Sun, Moon, Monitor, Type }
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CurrencySelect } from '@/components/CurrencySelect'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { supabase } from '@/lib/supabase'
@@ -23,8 +23,6 @@ const schema = z.object({
 })
 
 type FormValues = z.infer<typeof schema>
-
-const CURRENCIES = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'MXN', 'ARS', 'COP', 'BRL', 'CAD', 'AUD']
 
 export function SettingsPage() {
   const { profile, user, setProfile } = useAuthStore()
@@ -142,18 +140,12 @@ export function SettingsPage() {
           <div className="p-6 rounded-xl space-y-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
             <div className="space-y-1.5">
               <Label>Moneda por defecto</Label>
-              <Select
+              <CurrencySelect
                 value={watch('default_currency')}
-                onValueChange={(v) => setValue('default_currency', v)}
-              >
-                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Se usará como moneda por defecto en los gastos</p>
+                onChange={(v) => setValue('default_currency', v)}
+                className="w-56"
+              />
+              <p className="text-xs text-muted-foreground">Se usará para mostrar los totales de tus gastos. Cada viaje puede tener su propia divisa para anotarlos.</p>
             </div>
 
             <Button

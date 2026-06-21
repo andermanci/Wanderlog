@@ -43,6 +43,7 @@ export type Database = {
           status: 'planning' | 'confirmed' | 'in_progress' | 'completed'
           budget_total: number | null
           tags: string[]
+          default_currency: string
           created_at: string
         }
         Insert: {
@@ -57,6 +58,7 @@ export type Database = {
           status?: 'planning' | 'confirmed' | 'in_progress' | 'completed'
           budget_total?: number | null
           tags?: string[]
+          default_currency?: string
           created_at?: string
         }
         Update: {
@@ -71,6 +73,7 @@ export type Database = {
           status?: 'planning' | 'confirmed' | 'in_progress' | 'completed'
           budget_total?: number | null
           tags?: string[]
+          default_currency?: string
           created_at?: string
         }
         Relationships: []

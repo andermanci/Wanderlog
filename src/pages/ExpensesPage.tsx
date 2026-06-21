@@ -24,10 +24,10 @@ import { useTrip } from '@/lib/queries/trips'
 import { useTravelers } from '@/lib/queries/travelers'
 import { Checkbox } from '@/components/ui/checkbox'
 import { TripHeader } from '@/components/trips/TripHeader'
+import { CurrencySelect } from '@/components/CurrencySelect'
 import { useAuthStore } from '@/store/authStore'
 import { computeBalances, settleBalances } from '@/lib/split'
 import { EXPENSE_CATEGORIES, formatCurrency, formatDate, sumByCurrency } from '@/lib/utils'
-import type { Expense } from '@/types/database'
 
 const CHART_COLORS = [
   'var(--primary)', '#6366f1', '#22c55e', '#f97316',
@@ -53,6 +53,11 @@ export function ExpensesPage() {
   const { profile } = useAuthStore()
   const createExpense = useCreateExpense()
   const deleteExpense = useDeleteExpense()
+
+  // Divisa por defecto al ANOTAR un gasto: la de los ajustes del viaje. Los
+  // totales, en cambio, se muestran en la divisa principal del perfil
+  // (mainCurrency), convirtiendo con el tipo de cambio en vivo.
+  const tripCurrency = trip?.default_currency || profile?.default_currency || 'EUR'
 
   const { data: travelers } = useTravelers(tripId!)
   const [formOpen, setFormOpen] = useState(false)
@@ -86,7 +91,7 @@ export function ExpensesPage() {
       description: a.title,
       category: expenseCategoryFor(a.type),
       amount: a.price!,
-      currency: profile?.default_currency ?? 'EUR',
+      currency: tripCurrency,
       date: dayDateById.get(a.day_id) ?? new Date().toISOString().slice(0, 10),
     })
   }
@@ -104,7 +109,7 @@ export function ExpensesPage() {
       description: quickDesc.trim() || quickCat,
       category: quickCat,
       amount,
-      currency: profile?.default_currency ?? 'EUR',
+      currency: tripCurrency,
       date: new Date().toISOString().slice(0, 10),
     })
     setQuickAmount('')
@@ -113,7 +118,7 @@ export function ExpensesPage() {
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
-    defaultValues: { category: 'Otros', currency: 'EUR', date: new Date().toISOString().slice(0, 10) },
+    defaultValues: { category: 'Otros', currency: tripCurrency, date: new Date().toISOString().slice(0, 10) },
   })
 
   // Las divisas no se mezclan: totales separados por divisa. El presupuesto
@@ -161,7 +166,7 @@ export function ExpensesPage() {
       split_between: canSplit ? split : [],
     })
     setFormOpen(false)
-    reset({ category: 'Otros', currency: 'EUR', date: new Date().toISOString().slice(0, 10) })
+    reset({ category: 'Otros', currency: tripCurrency, date: new Date().toISOString().slice(0, 10) })
   }
 
   return (
@@ -203,7 +208,7 @@ export function ExpensesPage() {
             {pendingActs.map(a => (
               <div key={a.id} className="flex items-center gap-2 text-sm">
                 <span className="flex-1 min-w-0 truncate">{a.title}</span>
-                <span className="font-medium tabular-nums flex-shrink-0">{formatCurrency(a.price!, profile?.default_currency ?? 'EUR')}</span>
+                <span className="font-medium tabular-nums flex-shrink-0">{formatCurrency(a.price!, tripCurrency)}</span>
                 <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 flex-shrink-0" style={{ color: 'var(--primary)' }}
                   disabled={createExpense.isPending} onClick={() => addActivityExpense(a)}>
                   <Plus size={13} /> Añadir
@@ -219,7 +224,7 @@ export function ExpensesPage() {
         <div className="flex items-center gap-1.5 mb-3">
           <Zap size={14} style={{ color: 'var(--primary)' }} />
           <span className="text-sm font-medium">Gasto rápido</span>
-          <span className="text-xs text-muted-foreground">· hoy, en {profile?.default_currency ?? 'EUR'}</span>
+          <span className="text-xs text-muted-foreground">· hoy, en {tripCurrency}</span>
         </div>
         <div className="flex gap-2 mb-2">
           <Input
@@ -513,14 +518,7 @@ export function ExpensesPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Moneda</Label>
-                <Select value={watch('currency')} onValueChange={(v) => setValue('currency', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'MXN', 'ARS', 'COP'].map(c => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <CurrencySelect value={watch('currency')} onChange={(v) => setValue('currency', v)} className="w-full" />
               </div>
             </div>
             <div className="space-y-1.5">

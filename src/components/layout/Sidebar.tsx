@@ -46,6 +46,7 @@ function getTripNav(tripId: string): TripNavItem[] {
     { to: `/trips/${tripId}/reminders`, icon: <Bell size={18} />, label: 'Avisos' },
     { to: `/trips/${tripId}/packing`, icon: <Package size={18} />, label: 'Equipaje' },
     { to: `/trips/${tripId}/expenses`, icon: <Receipt size={18} />, label: 'Gastos' },
+    { to: `/trips/${tripId}/settings`, icon: <Settings size={18} />, label: 'Ajustes' },
   ]
 }
 

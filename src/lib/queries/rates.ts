@@ -1,4 +1,6 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { CURRENCIES } from '@/lib/utils'
 
 // Tipos de cambio (gratis, sin clave) desde open.er-api.com. rates[X] = unidades
 // de X por 1 unidad de la base. Para convertir un importe en moneda `from` a la
@@ -17,6 +19,19 @@ export function useExchangeRates(base: string) {
     },
     retry: 1,
   })
+}
+
+// Lista de divisas disponibles (códigos ISO) tomada de la propia API de tipos de
+// cambio: así el selector ofrece ~160 divisas sin mantener una lista a mano. Las
+// «comunes» van primero; si no hay red se cae en la lista estática.
+export function useCurrencyCodes(): string[] {
+  const { data } = useExchangeRates('EUR')
+  return useMemo(() => {
+    if (!data) return CURRENCIES
+    const all = Object.keys(data).sort()
+    const rest = all.filter(c => !CURRENCIES.includes(c))
+    return [...CURRENCIES, ...rest]
+  }, [data])
 }
 
 // Suma una lista de importes (en distintas divisas) convertidos a `base`.

@@ -156,6 +156,21 @@ export const EXPENSE_CATEGORIES = [
   'Compras', 'Seguros', 'Visados', 'Otros',
 ]
 
+// Divisas «comunes»: se muestran primero en los selectores y sirven de respaldo
+// si la API de tipos de cambio no está disponible (offline).
+export const CURRENCIES = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'MXN', 'ARS', 'COP', 'BRL', 'CAD', 'AUD']
+
+// Nombre localizado de una divisa por su código ISO (p. ej. 'JPY' → 'yen japonés').
+let _currencyNames: Intl.DisplayNames | null = null
+export function currencyName(code: string): string {
+  try {
+    _currencyNames ??= new Intl.DisplayNames(['es'], { type: 'currency' })
+    return _currencyNames.of(code) ?? code
+  } catch {
+    return code
+  }
+}
+
 export const STATUS_LABELS: Record<string, string> = {
   planning: 'Planificando',
   confirmed: 'Confirmado',
