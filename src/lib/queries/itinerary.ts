@@ -97,7 +97,7 @@ export function useUpsertDays() {
 export function useCreateActivity() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (values: Omit<Activity, 'id' | 'created_at' | 'day_orders'>) => {
+    mutationFn: async (values: Omit<Activity, 'id' | 'created_at' | 'day_orders' | 'done'>) => {
       const { data, error } = await supabase
         .from('activities')
         .insert(values)
@@ -196,6 +196,32 @@ export function useReorderActivities() {
     },
     onSettled: (_d, _e, _v, ctx) => {
       if (ctx?.tripId) qc.invalidateQueries({ queryKey: itineraryKeys.activities(ctx.tripId) })
+    },
+  })
+}
+
+// Marca/desmarca una actividad como hecha (modo "Ver", en pleno viaje).
+// Actualización optimista: el check se ve al instante, sin toast.
+export function useSetActivityDone() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, done }: { id: string; done: boolean; tripId: string }) => {
+      const { error } = await supabase.from('activities').update({ done }).eq('id', id)
+      if (error) throw error
+    },
+    onMutate: async ({ id, done, tripId }) => {
+      const key = itineraryKeys.activities(tripId)
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<Activity[]>(key)
+      qc.setQueryData<Activity[]>(key, (old) => old?.map(a => a.id === id ? { ...a, done } : a))
+      return { prev, tripId }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.tripId && ctx.prev) qc.setQueryData(itineraryKeys.activities(ctx.tripId), ctx.prev)
+      toast.error('No se pudo actualizar')
+    },
+    onSettled: (_d, _e, vars) => {
+      qc.invalidateQueries({ queryKey: itineraryKeys.activities(vars.tripId) })
     },
   })
 }

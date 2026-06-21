@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Pencil, Trash2, ExternalLink, Clock, MapPin, Euro, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { cn, ACTIVITY_COLORS, ACTIVITY_LABELS } from '@/lib/utils'
 import type { Activity, ActivityAttachment } from '@/types/database'
@@ -14,29 +15,27 @@ interface ActivityBlockProps {
   onOpen?: (a: Activity) => void
   /** Id de arrastre con ámbito por día ("activityId::dayId"). */
   sortableId?: string
+  /** Modo edición: muestra asa de arrastre y acciones editar/borrar. */
+  editMode?: boolean
+  /** Modo ver: marca/desmarca la actividad como hecha. */
+  onToggleDone?: (a: Activity) => void
 }
 
-export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, onOpen, sortableId }: ActivityBlockProps) {
+export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, onOpen, sortableId, editMode = true, onToggleDone }: ActivityBlockProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: sortableId ?? activity.id })
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
-
   const color = ACTIVITY_COLORS[activity.type]
+  const done = activity.done
 
   const blockStyle = {
-    ...style,
-    background: 'var(--secondary)',
-    borderLeft: `3px solid ${color}`,
-    borderTop: '1px solid var(--border)',
-    borderRight: '1px solid var(--border)',
-    borderBottom: '1px solid var(--border)',
-    borderRadius: '0 0.5rem 0.5rem 0',
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : done ? 0.6 : 1,
+    background: 'var(--card)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-lg)',
   }
 
   return (
@@ -45,20 +44,30 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
       style={blockStyle}
       onClick={() => onOpen?.(activity)}
       className={cn(
-        'group flex gap-3 p-3 transition-all cursor-pointer hover:brightness-[1.03] hover:shadow-md',
+        'group flex gap-3 p-3 transition-all cursor-pointer hover:border-primary hover:shadow-md',
         isDragging ? 'shadow-2xl z-50' : '',
       )}
     >
-      {/* Drag handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        onClick={(e) => e.stopPropagation()}
-        aria-label={`Reordenar ${activity.title}`}
-        className="flex-shrink-0 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5"
-      >
-        <GripVertical size={16} aria-hidden="true" />
-      </button>
+      {/* Izquierda: asa de arrastre (Editar) o checkbox de "hecha" (Ver) */}
+      {editMode ? (
+        <button
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Reordenar ${activity.title}`}
+          className="flex-shrink-0 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5"
+        >
+          <GripVertical size={16} aria-hidden="true" />
+        </button>
+      ) : (
+        <span className="flex-shrink-0 w-8 flex items-center justify-center mt-0.5" onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={done}
+            onCheckedChange={() => onToggleDone?.(activity)}
+            aria-label={done ? `Marcar ${activity.title} como pendiente` : `Marcar ${activity.title} como hecha`}
+          />
+        </span>
+      )}
 
       {/* Media box: mismo tamaño siempre (foto o icono del tipo), para que todas
           las filas tengan la misma estética y el texto quede alineado. */}
@@ -80,11 +89,20 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+            <p className={cn(
+              'font-medium text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors',
+              done && 'line-through',
+            )}>
               {activity.title}
             </p>
 
-            <div className="flex items-center gap-3 mt-1 flex-wrap">
+            <div className="flex items-center gap-2.5 mt-1 flex-wrap">
+              <span
+                className="text-[11px] font-medium px-1.5 py-0.5 rounded-md leading-none"
+                style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}
+              >
+                {ACTIVITY_LABELS[activity.type]}
+              </span>
               {(activity.start_time || activity.end_time) && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock size={10} />
@@ -159,28 +177,24 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
                 </a>
               </Button>
             )}
-            <Button size="icon" variant="ghost" className="w-8 h-8" aria-label={`Editar ${activity.title}`} onClick={(e) => { e.stopPropagation(); onEdit(activity) }}>
-              <Pencil size={14} aria-hidden="true" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="w-8 h-8 text-destructive hover:text-destructive"
-              aria-label={`Eliminar ${activity.title}`}
-              onClick={(e) => { e.stopPropagation(); onDelete(activity) }}
-            >
-              <Trash2 size={14} aria-hidden="true" />
-            </Button>
+            {editMode && (
+              <>
+                <Button size="icon" variant="ghost" className="w-8 h-8" aria-label={`Editar ${activity.title}`} onClick={(e) => { e.stopPropagation(); onEdit(activity) }}>
+                  <Pencil size={14} aria-hidden="true" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="w-8 h-8 text-destructive hover:text-destructive"
+                  aria-label={`Eliminar ${activity.title}`}
+                  onClick={(e) => { e.stopPropagation(); onDelete(activity) }}
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
-
-        {/* Type badge */}
-        <span
-          className="inline-block text-xs px-1.5 py-0.5 rounded mt-1"
-          style={{ background: `${color}18`, color }}
-        >
-          {ACTIVITY_LABELS[activity.type]}
-        </span>
       </div>
     </div>
   )

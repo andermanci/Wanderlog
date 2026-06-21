@@ -9,24 +9,26 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, ChevronDown, Pencil, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, MapPin } from 'lucide-react'
+import { Plus, ChevronDown, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, MapPin, Pencil, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ActivityBlock } from '@/components/itinerary/ActivityBlock'
 import { DayJournalDialog } from '@/components/itinerary/DayJournalDialog'
 import { DayAlerts } from '@/components/itinerary/DayAlerts'
+import { TripOverview } from '@/components/itinerary/TripOverview'
 import { useJournalPhotos } from '@/lib/queries/journal'
 import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
 import {
   useItineraryDays, useActivities, useUpsertDays,
-  useDeleteActivity, useReorderActivities, useUpdateDayNotes, useUpdateDayGuide,
+  useDeleteActivity, useReorderActivities, useUpdateDayGuide, useSetActivityDone,
 } from '@/lib/queries/itinerary'
+import { useItineraryModeStore, resolveEditMode } from '@/store/itineraryModeStore'
 import { useDayAlerts } from '@/lib/queries/dayAlerts'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { useTrip } from '@/lib/queries/trips'
@@ -49,17 +51,17 @@ export function ItineraryPage() {
   const upsertDays = useUpsertDays()
   const deleteActivity = useDeleteActivity()
   const reorderActivities = useReorderActivities()
-  const updateDayNotes = useUpdateDayNotes()
   const updateDayGuide = useUpdateDayGuide()
+  const setActivityDone = useSetActivityDone()
   const { data: guides } = useDestinationGuides(tripId!)
   const { data: dayAlerts } = useDayAlerts(tripId!)
+  const { mode, setMode } = useItineraryModeStore()
+  const editMode = resolveEditMode(mode, trip)
 
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
   const [journalDay, setJournalDay] = useState<ItineraryDay | null>(null)
   const { data: journalPhotos } = useJournalPhotos(tripId!)
   const { data: weather } = useTripWeather(trip, days, activities)
-  const [editingNotes, setEditingNotes] = useState<string | null>(null)
-  const [notesValue, setNotesValue] = useState('')
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
 
   // En táctil: mantener pulsado ~250 ms para arrastrar (no pelea con el scroll).
@@ -196,16 +198,42 @@ export function ItineraryPage() {
   }
 
   const loading = loadingDays || loadingActs
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section="Itinerario" />
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
         <div>
           <h1 className="font-serif text-2xl font-medium">Itinerario</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Plan día a día</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Toggle Editar / Ver */}
+          <div className="flex items-center p-0.5 rounded-lg" style={{ background: 'var(--secondary)' }} role="group" aria-label="Modo del itinerario">
+            <button
+              onClick={() => setMode('edit')}
+              aria-pressed={editMode}
+              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors"
+              style={editMode
+                ? { background: 'var(--card)', color: 'var(--foreground)', boxShadow: '0 1px 2px color-mix(in srgb, var(--foreground) 8%, transparent)' }
+                : { color: 'var(--muted-foreground)' }}
+            >
+              <Pencil size={13} />
+              Editar
+            </button>
+            <button
+              onClick={() => setMode('view')}
+              aria-pressed={!editMode}
+              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors"
+              style={!editMode
+                ? { background: 'var(--card)', color: 'var(--foreground)', boxShadow: '0 1px 2px color-mix(in srgb, var(--foreground) 8%, transparent)' }
+                : { color: 'var(--muted-foreground)' }}
+            >
+              <Eye size={13} />
+              Ver
+            </button>
+          </div>
           {hasRoute && (
             <Button variant="outline" className="gap-2" asChild>
               <Link to={`/trips/${tripId}/map?route=1`}>
@@ -214,255 +242,260 @@ export function ItineraryPage() {
               </Link>
             </Button>
           )}
-          <Button
-            onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}
-            style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
-            className="gap-2"
-          >
-            <Plus size={16} />
-            Añadir actividad
-          </Button>
+          {editMode && (
+            <Button
+              onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}
+              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+              className="gap-2"
+            >
+              <Plus size={16} />
+              Añadir actividad
+            </Button>
+          )}
         </div>
       </div>
 
       {loading ? (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="space-y-3">
-              <Skeleton className="h-8 w-40" style={{ background: 'var(--secondary)' }} />
-              <Skeleton className="h-20 w-full" style={{ background: 'var(--secondary)' }} />
-            </div>
+            <Skeleton key={i} className="h-28 w-full rounded-2xl" style={{ background: 'var(--secondary)' }} />
           ))}
         </div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <div className="space-y-8">
-            {days?.map((day, dayIdx) => {
-              // Los hoteles se muestran como banner de estancia en cada día, pero
-              // se ordenan junto al resto: lista combinada (actividades no-hotel +
-              // banners de hotel) ordenada por order_index, toda arrastrable.
-              const dayActs = (activitiesByDay.get(day.id) ?? []).filter(a => a.type !== 'hotel')
-              const dayArrivals = arrivalsByDay.get(day.id) ?? []
-              const dayLodging = lodgingByDay.get(day.id) ?? []
-              const dayItems = [
-                ...dayActs.map(a => ({ id: a.id, order: a.order_index, act: a, lodge: null as Lodging | null })),
-                ...dayLodging.map(l => ({ id: l.activity.id, order: dayOrderOf(l.activity, day.id), act: null as Activity | null, lodge: l })),
-              ].sort((x, y) => x.order - y.order)
-              const collapsed = collapsedDays.has(day.id)
-              const dateLabel = format(parseISO(day.date), "EEEE dd 'de' MMMM", { locale: es })
+        <>
+          {trip && days && activities && (
+            <TripOverview trip={trip} days={days} activities={activities} />
+          )}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <div className="space-y-8">
+              {days?.map((day, dayIdx) => {
+                // Los hoteles se muestran como banner de estancia en cada día, pero
+                // se ordenan junto al resto: lista combinada (actividades no-hotel +
+                // banners de hotel) ordenada por order_index, toda arrastrable.
+                const dayActs = (activitiesByDay.get(day.id) ?? []).filter(a => a.type !== 'hotel')
+                const dayArrivals = arrivalsByDay.get(day.id) ?? []
+                const dayLodging = lodgingByDay.get(day.id) ?? []
+                const dayItems = [
+                  ...dayActs.map(a => ({ id: a.id, order: a.order_index, act: a, lodge: null as Lodging | null })),
+                  ...dayLodging.map(l => ({ id: l.activity.id, order: dayOrderOf(l.activity, day.id), act: null as Activity | null, lodge: l })),
+                ].sort((x, y) => x.order - y.order)
+                const collapsed = collapsedDays.has(day.id)
+                const dateLabel = format(parseISO(day.date), "EEEE dd 'de' MMMM", { locale: es })
+                const isToday = day.date === todayStr
+                const isPast = day.date < todayStr
+                const hasJournal = !!day.journal || !!journalPhotos?.some(p => p.day_id === day.id)
 
-              return (
-                <motion.div
-                  key={day.id}
-                  id={`day-${day.date}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: dayIdx * 0.05 }}
-                  style={{ scrollMarginTop: 16 }}
-                >
-                  {/* Day header */}
-                  <div
-                    className="flex items-center gap-3 mb-3 cursor-pointer select-none"
-                    onClick={() => toggleDay(day.id)}
+                return (
+                  <motion.div
+                    key={day.id}
+                    id={`day-${day.date}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(dayIdx * 0.04, 0.3) }}
+                    style={{ scrollMarginTop: 16 }}
                   >
-                    <div className="w-10 h-10 rounded-full flex flex-col items-center justify-center flex-shrink-0"
-                      style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', border: '1px solid color-mix(in srgb, var(--primary) 30%, transparent)' }}>
-                      <span className="text-xs font-bold" style={{ color: 'var(--primary)', lineHeight: 1 }}>
-                        {format(parseISO(day.date), 'dd')}
-                      </span>
-                      <span className="text-xs" style={{ color: 'var(--primary)', lineHeight: 1, fontSize: '9px' }}>
-                        {format(parseISO(day.date), 'MMM', { locale: es }).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h2 className="font-serif text-base sm:text-lg font-medium capitalize truncate">{dateLabel}</h2>
-                      <p className="text-xs text-muted-foreground">
-                        Día {dayIdx + 1} · {dayActs.length} actividades
-                        {dayArrivals.length > 0 && ` · ${dayArrivals.length} llegada${dayArrivals.length > 1 ? 's' : ''}`}
-                      </p>
-                      {/* Ciudad / guía del destino del día */}
-                      {(guides?.length ?? 0) > 0 && (
-                        <div className="flex items-center gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
-                          <MapPin size={12} className="text-muted-foreground flex-shrink-0" />
-                          <select
-                            value={day.guide_id ?? ''}
-                            onChange={(e) => updateDayGuide.mutate({ id: day.id, guideId: e.target.value || null, tripId: tripId! })}
-                            className="text-xs bg-transparent border border-border rounded px-1.5 py-0.5 max-w-[160px] text-muted-foreground focus:outline-none focus:border-primary"
-                          >
-                            <option value="">Sin ciudad</option>
-                            {guides!.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                          </select>
-                          {day.guide_id && (
-                            <Link to={`/trips/${tripId}/guide`} onClick={(e) => e.stopPropagation()}
-                              aria-label="Ver guía del destino" title="Ver guía del destino"
-                              className="text-primary hover:opacity-80 flex-shrink-0">
-                              <BookOpen size={13} />
-                            </Link>
+                    {/* Cabecera del día (a todo el ancho, sin tarjeta) */}
+                    <div
+                      className="flex items-start gap-3 mb-3 cursor-pointer select-none"
+                      onClick={() => toggleDay(day.id)}
+                    >
+                      <div
+                        className="w-11 h-11 rounded-xl flex flex-col items-center justify-center flex-shrink-0"
+                        style={isToday
+                          ? { background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }
+                          : {
+                              background: 'var(--card)',
+                              border: '1px solid var(--border)',
+                              color: isPast ? 'var(--muted-foreground)' : 'var(--foreground)',
+                              opacity: isPast ? 0.75 : 1,
+                            }}
+                      >
+                        <span className="text-sm font-semibold" style={{ lineHeight: 1 }}>
+                          {format(parseISO(day.date), 'dd')}
+                        </span>
+                        <span className="uppercase" style={{ lineHeight: 1, fontSize: '9px', opacity: 0.8 }}>
+                          {format(parseISO(day.date), 'MMM', { locale: es })}
+                        </span>
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="font-serif text-base sm:text-lg font-medium capitalize truncate">{dateLabel}</h2>
+                          {isToday && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                              style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }}>
+                              Hoy
+                            </span>
                           )}
                         </div>
-                      )}
-                    </div>
-                    {weather?.[day.date] && (
-                      <span
-                        className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0"
-                        aria-label="Previsión del día" title="Previsión del día"
-                      >
-                        <span className="text-base leading-none">{weatherIcon(weather[day.date].code)}</span>
-                        <span className="font-medium text-foreground">{weather[day.date].tmax}°</span>
-                        <span className="opacity-60 hidden sm:inline">/ {weather[day.date].tmin}°</span>
-                      </span>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="w-7 h-7 relative"
-                      aria-label="Diario del día" title="Diario del día"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setJournalDay(day)
-                      }}
-                    >
-                      <BookOpen size={14} style={(day.journal || journalPhotos?.some(p => p.day_id === day.id)) ? { color: 'var(--primary)' } : undefined} />
-                      {(day.journal || journalPhotos?.some(p => p.day_id === day.id)) && (
-                        <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--primary)' }} />
-                      )}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="w-7 h-7"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        navigate(`/trips/${tripId}/itinerary/new?day=${day.id}`)
-                      }}
-                    >
-                      <Plus size={14} />
-                    </Button>
-                    <ChevronDown
-                      size={16}
-                      className="text-muted-foreground transition-transform"
-                      style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0)' }}
-                    />
-                  </div>
-
-                  <AnimatePresence>
-                    {!collapsed && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        {/* Alertas destacadas del día */}
-                        <DayAlerts tripId={tripId!} day={day} alerts={alertsByDay.get(day.id) ?? []} />
-
-                        {/* Notas del día */}
-                        <div className="mb-3 sm:ml-[52px]">
-                          {editingNotes === day.id ? (
-                            <div className="flex gap-2">
-                              <Textarea
-                                value={notesValue}
-                                onChange={(e) => setNotesValue(e.target.value)}
-                                className="text-xs min-h-[60px]"
-                                placeholder="Notas del día..."
-                                autoFocus
-                              />
-                              <div className="flex flex-col gap-1">
-                                <Button size="sm" className="text-xs h-7"
-                                  style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
-                                  onClick={() => {
-                                    updateDayNotes.mutate({ id: day.id, notes: notesValue, tripId: tripId! })
-                                    setEditingNotes(null)
-                                  }}>
-                                  OK
-                                </Button>
-                                <Button size="sm" variant="ghost" className="text-xs h-7"
-                                  onClick={() => setEditingNotes(null)}>
-                                  ✕
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => { setEditingNotes(day.id); setNotesValue(day.notes ?? '') }}
-                              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Día {dayIdx + 1} · {dayActs.length} {dayActs.length === 1 ? 'actividad' : 'actividades'}
+                          {dayArrivals.length > 0 && ` · ${dayArrivals.length} llegada${dayArrivals.length > 1 ? 's' : ''}`}
+                        </p>
+                        {/* Ciudad / guía del destino del día */}
+                        {editMode && (guides?.length ?? 0) > 0 && (
+                          <div className="flex items-center gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
+                            <MapPin size={13} className="text-muted-foreground flex-shrink-0" />
+                            <Select
+                              value={day.guide_id ?? 'none'}
+                              onValueChange={(v) => updateDayGuide.mutate({ id: day.id, guideId: v === 'none' ? null : v, tripId: tripId! })}
                             >
-                              <Pencil size={10} />
-                              {day.notes ? day.notes : 'Añadir notas del día...'}
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Llegadas del día anterior (continuación, no se repiten enteras) */}
-                        {dayArrivals.length > 0 && (
-                          <div className="space-y-1.5 sm:ml-[52px] mb-2">
-                            {dayArrivals.map(a => {
-                              const depDate = dayDateById.get(a.day_id)
-                              return (
-                                <Link
-                                  key={`arr-${a.id}`}
-                                  to={`/trips/${tripId}/itinerary/${a.id}`}
-                                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed text-sm transition-colors hover:border-primary"
-                                  style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--primary) 5%, transparent)' }}
-                                >
-                                  <CornerDownRight size={14} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
-                                  <span className="flex-1 min-w-0 truncate text-muted-foreground">
-                                    <span className="text-foreground">{a.title}</span>
-                                  </span>
-                                  <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">
-                                    {a.end_time ? `llega ${a.end_time.slice(0, 5)}` : 'llega'}
-                                    {depDate && ` · del ${format(parseISO(depDate), 'dd MMM', { locale: es })}`}
-                                  </span>
-                                </Link>
-                              )
-                            })}
+                              <SelectTrigger className="h-7 text-xs w-auto min-w-[120px] max-w-[180px] gap-1.5">
+                                <SelectValue placeholder="Sin ciudad" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sin ciudad</SelectItem>
+                                {guides!.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            {day.guide_id && (
+                              <Link to={`/trips/${tripId}/guide`} onClick={(e) => e.stopPropagation()}
+                                aria-label="Ver guía del destino" title="Ver guía del destino"
+                                className="text-primary hover:opacity-80 flex-shrink-0">
+                                <BookOpen size={14} />
+                              </Link>
+                            )}
                           </div>
                         )}
+                        {/* Ciudad del día en modo Ver (solo lectura + enlace a la guía) */}
+                        {!editMode && day.guide_id && (
+                          <Link
+                            to={`/trips/${tripId}/guide`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1.5 mt-2 text-xs text-primary hover:opacity-80 w-fit"
+                            title="Ver guía del destino"
+                          >
+                            <MapPin size={13} className="flex-shrink-0" />
+                            <span className="truncate max-w-[200px]">{guides?.find(g => g.id === day.guide_id)?.name ?? 'Ciudad'}</span>
+                            <BookOpen size={13} className="flex-shrink-0" />
+                          </Link>
+                        )}
+                      </div>
 
-                        {/* Actividades + estancias (lista combinada, arrastrable) */}
-                        <DayDroppable id={day.id} className="space-y-2 sm:ml-[52px]">
-                          <SortableContext items={dayItems.map(it => `${it.id}::${day.id}`)} strategy={verticalListSortingStrategy}>
-                            {dayItems.length === 0 ? (
-                              <div
-                                className="flex items-center justify-center h-16 rounded-lg border border-dashed border-border text-muted-foreground text-sm cursor-pointer hover:border-primary transition-colors"
-                                onClick={() => navigate(`/trips/${tripId}/itinerary/new?day=${day.id}`)}
-                              >
-                                <Plus size={14} className="mr-2" />
-                                Añadir actividad para este día
-                              </div>
-                            ) : (
-                              dayItems.map(it => it.lodge ? (
-                                <SortableLodgingBanner key={it.id} sortableId={`${it.id}::${day.id}`} lodging={it.lodge} tripId={tripId!} />
-                              ) : (
-                                <ActivityBlock
-                                  key={it.id}
-                                  sortableId={`${it.id}::${day.id}`}
-                                  activity={it.act!}
-                                  attachments={tripAttachments?.filter(a => a.activity_id === it.id)}
-                                  onEdit={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}/edit`)}
-                                  onDelete={setDeleteTarget}
-                                  onOpen={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}`)}
-                                />
-                              ))
-                            )}
-                          </SortableContext>
-                        </DayDroppable>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Separador */}
-                  {dayIdx < (days.length - 1) && (
-                    <div className="flex items-center gap-3 mt-6 ml-5">
-                      <div className="w-0.5 h-4 bg-border mx-auto" style={{ marginLeft: '19px' }} />
+                      {weather?.[day.date] && (
+                        <span
+                          className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0 px-2 py-1 rounded-full mt-0.5"
+                          style={{ background: 'var(--secondary)' }}
+                          aria-label="Previsión del día" title="Previsión del día"
+                        >
+                          <span className="text-base leading-none">{weatherIcon(weather[day.date].code)}</span>
+                          <span className="font-medium text-foreground">{weather[day.date].tmax}°</span>
+                          <span className="opacity-60 hidden sm:inline">/ {weather[day.date].tmin}°</span>
+                        </span>
+                      )}
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="w-7 h-7 relative"
+                          aria-label="Diario del día" title="Diario del día"
+                          onClick={(e) => { e.stopPropagation(); setJournalDay(day) }}
+                        >
+                          <BookOpen size={14} style={hasJournal ? { color: 'var(--primary)' } : undefined} />
+                          {hasJournal && (
+                            <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--primary)' }} />
+                          )}
+                        </Button>
+                        {editMode && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="w-7 h-7"
+                            aria-label="Añadir actividad a este día" title="Añadir actividad"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/trips/${tripId}/itinerary/new?day=${day.id}`) }}
+                          >
+                            <Plus size={14} />
+                          </Button>
+                        )}
+                        <ChevronDown
+                          size={16}
+                          className="text-muted-foreground transition-transform"
+                          style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0)' }}
+                        />
+                      </div>
                     </div>
-                  )}
-                </motion.div>
-              )
-            })}
-          </div>
-        </DndContext>
+
+                    <AnimatePresence>
+                      {!collapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          {/* Alertas destacadas del día */}
+                          <DayAlerts tripId={tripId!} day={day} alerts={alertsByDay.get(day.id) ?? []} editMode={editMode} />
+
+                          {/* Llegadas del día anterior (continuación, no se repiten enteras) */}
+                          {dayArrivals.length > 0 && (
+                            <div className="space-y-1.5 mb-2">
+                              {dayArrivals.map(a => {
+                                const depDate = dayDateById.get(a.day_id)
+                                return (
+                                  <Link
+                                    key={`arr-${a.id}`}
+                                    to={`/trips/${tripId}/itinerary/${a.id}`}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed text-sm transition-colors hover:border-primary"
+                                    style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--primary) 5%, transparent)' }}
+                                  >
+                                    <CornerDownRight size={14} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                                    <span className="flex-1 min-w-0 truncate text-muted-foreground">
+                                      <span className="text-foreground">{a.title}</span>
+                                    </span>
+                                    <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                                      {a.end_time ? `llega ${a.end_time.slice(0, 5)}` : 'llega'}
+                                      {depDate && ` · del ${format(parseISO(depDate), 'dd MMM', { locale: es })}`}
+                                    </span>
+                                  </Link>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          {/* Actividades + estancias (lista combinada, arrastrable, a todo el ancho) */}
+                          <DayDroppable id={day.id} className="space-y-2">
+                            <SortableContext items={dayItems.map(it => `${it.id}::${day.id}`)} strategy={verticalListSortingStrategy}>
+                              {dayItems.length === 0 ? (
+                                editMode ? (
+                                  <div
+                                    className="flex items-center justify-center h-16 rounded-xl border border-dashed border-border text-muted-foreground text-sm cursor-pointer hover:border-primary transition-colors"
+                                    onClick={() => navigate(`/trips/${tripId}/itinerary/new?day=${day.id}`)}
+                                  >
+                                    <Plus size={14} className="mr-2" />
+                                    Añadir actividad para este día
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground py-2">Sin actividades</p>
+                                )
+                              ) : (
+                                dayItems.map(it => it.lodge ? (
+                                  <SortableLodgingBanner key={it.id} sortableId={`${it.id}::${day.id}`} lodging={it.lodge} tripId={tripId!} editMode={editMode} />
+                                ) : (
+                                  <ActivityBlock
+                                    key={it.id}
+                                    sortableId={`${it.id}::${day.id}`}
+                                    activity={it.act!}
+                                    attachments={tripAttachments?.filter(a => a.activity_id === it.id)}
+                                    editMode={editMode}
+                                    onEdit={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}/edit`)}
+                                    onDelete={setDeleteTarget}
+                                    onOpen={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}`)}
+                                    onToggleDone={(a) => setActivityDone.mutate({ id: a.id, done: !a.done, tripId: tripId! })}
+                                  />
+                                ))
+                              )}
+                            </SortableContext>
+                          </DayDroppable>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                )
+              })}
+            </div>
+          </DndContext>
+        </>
       )}
 
       <DayJournalDialog
@@ -515,7 +548,7 @@ function DayDroppable({ id, className, children }: { id: string; className?: str
 
 // Banner de estancia (hotel) arrastrable: se ordena junto al resto de
 // actividades del día. El asa arrastra; el cuerpo abre el detalle.
-function SortableLodgingBanner({ sortableId, lodging, tripId }: { sortableId: string; lodging: Lodging; tripId: string }) {
+function SortableLodgingBanner({ sortableId, lodging, tripId, editMode = true }: { sortableId: string; lodging: Lodging; tripId: string; editMode?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId })
   const l = lodging
   const roleLabel = l.role === 'single' ? '1 noche'
@@ -534,10 +567,12 @@ function SortableLodgingBanner({ sortableId, lodging, tripId }: { sortableId: st
       }}
       className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
     >
-      <button {...attributes} {...listeners} onClick={(e) => e.stopPropagation()}
-        className="flex-shrink-0 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
-        <GripVertical size={13} />
-      </button>
+      {editMode && (
+        <button {...attributes} {...listeners} onClick={(e) => e.stopPropagation()}
+          className="flex-shrink-0 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+          <GripVertical size={13} />
+        </button>
+      )}
       <BedDouble size={15} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
       <Link to={`/trips/${tripId}/itinerary/${l.activity.id}`} className="flex-1 min-w-0 truncate font-medium hover:underline">
         {l.activity.title}

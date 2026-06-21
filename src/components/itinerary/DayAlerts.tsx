@@ -42,7 +42,7 @@ function computeRemindAt(mode: ScheduleMode, dayDate: string, custom: string): s
   return null
 }
 
-export function DayAlerts({ tripId, day, alerts }: { tripId: string; day: ItineraryDay; alerts: DayAlert[] }) {
+export function DayAlerts({ tripId, day, alerts, editMode = true }: { tripId: string; day: ItineraryDay; alerts: DayAlert[]; editMode?: boolean }) {
   const { user } = useAuthStore()
   const createAlert = useCreateDayAlert()
   const updateAlert = useUpdateDayAlert()
@@ -106,8 +106,11 @@ export function DayAlerts({ tripId, day, alerts }: { tripId: string; day: Itiner
 
   const willNotify = mode !== 'none' && (mode !== 'custom' || !!custom)
 
+  // En modo Ver sin alertas, no ocupamos espacio.
+  if (!editMode && alerts.length === 0) return null
+
   return (
-    <div className="mb-3 sm:ml-[52px] space-y-2">
+    <div className="mb-3 space-y-2">
       <AnimatePresence initial={false}>
         {alerts.map(alert => {
           const cfg = LEVELS[alert.level]
@@ -143,28 +146,32 @@ export function DayAlerts({ tripId, day, alerts }: { tripId: string; day: Itiner
                   {alert.text}
                 </p>
               </div>
-              <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button size="icon" variant="ghost" className="w-6 h-6" aria-label="Editar alerta"
-                  onClick={() => openEdit(alert)}>
-                  <Pencil size={12} />
-                </Button>
-                <Button size="icon" variant="ghost" className="w-6 h-6 text-destructive hover:text-destructive" aria-label="Eliminar alerta"
-                  onClick={() => setDeleteTarget(alert)}>
-                  <Trash2 size={12} />
-                </Button>
-              </div>
+              {editMode && (
+                <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button size="icon" variant="ghost" className="w-6 h-6" aria-label="Editar alerta"
+                    onClick={() => openEdit(alert)}>
+                    <Pencil size={12} />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="w-6 h-6 text-destructive hover:text-destructive" aria-label="Eliminar alerta"
+                    onClick={() => setDeleteTarget(alert)}>
+                    <Trash2 size={12} />
+                  </Button>
+                </div>
+              )}
             </motion.div>
           )
         })}
       </AnimatePresence>
 
-      <button
-        onClick={openNew}
-        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-      >
-        <Plus size={12} />
-        Añadir alerta del día
-      </button>
+      {editMode && (
+        <button
+          onClick={openNew}
+          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+        >
+          <Plus size={12} />
+          Añadir alerta del día
+        </button>
+      )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
