@@ -86,6 +86,7 @@ export type Database = {
           notes: string | null
           journal: string | null
           guide_id: string | null
+          city: string | null
         }
         Insert: {
           id?: string
@@ -94,6 +95,7 @@ export type Database = {
           notes?: string | null
           journal?: string | null
           guide_id?: string | null
+          city?: string | null
         }
         Update: {
           id?: string
@@ -102,6 +104,7 @@ export type Database = {
           notes?: string | null
           journal?: string | null
           guide_id?: string | null
+          city?: string | null
         }
         Relationships: []
       }
@@ -652,6 +655,7 @@ export type Database = {
           playback_stop_id: string | null
           playback_position_seconds: number
           playback_is_playing: boolean
+          playback_rate: number
           playback_updated_at: string
           created_at: string
         }
@@ -664,6 +668,7 @@ export type Database = {
           playback_stop_id?: string | null
           playback_position_seconds?: number
           playback_is_playing?: boolean
+          playback_rate?: number
           playback_updated_at?: string
           created_at?: string
         }
@@ -676,6 +681,7 @@ export type Database = {
           playback_stop_id?: string | null
           playback_position_seconds?: number
           playback_is_playing?: boolean
+          playback_rate?: number
           playback_updated_at?: string
           created_at?: string
         }

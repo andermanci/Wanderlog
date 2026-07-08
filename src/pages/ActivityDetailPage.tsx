@@ -2,9 +2,10 @@ import { useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Clock, MapPin, Euro, ExternalLink, Pencil, FileText, Navigation,
-  ArrowLeft, Upload, Loader2, X, Calendar, Trash2, Map as MapIcon, Bell,
+  Upload, Loader2, X, Calendar, Trash2, Map as MapIcon, Bell,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/ui/back-button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -100,9 +101,7 @@ export function ActivityDetailPage() {
       {/* Cabecera: fila de navegación/acciones y, debajo, el título a todo el ancho */}
       <div className="mb-6">
         <div className="flex items-center justify-between gap-2 mb-3">
-          <Button variant="ghost" size="icon" className="w-8 h-8 -ml-2" asChild>
-            <Link to={`/trips/${tripId}/itinerary${day ? `?day=${day.date}` : ''}`}><ArrowLeft size={18} /></Link>
-          </Button>
+          <BackButton to={`/trips/${tripId}/itinerary${day ? `?day=${day.date}` : ''}`}>Itinerario</BackButton>
           <div className="flex gap-1.5">
             <Button variant="outline" size="sm" className="gap-1.5" asChild>
               <Link to={`/trips/${tripId}/itinerary/${activity.id}/edit`}>

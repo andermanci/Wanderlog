@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, Navigation, Users } from 'lucide-react'
+import {
+  ChevronDown, ChevronLeft, ChevronRight, Navigation, Pause, Play, RotateCcw, RotateCw, Users,
+} from 'lucide-react'
 import type { AudioguideStop } from '@/types/database'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -10,15 +12,29 @@ interface Props {
   audioguideId: string
 }
 
-// Reproductor paso a paso: un índice con título + resumen de cada parada
-// para decidir qué escuchar, y debajo la parada seleccionada con su
-// indicación de dirección y el audio nativo del navegador. Si te unes al
-// grupo, tus acciones (play/pausa/salto) se emiten a los demás dispositivos
-// del viaje y las suyas se aplican aquí.
+const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2]
+
+function formatTime(seconds: number): string {
+  if (!isFinite(seconds) || seconds < 0) return '0:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+// Reproductor paso a paso con controles propios (nada de UI nativa del
+// navegador, que varía mucho entre móvil y escritorio): parada actual con
+// su dirección, un reproductor con play/pausa grande y salto ±15s, y un
+// índice plegable para saltar a cualquier parada. Si te unes al grupo, tus
+// acciones (play/pausa/salto) se emiten a los demás dispositivos del viaje
+// y las suyas se aplican aquí.
 export function AudioguidePlayer({ stops, audioguideId }: Props) {
   const { user } = useAuthStore()
   const [index, setIndex] = useState(0)
-  const [showIndex, setShowIndex] = useState(true)
+  const [showIndex, setShowIndex] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [playbackRate, setPlaybackRate] = useState(1)
   const audioRef = useRef<HTMLAudioElement>(null)
   const applyingRemoteRef = useRef(false)
   const pendingRemoteRef = useRef<AudioguideSyncState | null>(null)
@@ -26,11 +42,23 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
   const group = useAudioguideGroupPlayback({ audioguideId, userId: user?.id ?? '' })
   const stop = stops[index]
 
+  // Al cambiar de parada, el <audio> se remonta (key={stop.id}): reinicia
+  // tiempos/estado de la anterior, pero mantiene la velocidad elegida.
+  useEffect(() => {
+    setIsPlaying(false)
+    setCurrentTime(0)
+    setDuration(0)
+    if (audioRef.current) audioRef.current.playbackRate = playbackRate
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stop?.id])
+
   function applyRemote(state: AudioguideSyncState) {
     const el = audioRef.current
     if (!el) return
     applyingRemoteRef.current = true
-    const elapsed = state.isPlaying ? (Date.now() - state.sentAt) / 1000 : 0
+    el.playbackRate = state.playbackRate
+    setPlaybackRate(state.playbackRate)
+    const elapsed = state.isPlaying ? ((Date.now() - state.sentAt) / 1000) * state.playbackRate : 0
     const target = Math.max(0, state.positionSeconds + elapsed)
     if (Math.abs(el.currentTime - target) > 1) el.currentTime = target
     if (state.isPlaying) el.play().catch(() => {})
@@ -56,9 +84,14 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
 
   if (!stop) return null
 
-  const broadcastIfJoined = (isPlaying: boolean) => {
+  const broadcastIfJoined = (playing: boolean) => {
     if (!group.joined || applyingRemoteRef.current || !audioRef.current) return
-    group.sendState({ stopId: stop.id, positionSeconds: audioRef.current.currentTime, isPlaying })
+    group.sendState({
+      stopId: stop.id,
+      positionSeconds: audioRef.current.currentTime,
+      isPlaying: playing,
+      playbackRate: audioRef.current.playbackRate,
+    })
   }
 
   const goTo = (i: number) => {
@@ -67,9 +100,38 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
     setIndex(i)
     setShowIndex(false)
     if (group.joined) {
-      const state: AudioguideSyncState = { stopId: target.id, positionSeconds: 0, isPlaying: true, sentAt: Date.now() }
+      const state: AudioguideSyncState = {
+        stopId: target.id, positionSeconds: 0, isPlaying: true, playbackRate, sentAt: Date.now(),
+      }
       pendingRemoteRef.current = state
       group.sendState(state)
+    }
+  }
+
+  const togglePlay = () => {
+    const el = audioRef.current
+    if (!el) return
+    if (el.paused) el.play().catch(() => {})
+    else el.pause()
+  }
+
+  const skip = (deltaSeconds: number) => {
+    const el = audioRef.current
+    if (!el) return
+    el.currentTime = Math.min(Math.max(0, el.currentTime + deltaSeconds), el.duration || Infinity)
+  }
+
+  const cycleRate = () => {
+    const nextRate = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(playbackRate) + 1) % PLAYBACK_RATES.length]
+    setPlaybackRate(nextRate)
+    if (audioRef.current) audioRef.current.playbackRate = nextRate
+    if (group.joined && audioRef.current) {
+      group.sendState({
+        stopId: stop.id,
+        positionSeconds: audioRef.current.currentTime,
+        isPlaying: !audioRef.current.paused,
+        playbackRate: nextRate,
+      })
     }
   }
 
@@ -85,9 +147,9 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg p-3 flex items-center justify-between gap-2" style={{ background: 'var(--secondary)' }}>
-        <div className="flex items-center gap-1.5 text-sm">
-          <Users size={14} />
+      <div className="rounded-lg px-3 py-2 flex items-center justify-between gap-2" style={{ background: 'var(--secondary)' }}>
+        <div className="flex items-center gap-1.5 text-xs">
+          <Users size={13} />
           {group.joined
             ? <span>{group.participantCount} escuchando en grupo</span>
             : <span className="text-muted-foreground">Escucha en solitario</span>}
@@ -95,96 +157,165 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
         <button
           type="button"
           onClick={handleToggleGroup}
-          className="text-xs font-medium px-3 py-1.5 rounded-md border border-border hover:border-primary/50 transition-colors"
+          className="text-xs font-medium px-2.5 py-1 rounded-md border border-border hover:border-primary/50 transition-colors flex-shrink-0"
         >
           {group.joined ? 'Salir del grupo' : 'Unirse al grupo'}
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setShowIndex((v) => !v)}
-        className="w-full flex items-center justify-between text-xs text-muted-foreground uppercase tracking-widest"
-      >
-        <span>Índice de paradas ({stops.length})</span>
-        <ChevronDown size={14} className={cn('transition-transform', showIndex && 'rotate-180')} />
-      </button>
-
-      {showIndex && (
-        <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
-          {stops.map((s, i) => (
+      <div className="rounded-xl p-4 space-y-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between text-xs text-muted-foreground uppercase tracking-widest">
+          <span>Parada {index + 1} de {stops.length}</span>
+          {stop.audio_url && (
             <button
-              key={s.id}
               type="button"
-              onClick={() => goTo(i)}
-              className={cn(
-                'w-full text-left rounded-md p-2 border transition-colors',
-                i === index ? 'border-primary' : 'border-border hover:border-primary/50',
-              )}
-              style={{ background: i === index ? 'var(--secondary)' : 'transparent' }}
+              onClick={cycleRate}
+              title="Velocidad de reproducción"
+              className="font-medium px-2 py-1 rounded-md border border-border hover:border-primary/50 transition-colors normal-case tracking-normal"
             >
-              <p className="text-sm font-medium">{i + 1}. {s.title}</p>
-              {s.summary && <p className="text-xs text-muted-foreground mt-0.5">{s.summary}</p>}
+              {playbackRate}×
             </button>
-          ))}
+          )}
         </div>
-      )}
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground uppercase tracking-widest">
-        <span>Parada {index + 1} de {stops.length}</span>
+        <div>
+          <p className="font-serif text-lg leading-snug mb-1">{stop.title}</p>
+          {stop.summary && <p className="text-sm text-muted-foreground mb-2">{stop.summary}</p>}
+          {stop.direction_text && (
+            <p className="text-sm text-muted-foreground flex items-start gap-1.5">
+              <Navigation size={13} className="mt-0.5 shrink-0" style={{ color: 'var(--primary)' }} />
+              <span>{stop.direction_text}</span>
+            </p>
+          )}
+        </div>
+
+        {stop.audio_url ? (
+          <div className="space-y-3">
+            <audio
+              key={stop.id}
+              ref={audioRef}
+              className="hidden"
+              src={stop.audio_url}
+              onPlay={() => { setIsPlaying(true); broadcastIfJoined(true) }}
+              onPause={() => { setIsPlaying(false); broadcastIfJoined(false) }}
+              onEnded={() => setIsPlaying(false)}
+              onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+              onSeeked={() => broadcastIfJoined(!!audioRef.current && !audioRef.current.paused)}
+              onLoadedMetadata={() => {
+                setDuration(audioRef.current?.duration ?? 0)
+                if (pendingRemoteRef.current) {
+                  applyRemote(pendingRemoteRef.current)
+                  pendingRemoteRef.current = null
+                }
+              }}
+            />
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
+              <span className="w-8 text-right flex-shrink-0">{formatTime(currentTime)}</span>
+              <input
+                type="range"
+                min={0}
+                max={duration || 0}
+                step={0.1}
+                value={Math.min(currentTime, duration || 0)}
+                onChange={(e) => {
+                  const el = audioRef.current
+                  const value = Number(e.target.value)
+                  if (el) el.currentTime = value
+                  setCurrentTime(value)
+                }}
+                className="flex-1 h-1.5 cursor-pointer"
+                style={{ accentColor: 'var(--primary)' }}
+                aria-label="Progreso del audio"
+              />
+              <span className="w-8 flex-shrink-0">{formatTime(duration)}</span>
+            </div>
+
+            <div className="flex items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => skip(-15)}
+                aria-label="Retroceder 15 segundos"
+                title="Retroceder 15 segundos"
+                className="h-11 px-3 rounded-full flex flex-col items-center justify-center gap-0 border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex-shrink-0"
+              >
+                <RotateCcw size={16} />
+                <span className="text-[10px] font-medium leading-none mt-0.5">15s</span>
+              </button>
+              <button
+                type="button"
+                onClick={togglePlay}
+                aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
+                className="w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md active:scale-95 transition-transform flex-shrink-0"
+                style={{ background: 'var(--primary)' }}
+              >
+                {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" className="ml-1" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => skip(15)}
+                aria-label="Avanzar 15 segundos"
+                title="Avanzar 15 segundos"
+                className="h-11 px-3 rounded-full flex flex-col items-center justify-center gap-0 border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex-shrink-0"
+              >
+                <RotateCw size={16} />
+                <span className="text-[10px] font-medium leading-none mt-0.5">15s</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Audio no disponible.</p>
+        )}
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => goTo(Math.max(0, index - 1))}
+            disabled={index === 0}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-sm py-2.5 rounded-md border border-border disabled:opacity-40"
+          >
+            <ChevronLeft size={16} /> Anterior
+          </button>
+          <button
+            type="button"
+            onClick={() => goTo(Math.min(stops.length - 1, index + 1))}
+            disabled={index === stops.length - 1}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-sm py-2.5 rounded-md border border-border disabled:opacity-40"
+          >
+            Siguiente <ChevronRight size={16} />
+          </button>
+        </div>
       </div>
 
-      <div className="rounded-lg p-3" style={{ background: 'var(--secondary)' }}>
-        <p className="font-serif text-base mb-1">{stop.title}</p>
-        {stop.summary && (
-          <p className="text-sm text-muted-foreground mb-2">{stop.summary}</p>
-        )}
-        {stop.direction_text && (
-          <p className="text-sm text-muted-foreground flex items-start gap-1.5">
-            <Navigation size={13} className="mt-0.5 shrink-0" />
-            <span>{stop.direction_text}</span>
-          </p>
-        )}
-      </div>
-
-      {stop.audio_url ? (
-        <audio
-          key={stop.id}
-          ref={audioRef}
-          controls
-          className="w-full"
-          src={stop.audio_url}
-          onPlay={() => broadcastIfJoined(true)}
-          onPause={() => broadcastIfJoined(false)}
-          onSeeked={() => broadcastIfJoined(!!audioRef.current && !audioRef.current.paused)}
-          onLoadedMetadata={() => {
-            if (pendingRemoteRef.current) {
-              applyRemote(pendingRemoteRef.current)
-              pendingRemoteRef.current = null
-            }
-          }}
-        />
-      ) : (
-        <p className="text-sm text-muted-foreground">Audio no disponible.</p>
-      )}
-
-      <div className="flex items-center justify-between gap-2">
+      <div className="rounded-xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
         <button
           type="button"
-          onClick={() => goTo(Math.max(0, index - 1))}
-          disabled={index === 0}
-          className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md border border-border disabled:opacity-40"
+          onClick={() => setShowIndex((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-xs text-muted-foreground uppercase tracking-widest"
         >
-          <ChevronLeft size={15} /> Anterior
+          <span>Índice de paradas ({stops.length})</span>
+          <ChevronDown size={14} className={cn('transition-transform', showIndex && 'rotate-180')} />
         </button>
-        <button
-          type="button"
-          onClick={() => goTo(Math.min(stops.length - 1, index + 1))}
-          disabled={index === stops.length - 1}
-          className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md border border-border disabled:opacity-40"
-        >
-          Siguiente <ChevronRight size={15} />
-        </button>
+
+        {showIndex && (
+          <div className="space-y-1 max-h-72 overflow-y-auto px-3 pb-3">
+            {stops.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => goTo(i)}
+                className={cn(
+                  'w-full text-left rounded-md p-2.5 border transition-colors',
+                  i === index ? 'border-primary' : 'border-border hover:border-primary/50',
+                )}
+                style={{ background: i === index ? 'var(--secondary)' : 'transparent' }}
+              >
+                <p className="text-sm font-medium">{i + 1}. {s.title}</p>
+                {s.summary && <p className="text-xs text-muted-foreground mt-0.5">{s.summary}</p>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

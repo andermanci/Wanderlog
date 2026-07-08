@@ -1,8 +1,9 @@
 import { useParams, Link } from 'react-router-dom'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { ArrowLeft, Printer, MapPin, Calendar, Camera, Receipt, Heart } from 'lucide-react'
+import { Printer, MapPin, Calendar, Camera, Receipt, Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/ui/back-button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTrip } from '@/lib/queries/trips'
 import { useItineraryDays, useActivities } from '@/lib/queries/itinerary'
@@ -52,9 +53,7 @@ export function TripMemoryPage() {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       {/* Barra superior (no se imprime) */}
       <div className="no-print flex items-center justify-between mb-6">
-        <Button variant="ghost" size="sm" className="gap-1.5" asChild>
-          <Link to={`/trips/${tripId}`}><ArrowLeft size={14} /> Volver al viaje</Link>
-        </Button>
+        <BackButton to={`/trips/${tripId}`}>Volver al viaje</BackButton>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.print()}>
           <Printer size={14} /> Imprimir / PDF
         </Button>

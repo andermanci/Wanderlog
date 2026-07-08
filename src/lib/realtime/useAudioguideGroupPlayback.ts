@@ -6,6 +6,7 @@ export interface AudioguideSyncState {
   stopId: string
   positionSeconds: number
   isPlaying: boolean
+  playbackRate: number
   sentAt: number
 }
 
@@ -36,7 +37,7 @@ export function useAudioguideGroupPlayback({ audioguideId, userId }: Options) {
     // lleva un rato escuchando en grupo).
     const { data } = await supabase
       .from('audioguides')
-      .select('playback_stop_id, playback_position_seconds, playback_is_playing, playback_updated_at')
+      .select('playback_stop_id, playback_position_seconds, playback_is_playing, playback_rate, playback_updated_at')
       .eq('id', audioguideId)
       .maybeSingle()
     if (data?.playback_stop_id) {
@@ -44,6 +45,7 @@ export function useAudioguideGroupPlayback({ audioguideId, userId }: Options) {
         stopId: data.playback_stop_id,
         positionSeconds: data.playback_position_seconds,
         isPlaying: data.playback_is_playing,
+        playbackRate: data.playback_rate,
         sentAt: new Date(data.playback_updated_at).getTime(),
       })
     }
@@ -82,6 +84,7 @@ export function useAudioguideGroupPlayback({ audioguideId, userId }: Options) {
       playback_stop_id: state.stopId,
       playback_position_seconds: state.positionSeconds,
       playback_is_playing: state.isPlaying,
+      playback_rate: state.playbackRate,
       playback_updated_at: new Date(sentAt).toISOString(),
     }).eq('id', audioguideId)
   }, [audioguideId])

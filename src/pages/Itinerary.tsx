@@ -9,7 +9,7 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, ChevronDown, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, MapPin, Pencil, Eye } from 'lucide-react'
+import { Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, MapPin, Pencil, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -26,7 +26,7 @@ import { useJournalPhotos } from '@/lib/queries/journal'
 import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
 import {
   useItineraryDays, useActivities, useUpsertDays,
-  useDeleteActivity, useReorderActivities, useUpdateDayGuide, useSetActivityDone,
+  useDeleteActivity, useReorderActivities, useUpdateDayGuide, useUpdateDayCity, useSetActivityDone,
 } from '@/lib/queries/itinerary'
 import { useItineraryModeStore, resolveEditMode } from '@/store/itineraryModeStore'
 import { useDayAlerts } from '@/lib/queries/dayAlerts'
@@ -60,6 +60,7 @@ export function ItineraryPage() {
   const deleteActivity = useDeleteActivity()
   const reorderActivities = useReorderActivities()
   const updateDayGuide = useUpdateDayGuide()
+  const updateDayCity = useUpdateDayCity()
   const setActivityDone = useSetActivityDone()
   const { data: guides } = useDestinationGuides(tripId!)
   const { data: dayAlerts } = useDayAlerts(tripId!)
@@ -205,6 +206,12 @@ export function ItineraryPage() {
     })
   }
 
+  const allDaysCollapsed = (days?.length ?? 0) > 0 && collapsedDays.size === days!.length
+  function toggleAllDays() {
+    if (!days) return
+    setCollapsedDays(allDaysCollapsed ? new Set() : new Set(days.map(d => d.id)))
+  }
+
   const loading = loadingDays || loadingActs
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
@@ -217,6 +224,18 @@ export function ItineraryPage() {
           <p className="text-muted-foreground text-sm mt-0.5">Plan día a día</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {(days?.length ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={toggleAllDays}
+              aria-label={allDaysCollapsed ? 'Expandir todos los días' : 'Colapsar todos los días'}
+              title={allDaysCollapsed ? 'Expandir todos los días' : 'Colapsar todos los días'}
+              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-border transition-colors hover:bg-secondary"
+            >
+              {allDaysCollapsed ? <ChevronsUpDown size={13} /> : <ChevronsDownUp size={13} />}
+              <span className="hidden sm:inline">{allDaysCollapsed ? 'Expandir todos' : 'Colapsar todos'}</span>
+            </button>
+          )}
           {/* Toggle Editar / Ver */}
           <div className="flex items-center p-0.5 rounded-lg" style={{ background: 'var(--secondary)' }} role="group" aria-label="Modo del itinerario">
             <button
@@ -293,6 +312,10 @@ export function ItineraryPage() {
                 const isToday = day.date === todayStr
                 const isPast = day.date < todayStr
                 const hasJournal = !!day.journal || !!journalPhotos?.some(p => p.day_id === day.id)
+                // "Dónde estoy" ese día: la ciudad puesta a mano tiene prioridad;
+                // si no, la de la guía de destino asignada (si la hay).
+                const dayGuideName = day.guide_id ? guides?.find(g => g.id === day.guide_id)?.name : undefined
+                const whereLabel = day.city || dayGuideName || null
 
                 return (
                   <motion.div
@@ -341,7 +364,7 @@ export function ItineraryPage() {
                           Día {dayIdx + 1} · {dayActs.length} {dayActs.length === 1 ? 'actividad' : 'actividades'}
                           {dayArrivals.length > 0 && ` · ${dayArrivals.length} llegada${dayArrivals.length > 1 ? 's' : ''}`}
                         </p>
-                        {/* Ciudad / guía del destino del día */}
+                        {/* Guía de destino del día (contenido de la ciudad, opcional) */}
                         {editMode && (guides?.length ?? 0) > 0 && (
                           <div className="flex items-center gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
                             <MapPin size={13} className="text-muted-foreground flex-shrink-0" />
@@ -380,6 +403,31 @@ export function ItineraryPage() {
                           </Link>
                         )}
                       </div>
+
+                      {editMode ? (
+                        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            defaultValue={day.city ?? ''}
+                            placeholder={dayGuideName || 'Ciudad'}
+                            onBlur={(e) => {
+                              const value = e.target.value.trim()
+                              if (value !== (day.city ?? '')) {
+                                updateDayCity.mutate({ id: day.id, city: value || null, tripId: tripId! })
+                              }
+                            }}
+                            className="h-7 text-xs px-2 rounded-md border border-border bg-background w-20 sm:w-28 focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                      ) : whereLabel && (
+                        <span
+                          className="flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}
+                        >
+                          <MapPin size={11} className="flex-shrink-0" />
+                          <span className="truncate max-w-[90px] sm:max-w-[160px]">{whereLabel}</span>
+                        </span>
+                      )}
 
                       {weather?.[day.date] && (
                         <span

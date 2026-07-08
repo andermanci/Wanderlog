@@ -241,6 +241,31 @@ export function useUpdateDayNotes() {
 }
 
 // Asigna (o quita) la ciudad/guía de destino de un día. guide_id = null lo desasocia.
+export function useUpdateDayCity() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, city, tripId }: { id: string; city: string | null; tripId: string }) => {
+      const { error } = await supabase.from('itinerary_days').update({ city }).eq('id', id)
+      if (error) throw error
+      return { tripId }
+    },
+    onMutate: async ({ id, city, tripId }) => {
+      const key = itineraryKeys.days(tripId)
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<ItineraryDay[]>(key)
+      qc.setQueryData<ItineraryDay[]>(key, (old) => old?.map(d => d.id === id ? { ...d, city } : d))
+      return { prev, tripId }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.tripId && ctx.prev) qc.setQueryData(itineraryKeys.days(ctx.tripId), ctx.prev)
+      toast.error('No se pudo guardar la ciudad')
+    },
+    onSettled: (_d, _e, vars) => {
+      qc.invalidateQueries({ queryKey: itineraryKeys.days(vars.tripId) })
+    },
+  })
+}
+
 export function useUpdateDayGuide() {
   const qc = useQueryClient()
   return useMutation({

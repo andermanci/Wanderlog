@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Copy, Loader2, RefreshCw, Sparkles } from 'lucide-react'
+import { useParams } from 'react-router-dom'
+import { Copy, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/ui/back-button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -268,9 +269,7 @@ export function AudioguidePage() {
 
       <div className="mb-6">
         <div className="flex items-center justify-between gap-2 mb-3">
-          <Button variant="ghost" size="icon" className="w-8 h-8 -ml-2" asChild>
-            <Link to={`/trips/${tripId}/itinerary/${activityId}`}><ArrowLeft size={18} /></Link>
-          </Button>
+          <BackButton to={`/trips/${tripId}/itinerary/${activityId}`}>Actividad</BackButton>
           {audioguide && !processing && (
             <button
               type="button"

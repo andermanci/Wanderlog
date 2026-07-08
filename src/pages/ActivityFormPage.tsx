@@ -3,9 +3,10 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, ArrowLeft, X, ImageIcon } from 'lucide-react'
+import { Loader2, X, ImageIcon } from 'lucide-react'
 import { parseISO } from 'date-fns'
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/ui/back-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -57,10 +58,8 @@ export function ActivityFormPage() {
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section={isEdit ? 'Editar actividad' : 'Nueva actividad'} />
 
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="icon" className="w-8 h-8" asChild>
-          <Link to={`/trips/${tripId}/itinerary`}><ArrowLeft size={16} /></Link>
-        </Button>
+      <div className="mb-6 space-y-3">
+        <BackButton to={`/trips/${tripId}/itinerary`}>Itinerario</BackButton>
         <h1 className="font-serif text-2xl font-medium">{isEdit ? 'Editar actividad' : 'Nueva actividad'}</h1>
       </div>
 
