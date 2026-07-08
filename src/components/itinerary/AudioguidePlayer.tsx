@@ -194,7 +194,8 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
             <audio
               key={stop.id}
               ref={audioRef}
-              className="hidden"
+              className="sr-only"
+              preload="metadata"
               src={stop.audio_url}
               onPlay={() => { setIsPlaying(true); broadcastIfJoined(true) }}
               onPause={() => { setIsPlaying(false); broadcastIfJoined(false) }}
