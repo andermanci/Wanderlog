@@ -20,6 +20,7 @@ import { TripDetail } from '@/pages/TripDetail'
 import { ItineraryPage } from '@/pages/Itinerary'
 import { ActivityFormPage } from '@/pages/ActivityFormPage'
 import { ActivityDetailPage } from '@/pages/ActivityDetailPage'
+import { AudioguidePage } from '@/pages/AudioguidePage'
 import { TripMemoryPage } from '@/pages/TripMemoryPage'
 import { MapViewPage } from '@/pages/MapView'
 import { SavedPlacesPage } from '@/pages/SavedPlacesPage'
@@ -100,6 +101,7 @@ export default function App() {
               <Route path="/trips/:tripId/itinerary/new" element={<ActivityFormPage />} />
               <Route path="/trips/:tripId/itinerary/:activityId" element={<ActivityDetailPage />} />
               <Route path="/trips/:tripId/itinerary/:activityId/edit" element={<ActivityFormPage />} />
+              <Route path="/trips/:tripId/itinerary/:activityId/audioguide" element={<AudioguidePage />} />
               <Route path="/trips/:tripId/memory" element={<TripMemoryPage />} />
               <Route path="/trips/:tripId/map" element={<MapViewPage />} />
               <Route path="/trips/:tripId/places" element={<SavedPlacesPage />} />

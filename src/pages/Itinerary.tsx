@@ -33,6 +33,7 @@ import { useDayAlerts } from '@/lib/queries/dayAlerts'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { useTrip } from '@/lib/queries/trips'
 import { useTripAttachments } from '@/lib/queries/attachments'
+import { useTripAudioguidesReadiness } from '@/lib/queries/audioguides'
 import { buildRoutePoints } from '@/lib/route'
 import { lodgingByDayMap, dayOrderOf, type Lodging } from '@/lib/lodging'
 import { TripHeader } from '@/components/trips/TripHeader'
@@ -48,6 +49,13 @@ export function ItineraryPage() {
   const { data: days, isLoading: loadingDays } = useItineraryDays(tripId!)
   const { data: activities, isLoading: loadingActs } = useActivities(tripId!)
   const { data: tripAttachments } = useTripAttachments(tripId!)
+  const { data: audioguideReadyIdList } = useTripAudioguidesReadiness(tripId!)
+  // Array.isArray como defensa: la caché persistida en localStorage puede
+  // traer todavía un valor viejo (de antes de este cambio) con otra forma.
+  const audioguideReadyIds = useMemo(
+    () => new Set(Array.isArray(audioguideReadyIdList) ? audioguideReadyIdList : []),
+    [audioguideReadyIdList],
+  )
   const upsertDays = useUpsertDays()
   const deleteActivity = useDeleteActivity()
   const reorderActivities = useReorderActivities()
@@ -478,6 +486,7 @@ export function ItineraryPage() {
                                     sortableId={`${it.id}::${day.id}`}
                                     activity={it.act!}
                                     attachments={tripAttachments?.filter(a => a.activity_id === it.id)}
+                                    hasAudioguide={audioguideReadyIds?.has(it.id)}
                                     editMode={editMode}
                                     onEdit={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}/edit`)}
                                     onDelete={setDeleteTarget}

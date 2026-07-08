@@ -17,6 +17,7 @@ import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAt
 import { useAuthStore } from '@/store/authStore'
 import { ACTIVITY_COLORS, ACTIVITY_LABELS, formatDate } from '@/lib/utils'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
+import { AudioguideEntryCard } from '@/components/itinerary/AudioguideEntryCard'
 import { toast } from 'sonner'
 
 // Página de detalle de actividad (antes un modal): enlazable, con botón
@@ -267,6 +268,11 @@ export function ActivityDetailPage() {
               </a>
             )}
           </div>
+        )}
+
+        {/* Audioguía generada con Claude + TTS: entrada a su propia página */}
+        {(activity.type === 'place' || activity.type === 'activity') && (
+          <AudioguideEntryCard activity={activity} tripId={tripId!} />
         )}
 
         {/* Wallet: entradas y documentos, con subida directa */}

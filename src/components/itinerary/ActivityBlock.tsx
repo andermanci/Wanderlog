@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Pencil, Trash2, ExternalLink, Clock, MapPin, Euro, FileText } from 'lucide-react'
+import { GripVertical, Pencil, Trash2, ExternalLink, Clock, MapPin, Euro, FileText, Headphones } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
@@ -10,6 +10,8 @@ import type { Activity, ActivityAttachment } from '@/types/database'
 interface ActivityBlockProps {
   activity: Activity
   attachments?: ActivityAttachment[]
+  /** Ya tiene una audioguía generada (con todas sus paradas listas). */
+  hasAudioguide?: boolean
   onEdit: (a: Activity) => void
   onDelete: (a: Activity) => void
   onOpen?: (a: Activity) => void
@@ -21,7 +23,7 @@ interface ActivityBlockProps {
   onToggleDone?: (a: Activity) => void
 }
 
-export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, onOpen, sortableId, editMode = true, onToggleDone }: ActivityBlockProps) {
+export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdit, onDelete, onOpen, sortableId, editMode = true, onToggleDone }: ActivityBlockProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: sortableId ?? activity.id })
@@ -117,20 +119,29 @@ export function ActivityBlock({ activity, attachments = [], onEdit, onDelete, on
                 </span>
               )}
               {activity.type === 'transport' && (activity.origin || activity.destination) ? (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground truncate max-w-[220px]">
-                  <MapPin size={10} />
-                  {activity.origin}{activity.origin && activity.destination ? ' → ' : ''}{activity.destination}
+                <span className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                  <MapPin size={10} className="flex-shrink-0" />
+                  <span className="break-words">{activity.origin}{activity.origin && activity.destination ? ' → ' : ''}{activity.destination}</span>
                 </span>
               ) : activity.address && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground truncate max-w-[180px]">
-                  <MapPin size={10} />
-                  {activity.address}
+                <span className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                  <MapPin size={10} className="flex-shrink-0" />
+                  <span className="break-words">{activity.address}</span>
                 </span>
               )}
               {activity.price != null && (
                 <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--primary)' }}>
                   <Euro size={10} />
                   {activity.price.toFixed(2)}
+                </span>
+              )}
+              {hasAudioguide && (
+                <span
+                  title="Audioguía disponible"
+                  className="flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md leading-none"
+                  style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}
+                >
+                  <Headphones size={10} /> Audioguía
                 </span>
               )}
             </div>

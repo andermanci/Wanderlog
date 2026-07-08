@@ -642,6 +642,93 @@ export type Database = {
         }
         Relationships: []
       }
+      audioguides: {
+        Row: {
+          id: string
+          activity_id: string
+          trip_id: string
+          raw_text: string
+          status: 'draft' | 'generating' | 'ready' | 'error'
+          playback_stop_id: string | null
+          playback_position_seconds: number
+          playback_is_playing: boolean
+          playback_updated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          activity_id: string
+          trip_id: string
+          raw_text: string
+          status?: 'draft' | 'generating' | 'ready' | 'error'
+          playback_stop_id?: string | null
+          playback_position_seconds?: number
+          playback_is_playing?: boolean
+          playback_updated_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          activity_id?: string
+          trip_id?: string
+          raw_text?: string
+          status?: 'draft' | 'generating' | 'ready' | 'error'
+          playback_stop_id?: string | null
+          playback_position_seconds?: number
+          playback_is_playing?: boolean
+          playback_updated_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      audioguide_stops: {
+        Row: {
+          id: string
+          audioguide_id: string
+          trip_id: string
+          order_index: number
+          title: string
+          summary: string | null
+          direction_text: string | null
+          script_text: string
+          audio_url: string | null
+          audio_duration_seconds: number | null
+          status: 'pending' | 'generating' | 'ready' | 'error'
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          audioguide_id: string
+          trip_id: string
+          order_index: number
+          title: string
+          summary?: string | null
+          direction_text?: string | null
+          script_text: string
+          audio_url?: string | null
+          audio_duration_seconds?: number | null
+          status?: 'pending' | 'generating' | 'ready' | 'error'
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          audioguide_id?: string
+          trip_id?: string
+          order_index?: number
+          title?: string
+          summary?: string | null
+          direction_text?: string | null
+          script_text?: string
+          audio_url?: string | null
+          audio_duration_seconds?: number | null
+          status?: 'pending' | 'generating' | 'ready' | 'error'
+          error_message?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       trip_collaborators: {
         Row: {
           id: string
@@ -703,6 +790,8 @@ export type JournalPhoto = Database['public']['Tables']['journal_photos']['Row']
 export type Traveler = Database['public']['Tables']['travelers']['Row']
 export type DestinationGuide = Database['public']['Tables']['destination_guides']['Row']
 export type DayAlert = Database['public']['Tables']['day_alerts']['Row']
+export type Audioguide = Database['public']['Tables']['audioguides']['Row']
+export type AudioguideStop = Database['public']['Tables']['audioguide_stops']['Row']
 
 // Sección de la guía del destino (historia, costumbres, idioma...). Se importa
 // de Wikivoyage/Wikipedia y luego es editable; `edited` marca lo tocado a mano
