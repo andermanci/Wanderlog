@@ -16,6 +16,7 @@ import { cn, ACTIVITY_COLORS } from '@/lib/utils'
 import {
   AUDIOGUIDE_DETAIL_LEVELS, buildAudioguidePrompt, type AudioguideDetailLevel,
 } from '@/lib/audioguide/buildPrompt'
+import { AUDIOGUIDE_AI_PROVIDERS, type AudioguideAiProvider } from '@/lib/audioguide/aiProviders'
 import { parseAudioguideText } from '@/lib/audioguide/parseAudioguideText'
 import {
   useAudioguide, useCreateAudioguide, useGenerateStopAudio, useDeleteAudioguide,
@@ -39,6 +40,7 @@ export function AudioguidePage() {
   const deleteAudioguide = useDeleteAudioguide(tripId!, activityId!)
 
   const [detailLevel, setDetailLevel] = useState<AudioguideDetailLevel>('estandar')
+  const [aiProvider, setAiProvider] = useState<AudioguideAiProvider>('claude')
   const [showPasteBox, setShowPasteBox] = useState(false)
   const [pastedText, setPastedText] = useState('')
   const [processing, setProcessing] = useState(false)
@@ -64,12 +66,13 @@ export function AudioguidePage() {
   }
 
   const color = ACTIVITY_COLORS[activity.type]
+  const provider = AUDIOGUIDE_AI_PROVIDERS.find((p) => p.id === aiProvider) ?? AUDIOGUIDE_AI_PROVIDERS[0]
 
   const copyPrompt = async () => {
     const prompt = buildAudioguidePrompt(activity, trip, detailLevel)
     try {
       await navigator.clipboard.writeText(prompt)
-      toast.success('Prompt copiado ✓ — pégalo (Cmd/Ctrl+V) en el cuadro de mensaje de Claude y envíalo.')
+      toast.success(`Prompt copiado ✓ — pégalo (Cmd/Ctrl+V) en el cuadro de mensaje de ${provider.label} y envíalo.`)
     } catch {
       toast.error('No se pudo copiar automáticamente. Pulsa "Copiar prompt de nuevo" para reintentarlo.')
     }
@@ -77,7 +80,7 @@ export function AudioguidePage() {
 
   const handleStartGeneration = async () => {
     await copyPrompt()
-    window.open('https://claude.ai/new', '_blank')
+    window.open(provider.url, '_blank')
     setShowPasteBox(true)
   }
 
@@ -179,8 +182,8 @@ export function AudioguidePage() {
     body = (
       <div className="space-y-2">
         <div className="text-sm text-muted-foreground space-y-1 rounded-md p-2.5" style={{ background: 'var(--secondary)' }}>
-          <p>1. En la pestaña de Claude que se ha abierto, pulsa dentro del cuadro de mensaje y pega con <strong>Cmd+V</strong> (o <strong>Ctrl+V</strong> en Windows) — el prompt ya está en tu portapapeles.</p>
-          <p>2. Envíalo y espera a que Claude te devuelva el guion.</p>
+          <p>1. En la pestaña de {provider.label} que se ha abierto, pulsa dentro del cuadro de mensaje y pega con <strong>Cmd+V</strong> (o <strong>Ctrl+V</strong> en Windows) — el prompt ya está en tu portapapeles.</p>
+          <p>2. Envíalo y espera a que {provider.label} te devuelva el guion.</p>
           <p>3. Copia toda su respuesta y pégala aquí abajo.</p>
         </div>
         <button
@@ -213,6 +216,25 @@ export function AudioguidePage() {
           Genera una audioguía con paradas y narración para visitar este lugar.
         </p>
         <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-widest">Generar con</p>
+          <div className="flex flex-wrap gap-1.5">
+            {AUDIOGUIDE_AI_PROVIDERS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setAiProvider(p.id)}
+                className={cn(
+                  'text-sm font-medium px-3 py-1.5 rounded-md border transition-colors',
+                  aiProvider === p.id ? 'border-primary' : 'border-border hover:border-primary/50',
+                )}
+                style={{ background: aiProvider === p.id ? 'var(--secondary)' : 'transparent' }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground uppercase tracking-widest">Nivel de detalle</p>
           {AUDIOGUIDE_DETAIL_LEVELS.map((lvl) => (
             <button
@@ -234,7 +256,7 @@ export function AudioguidePage() {
           ))}
         </div>
         <Button onClick={handleStartGeneration} className="gap-2">
-          <Sparkles size={15} /> Generar guion con Claude
+          <Sparkles size={15} /> Generar guion con {provider.label}
         </Button>
       </div>
     )
