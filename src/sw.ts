@@ -4,7 +4,6 @@ import { registerRoute, NavigationRoute } from 'workbox-routing'
 import { CacheFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 import { CacheableResponsePlugin } from 'workbox-cacheable-response'
-import { RangeRequestsPlugin } from 'workbox-range-requests'
 import { clientsClaim } from 'workbox-core'
 
 declare const self: ServiceWorkerGlobalScope & {
@@ -29,19 +28,23 @@ const cacheFirst = (cacheName: string, maxEntries: number, days: number) =>
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
       new ExpirationPlugin({ maxEntries, maxAgeSeconds: 60 * 60 * 24 * days }),
-      // Imprescindible para audio/vídeo: Safari/iOS pide el fichero por
-      // rangos (Range) y exige una respuesta 206 correcta o directamente
-      // se queda cargando y falla. Sin este plugin, Workbox devolvía el
-      // fichero completo con 200 y el audio nunca arrancaba en iOS.
-      new RangeRequestsPlugin(),
     ],
   })
 
-// Adjuntos, portadas, DNIs, QRs y audioguías de Supabase Storage (offline
-// 60 días). Nombre de caché con sufijo -v2 para descartar entradas viejas
-// cacheadas antes de añadir soporte de Range requests (ver arriba).
+// Adjuntos, portadas, DNIs y QRs de Supabase Storage (offline 60 días).
+// Los audios (destination === 'audio', ej. audioguías) se excluyen a
+// propósito: la interceptación de peticiones Range de audio/vídeo por un
+// Service Worker es poco fiable en Safari/WebKit (tanto Mac como iOS) pase
+// lo que pase con los plugins de Workbox — se ha comprobado que falla ahí
+// incluso con RangeRequestsPlugin. Mejor dejar que el audio vaya siempre
+// directo a la red, sin pasar por el Service Worker ni la Cache API, donde
+// el propio navegador gestiona Range/CORS de forma nativa y fiable.
+// Nombre de caché con sufijo -v2 para descartar entradas viejas cacheadas
+// antes de añadir soporte de Range requests.
 registerRoute(
-  ({ url }) => /\.supabase\.co\/storage\/v1\/object\/public\//.test(url.href),
+  ({ url, request }) =>
+    request.destination !== 'audio' &&
+    /\.supabase\.co\/storage\/v1\/object\/public\//.test(url.href),
   cacheFirst('supabase-storage-v2', 500, 60),
 )
 // OpenCV + jscanify (recorte de documentos).
