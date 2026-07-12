@@ -23,9 +23,9 @@ import { toast } from 'sonner'
 
 // Niveles de alerta: icono + color que definen su aspecto destacado.
 const LEVELS: Record<DayAlertLevel, { label: string; icon: LucideIcon; color: string }> = {
-  tip: { label: 'Consejo', icon: Lightbulb, color: '#d97706' },
-  info: { label: 'Info', icon: Info, color: '#2563eb' },
-  warning: { label: 'Importante', icon: AlertTriangle, color: '#ea580c' },
+  tip: { label: 'Consejo', icon: Lightbulb, color: 'var(--warning)' },
+  info: { label: 'Info', icon: Info, color: 'var(--info)' },
+  warning: { label: 'Importante', icon: AlertTriangle, color: 'var(--destructive)' },
 }
 
 type ScheduleMode = 'none' | 'morning' | 'prev-night' | 'custom'
@@ -283,7 +283,7 @@ export function DayAlerts({ tripId, day, alerts, editMode = true }: { tripId: st
           <DialogFooter className="gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
             <Button type="button" disabled={isPending || !text.trim()} onClick={save}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+              variant="brand">
               {isPending && <Loader2 size={14} className="animate-spin mr-2" />}
               {editing === 'new' ? 'Añadir' : 'Guardar'}
             </Button>

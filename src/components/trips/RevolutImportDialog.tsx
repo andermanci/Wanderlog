@@ -127,7 +127,7 @@ export function RevolutImportDialog({ open, onClose, tripId }: RevolutImportDial
           <Button
             onClick={handleImport}
             disabled={loading || pending || selected.size === 0 || importMut.isPending}
-            style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+            variant="brand"
             className="gap-2"
           >
             {importMut.isPending && <Loader2 size={14} className="animate-spin" />}

@@ -16,6 +16,8 @@ export default defineConfig({
       injectRegister: 'auto',
       injectManifest: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // Incluye .webp para precachear las portadas fallback empaquetadas.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
       },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {

@@ -40,7 +40,7 @@ export function OnboardingWelcome({ open, onClose }: { open: boolean; onClose: (
         </div>
 
         <Button className="w-full" onClick={onClose}
-          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+          variant="brand">
           Empezar
         </Button>
       </DialogContent>

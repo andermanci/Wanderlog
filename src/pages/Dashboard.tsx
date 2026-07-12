@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Search, SlidersHorizontal, Bell, MapPin, Calendar, CalendarClock, Clock, ChevronRight, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -17,13 +17,20 @@ import { TripCard } from '@/components/trips/TripCard'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
 import { useTrips, useDeleteTrip, useCreateTrip } from '@/lib/queries/trips'
 import { OnboardingWelcome } from '@/components/OnboardingWelcome'
+import { PwaInstallBanner } from '@/components/PwaInstallBanner'
 import { usePendingReminders } from '@/lib/queries/reminders'
 import { useTodayActivities } from '@/lib/queries/itinerary'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate, STATUS_LABELS, ACTIVITY_COLORS, ACTIVITY_LABELS, effectiveStatus } from '@/lib/utils'
+import { loadAudioguideDraft } from '@/lib/audioguide/draft'
 import type { Trip } from '@/types/database'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { toast } from 'sonner'
+
+// Solo un aviso de "audioguía a medias" por arranque de la app (iOS relanza
+// la PWA en el dashboard cuando la mata en segundo plano).
+let draftNotified = false
 
 export function Dashboard() {
   const { profile } = useAuthStore()
@@ -41,10 +48,29 @@ export function Dashboard() {
   const [showWelcome, setShowWelcome] = useState(false)
   const [seeding, setSeeding] = useState(false)
 
+  const navigate = useNavigate()
+
   // Bienvenida de primer uso (una sola vez).
   useEffect(() => {
     if (!localStorage.getItem('wanderlog-welcome-seen')) setShowWelcome(true)
   }, [])
+
+  // Si hay una audioguía a medias (la PWA se reinició al volver de la app de
+  // la IA), ofrecer volver justo donde estaba con un toque.
+  useEffect(() => {
+    if (draftNotified) return
+    const draft = loadAudioguideDraft()
+    if (!draft) return
+    draftNotified = true
+    toast(`Audioguía a medias: ${draft.activityTitle}`, {
+      description: 'Puedes continuar donde lo dejaste.',
+      duration: 12000,
+      action: {
+        label: 'Continuar',
+        onClick: () => navigate(`/trips/${draft.tripId}/itinerary/${draft.activityId}/audioguide`),
+      },
+    })
+  }, [navigate])
   function closeWelcome() {
     localStorage.setItem('wanderlog-welcome-seen', '1')
     setShowWelcome(false)
@@ -104,6 +130,8 @@ export function Dashboard() {
               {profile?.full_name?.split(' ')[0] ?? 'Viajero'} ✦
             </h1>
           </motion.div>
+
+          <PwaInstallBanner />
 
           {/* Hoy: actividades del itinerario de hoy */}
           {todayActs && todayActs.length > 0 && (
@@ -176,7 +204,7 @@ export function Dashboard() {
               </Select>
               <Button
                 onClick={() => { setEditTrip(null); setFormOpen(true) }}
-                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+                variant="brand"
                 className="gap-2 font-medium"
               >
                 <Plus size={16} />
@@ -245,7 +273,7 @@ export function Dashboard() {
                   <Button
                     className="gap-2"
                     onClick={() => { setEditTrip(null); setFormOpen(true) }}
-                    style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+                    variant="brand"
                   >
                     <Plus size={16} aria-hidden="true" />
                     Crear primer viaje

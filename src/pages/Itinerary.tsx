@@ -272,7 +272,7 @@ export function ItineraryPage() {
           {editMode && (
             <Button
               onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+              variant="brand"
               className="gap-2"
               aria-label="Añadir actividad" title="Añadir actividad"
             >

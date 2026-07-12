@@ -136,7 +136,7 @@ export function TripSettingsPage() {
         <Button
           onClick={save}
           disabled={!dirty || updateTrip.isPending}
-          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+          variant="brand"
         >
           {updateTrip.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
           Guardar cambios

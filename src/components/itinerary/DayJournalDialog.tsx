@@ -131,7 +131,7 @@ export function DayJournalDialog({ open, onClose, tripId, day }: DayJournalDialo
           <Button
             onClick={handleSave}
             disabled={updateJournal.isPending}
-            style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+            variant="brand"
           >
             {updateJournal.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
             Guardar

@@ -73,7 +73,7 @@ function ExpiryBadge({ end }: { end: string | null }) {
       className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full font-medium"
       style={e === 'expired'
         ? { background: 'color-mix(in srgb, var(--destructive) 14%, transparent)', color: 'var(--destructive)' }
-        : { background: 'rgba(217,119,6,0.14)', color: '#b45309' }}
+        : { background: 'var(--warning-soft)', color: 'var(--warning)' }}
     >
       <AlertTriangle size={10} />
       {e === 'expired' ? 'Caducado' : 'Caduca pronto'}
@@ -277,7 +277,7 @@ export function DocumentsPage() {
                           <p className="font-medium truncate">{t.name}</p>
                           {!hasId && (
                             <span className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full flex-shrink-0"
-                              style={{ background: 'rgba(217,119,6,0.14)', color: '#b45309' }}>
+                              style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
                               <AlertTriangle size={10} /> Falta DNI/pasaporte
                             </span>
                           )}
@@ -330,7 +330,7 @@ export function DocumentsPage() {
                 <h2 className="font-serif text-xl font-medium">Reservas y billetes</h2>
               </div>
               <Button size="sm" className="gap-1.5 flex-shrink-0" onClick={openCreate}
-                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+                variant="brand">
                 <Plus size={14} /> Añadir
               </Button>
             </div>
@@ -448,7 +448,7 @@ export function DocumentsPage() {
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setTravelerFormOpen(false)}>Cancelar</Button>
             <Button disabled={!travelerName.trim() || createTraveler.isPending} onClick={addTraveler}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+              variant="brand">
               Añadir
             </Button>
           </DialogFooter>
@@ -507,7 +507,7 @@ export function DocumentsPage() {
           <DialogFooter className="gap-2 pt-2">
             <Button variant="ghost" onClick={() => setPForm(null)}>Cancelar</Button>
             <Button disabled={createDoc.isPending || updateDoc.isPending} onClick={submitPersonal}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+              variant="brand">
               {(createDoc.isPending || updateDoc.isPending) && <Loader2 size={14} className="animate-spin mr-2" />}
               {pForm?.id ? 'Guardar' : 'Añadir'}
             </Button>
@@ -619,7 +619,7 @@ export function DocumentsPage() {
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={isSubmitting || uploading}
-                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+                variant="brand">
                 {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
                 {editDoc ? 'Guardar' : 'Añadir'}
               </Button>

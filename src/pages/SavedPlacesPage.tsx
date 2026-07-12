@@ -86,7 +86,7 @@ export function SavedPlacesPage() {
           <h1 className="font-serif text-2xl font-medium">Lugares guardados</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Tus opciones e ideas, organizadas en listas</p>
         </div>
-        <Button asChild className="gap-2 flex-shrink-0" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+        <Button asChild className="gap-2 flex-shrink-0" variant="brand">
           <Link to={`/trips/${tripId}/map`}><Search size={16} /> Buscar lugares</Link>
         </Button>
       </div>
@@ -105,7 +105,7 @@ export function SavedPlacesPage() {
             Busca sitios en el mapa y guárdalos como opción (restaurantes, bares, miradores…),
             sin tener que meterlos en un día concreto.
           </p>
-          <Button asChild className="mt-6 gap-2" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+          <Button asChild className="mt-6 gap-2" variant="brand">
             <Link to={`/trips/${tripId}/map`}><Search size={16} /> Buscar en el mapa</Link>
           </Button>
         </div>
@@ -224,7 +224,7 @@ export function SavedPlacesPage() {
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
             <Button disabled={updatePlace.isPending} onClick={saveEdit}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+              variant="brand">
               <Plus size={14} className="mr-1.5" /> Guardar
             </Button>
           </DialogFooter>

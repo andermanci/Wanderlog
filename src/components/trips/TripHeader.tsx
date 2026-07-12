@@ -2,8 +2,7 @@ import { Link } from 'react-router-dom'
 import { ChevronRight, MapPin, Calendar } from 'lucide-react'
 import { useTrip } from '@/lib/queries/trips'
 import { formatDate, countdownLabel } from '@/lib/utils'
-
-const FALLBACK = 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=200&q=60'
+import { fallbackCover } from '@/lib/coverFallbacks'
 
 interface TripHeaderProps {
   tripId: string
@@ -32,7 +31,7 @@ export function TripHeader({ tripId, section }: TripHeaderProps) {
       {trip && (
         <div className="flex items-center gap-3">
           <Link to={`/trips/${tripId}`} className="w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 border border-border">
-            <img src={trip.cover_image_url || FALLBACK} alt={trip.name} className="w-full h-full object-cover" />
+            <img src={trip.cover_image_url || fallbackCover(tripId)} alt={trip.name} className="w-full h-full object-cover" />
           </Link>
           <div className="min-w-0 flex-1">
             <Link to={`/trips/${tripId}`} className="font-serif text-lg font-medium hover:text-primary transition-colors line-clamp-1">

@@ -137,7 +137,7 @@ export function IdPhotoInput({ label, value, tripId, onChange }: IdPhotoInputPro
                   : 'Se subirá la foto tal cual.'}
               </p>
               <Button type="button" className="w-full gap-1.5" disabled={uploading} onClick={() => confirm(showCrop)}
-                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+                variant="brand">
                 {uploading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                 Usar esta foto
               </Button>

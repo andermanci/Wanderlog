@@ -179,7 +179,7 @@ export function ExpensesPage() {
         </div>
         <Button
           onClick={() => setFormOpen(true)}
-          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+          variant="brand"
           className="gap-2"
         >
           <Plus size={16} />
@@ -245,7 +245,7 @@ export function ExpensesPage() {
           <Button
             onClick={quickAdd}
             disabled={createExpense.isPending || !quickAmount.trim()}
-            style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+            variant="brand"
           >
             {createExpense.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
           </Button>
@@ -309,7 +309,7 @@ export function ExpensesPage() {
               <div key={b.travelerId} className="flex items-center justify-between gap-2 text-sm">
                 <span className="truncate">{travelerName(b.travelerId)}</span>
                 <span className="tabular-nums font-medium"
-                  style={{ color: b.net > 0.01 ? '#15803d' : b.net < -0.01 ? 'var(--destructive)' : 'var(--muted-foreground)' }}>
+                  style={{ color: b.net > 0.01 ? 'var(--success)' : b.net < -0.01 ? 'var(--destructive)' : 'var(--muted-foreground)' }}>
                   {b.net > 0.01 ? `le deben ${formatCurrency(b.net, mainCurrency)}`
                     : b.net < -0.01 ? `debe ${formatCurrency(-b.net, mainCurrency)}`
                       : 'en paz'}
@@ -560,7 +560,7 @@ export function ExpensesPage() {
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={isSubmitting}
-                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+                variant="brand">
                 {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
                 Añadir gasto
               </Button>

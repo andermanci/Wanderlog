@@ -51,6 +51,9 @@ const persister = createSyncStoragePersister({
   key: 'wanderlog-cache',
 })
 
+// En móvil los toasts van centrados arriba (arriba-derecha choca con el notch).
+const IS_MOBILE = window.matchMedia('(max-width: 767px)').matches
+
 function AuthListener() {
   useAuthListener()
   return null
@@ -122,7 +125,7 @@ export default function App() {
         </ErrorBoundary>
 
         <Toaster
-          position="top-right"
+          position={IS_MOBILE ? 'top-center' : 'top-right'}
           toastOptions={{
             style: {
               background: 'var(--card)',

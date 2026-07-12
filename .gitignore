@@ -27,5 +27,8 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Temporales de la CLI de Supabase
+supabase/.temp/
+
 # Configuración local de Claude Code (contiene comandos con claves)
 .claude/

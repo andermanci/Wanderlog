@@ -27,8 +27,8 @@ import {
   sumByCurrency, effectiveStatus, PERSONAL_DOC_CATEGORIES,
 } from '@/lib/utils'
 
-// Navegación secundaria: el acceso a TODAS las secciones (en móvil, varias solo
-// se alcanzan desde aquí). Se muestra compacta, sin competir con el contenido.
+// Navegación secundaria: acceso a TODAS las secciones (en móvil también están
+// en "Más" de la barra inferior). Compacta, sin competir con el contenido.
 const SECTIONS = [
   { label: 'Itinerario', icon: Calendar, path: 'itinerary' },
   { label: 'Mapa', icon: MapIcon, path: 'map' },
@@ -224,7 +224,7 @@ export function TripDetail() {
             {totalGastos > 0 && ` · ${formatCurrency(totalGastos, mainCurrency)} gastados`}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-            <Button asChild className="gap-2" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+            <Button asChild className="gap-2" variant="brand">
               <Link to={`/trips/${tripId}/memory`}><Heart size={15} /> Ver recuerdo</Link>
             </Button>
             <Button asChild variant="outline" className="gap-2">
@@ -303,7 +303,7 @@ function ReadinessRow({ to, icon: Icon, label, value, warn, done }: {
       </div>
       {warn && (
         <span className="hidden sm:flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full flex-shrink-0"
-          style={{ background: 'rgba(217,119,6,0.14)', color: '#b45309' }}>
+          style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
           <AlertTriangle size={10} /> {warn}
         </span>
       )}

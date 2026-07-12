@@ -4,12 +4,13 @@ Tu diario de viajes personal — planifica, organiza y recuerda cada aventura de
 
 ## Stack
 
-- **Frontend**: React 19 + TypeScript (strict) + Vite 6 + Tailwind CSS v4 + shadcn/ui
-- **Estado**: Zustand v5 + TanStack Query v5
-- **Backend**: Supabase (PostgreSQL + Auth + Storage + RLS)
+- **Frontend**: React 19 + TypeScript (strict) + Vite 8 + Tailwind CSS v4 + shadcn/ui
+- **Estado**: Zustand v5 + TanStack Query v5 (con persistencia offline)
+- **Backend**: Supabase (PostgreSQL + Auth + Storage + RLS + Realtime + Edge Functions)
 - **Auth**: Google OAuth (un clic, sin contraseña)
 - **Mapas**: Google Maps JavaScript API + Places API (@vis.gl/react-google-maps)
 - **UI**: Framer Motion, Recharts, @dnd-kit, FullCalendar v6, date-fns v4
+- **PWA**: vite-plugin-pwa + Workbox (instalable, modo offline, notificaciones push)
 
 ---
 
@@ -91,27 +92,35 @@ Abre http://localhost:5173 y haz clic en "Continuar con Google".
 src/
 ├── components/
 │   ├── ui/              # shadcn/ui
-│   ├── layout/          # Sidebar, AppLayout, ProtectedRoute
-│   ├── trips/           # TripCard, TripFormDialog
-│   └── itinerary/       # ActivityBlock, ActivityFormDialog
+│   ├── layout/          # Sidebar, BottomNav, AppLayout, ProtectedRoute
+│   ├── trips/           # TripCard, TripFormDialog, compartir, offline
+│   ├── itinerary/       # bloques de actividad, alertas de día, diario
+│   ├── documents/       # escaneo de DNI, visores
+│   └── places/          # lugares guardados
 ├── pages/               # Login, Dashboard, TripDetail, Itinerary,
-│                        # MapView, Documents, CalendarPage,
-│                        # RemindersPage, PackingPage, ExpensesPage, Settings
-├── store/               # authStore (Zustand)
+│                        # AudioguidePage, MapView, Documents, GuidePage,
+│                        # ExpensesPage, PackingPage, RemindersPage,
+│                        # TripMemoryPage, CalendarPage, Settings...
+├── store/               # authStore, a11yStore (Zustand)
 ├── lib/
 │   ├── supabase.ts      # Cliente Supabase tipado
-│   ├── queries/         # TanStack Query hooks por dominio
+│   ├── queries/         # TanStack Query hooks por dominio (18 módulos)
+│   ├── audioguide/      # prompt IA, parseo del guion, proveedores
+│   ├── realtime/        # escucha de audioguía sincronizada en grupo
+│   ├── offline.ts       # outbox de cambios hechos sin conexión
 │   ├── maps.ts          # Helpers Google Maps + estilos dark
 │   └── utils.ts         # cn(), formatDate(), formatCurrency(), generateICS()...
-├── hooks/               # useAuth.ts
+├── hooks/               # useAuth, usePwaInstall
+├── sw.ts                # Service Worker (Workbox): precache + offline + push
 └── types/               # database.ts (tipos del esquema Supabase)
 
 supabase/
-├── migrations/
-│   ├── 001_initial_schema.sql  # Esquema completo + RLS + Storage
-│   └── 002_seed_example.sql    # Datos de ejemplo
+├── migrations/          # Esquema completo + RLS + Storage (31 migraciones)
 └── functions/
-    └── send-reminders/         # Edge Function cron para emails
+    ├── audioguide-tts/  # Google Cloud TTS: guion → MP3 por paradas
+    ├── revolut-connect/ # Conexión bancaria (GoCardless/Nordigen)
+    ├── revolut-sync/    # Importación de movimientos como gastos
+    └── send-reminders/  # Cron horario para emails de avisos
 ```
 
 ---
@@ -122,32 +131,37 @@ supabase/
 |--------|-------------|
 | **Auth** | Google OAuth, sesión persistente, RLS por usuario |
 | **Dashboard** | Cards de viajes con foto, countdown, filtros, panel de avisos |
-| **Viajes** | CRUD completo, subida de portada a Supabase Storage |
-| **Itinerario** | Timeline por días, drag & drop con @dnd-kit |
-| **Mapa** | Google Maps + Places Autocomplete, favoritos por viaje |
-| **Documentos** | Cartera de viaje: vuelos, hoteles, seguros, adjuntos |
+| **Viajes** | CRUD completo, portada en Storage, compartir con colaboradores |
+| **Itinerario** | Timeline por días, drag & drop con @dnd-kit, clima, alertas de día |
+| **Audioguías** | Guion con IA (prompt copy-paste) + Google TTS por paradas + escucha sincronizada en grupo (Realtime) |
+| **Mapa** | Google Maps + Places Autocomplete, lugares guardados, recorrido del viaje |
+| **Guía del destino** | Borrador automático con Wikipedia/Wikivoyage, editable en Markdown |
+| **Documentos** | Cartera de viaje: vuelos, hoteles, seguros, DNIs con escaneo automático |
 | **Calendario** | FullCalendar con todos los viajes, export .ics |
-| **Avisos** | Web Notifications API + Edge Function para emails |
+| **Avisos** | Notificaciones push + Edge Function para emails |
 | **Equipaje** | Checklist por categorías, plantillas reutilizables |
-| **Gastos** | Registro con gráfico Recharts, control presupuesto |
+| **Gastos** | Reparto entre viajeros, multi-divisa con conversión, gráficos, importación bancaria (Revolut) |
+| **Recuerdos** | Diario y fotos por día, vista imprimible a PDF |
+| **Offline** | PWA instalable: caché persistente + outbox de cambios sin conexión |
 
 ---
 
 ## Despliegue
 
-### Vercel
+### Netlify
+
+El repo incluye `netlify.toml` (build, SPA fallback y excepciones del escáner
+de secretos). Conecta el repo en Netlify y configura las variables `VITE_*`
+en Site settings → Environment variables.
+
+### Edge Functions
 
 ```bash
-npm i -g vercel && vercel
-```
-
-Configura las variables de entorno en Vercel → Settings → Environment Variables.
-
-### Edge Function (recordatorios email)
-
-```bash
+npx supabase functions deploy audioguide-tts   # TTS de audioguías (requiere GOOGLE_TTS_API_KEY)
+npx supabase functions deploy revolut-connect  # Conexión bancaria (GoCardless)
+npx supabase functions deploy revolut-sync
 npx supabase functions deploy send-reminders
-# Cron: 0 * * * * (cada hora) en Supabase → Edge Functions → Schedules
+# Cron send-reminders: 0 * * * * (cada hora) en Supabase → Edge Functions → Schedules
 ```
 
 ---

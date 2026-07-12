@@ -182,7 +182,7 @@ export function PackingPage() {
         <Button
           onClick={addItem}
           disabled={!newName.trim() || createItem.isPending}
-          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+          variant="brand"
         >
           {createItem.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
         </Button>

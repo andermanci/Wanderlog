@@ -267,7 +267,7 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
           <DialogFooter className="gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={isSubmitting || uploading}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+              variant="brand">
               {isSubmitting ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
               {trip ? 'Guardar cambios' : 'Crear viaje'}
             </Button>

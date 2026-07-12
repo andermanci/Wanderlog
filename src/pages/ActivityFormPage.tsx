@@ -366,7 +366,7 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
           <Link to={`/trips/${tripId}/itinerary`}>Cancelar</Link>
         </Button>
         <Button type="submit" disabled={isSubmitting}
-          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+          variant="brand">
           {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
           {isEdit ? 'Guardar' : 'Añadir'}
         </Button>

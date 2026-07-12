@@ -95,7 +95,7 @@ export function AddToItineraryDialog({ open, onOpenChange, tripId, place }: Prop
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button disabled={!date || createActivity.isPending} onClick={add}
-            style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+            variant="brand">
             <Calendar size={14} className="mr-2" />
             Añadir al itinerario
           </Button>

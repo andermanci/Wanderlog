@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </p>
         </div>
         <Button className="gap-2" onClick={() => window.location.reload()}
-          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+          variant="brand">
           <RotateCcw size={16} aria-hidden="true" /> Reintentar
         </Button>
       </div>

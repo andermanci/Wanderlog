@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Copy, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,8 @@ import {
 } from '@/lib/audioguide/buildPrompt'
 import { AUDIOGUIDE_AI_PROVIDERS, type AudioguideAiProvider } from '@/lib/audioguide/aiProviders'
 import { parseAudioguideText } from '@/lib/audioguide/parseAudioguideText'
+import { loadAudioguideDraft, saveAudioguideDraft, clearAudioguideDraft } from '@/lib/audioguide/draft'
+import { isStandalonePwa } from '@/hooks/usePwaInstall'
 import {
   useAudioguide, useCreateAudioguide, useGenerateStopAudio, useDeleteAudioguide,
 } from '@/lib/queries/audioguides'
@@ -40,10 +42,17 @@ export function AudioguidePage() {
   const generateStopAudio = useGenerateStopAudio(tripId!, activityId!)
   const deleteAudioguide = useDeleteAudioguide(tripId!, activityId!)
 
-  const [detailLevel, setDetailLevel] = useState<AudioguideDetailLevel>('estandar')
-  const [aiProvider, setAiProvider] = useState<AudioguideAiProvider>('claude')
-  const [showPasteBox, setShowPasteBox] = useState(false)
-  const [pastedText, setPastedText] = useState('')
+  // Si iOS mató la PWA mientras estabas en la app de la IA, el borrador
+  // devuelve el flujo al punto exacto (cuadro de pegado y texto incluidos).
+  const draft = useMemo(() => {
+    const d = loadAudioguideDraft()
+    return d && d.activityId === activityId ? d : null
+  }, [activityId])
+
+  const [detailLevel, setDetailLevel] = useState<AudioguideDetailLevel>(draft?.detailLevel ?? 'estandar')
+  const [aiProvider, setAiProvider] = useState<AudioguideAiProvider>(draft?.provider ?? 'claude')
+  const [showPasteBox, setShowPasteBox] = useState(!!draft)
+  const [pastedText, setPastedText] = useState(draft?.pastedText ?? '')
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -79,9 +88,22 @@ export function AudioguidePage() {
     }
   }
 
+  // En la PWA instalada de iOS, window.open abre un navegador embebido que se
+  // queda en blanco (con una X) cuando el enlace universal salta a la app de
+  // la IA. Instalada: no abrimos nada; el usuario cambia de app él mismo.
+  const standalone = isStandalonePwa()
+
+  const persistDraft = (pasted: string) => {
+    saveAudioguideDraft({
+      tripId: tripId!, activityId: activityId!, activityTitle: activity.title,
+      provider: aiProvider, detailLevel, pastedText: pasted,
+    })
+  }
+
   const handleStartGeneration = async () => {
     await copyPrompt()
-    window.open(provider.url, '_blank')
+    if (!standalone) window.open(provider.url, '_blank')
+    persistDraft('')
     setShowPasteBox(true)
   }
 
@@ -124,6 +146,7 @@ export function AudioguidePage() {
       } else {
         toast.success('Audioguía generada')
       }
+      clearAudioguideDraft()
       setShowPasteBox(false)
       setPastedText('')
     } catch (err) {
@@ -183,7 +206,11 @@ export function AudioguidePage() {
     body = (
       <div className="space-y-2">
         <div className="text-sm text-muted-foreground space-y-1 rounded-md p-2.5" style={{ background: 'var(--secondary)' }}>
-          <p>1. En la pestaña de {provider.label} que se ha abierto, pulsa dentro del cuadro de mensaje y pega con <strong>Cmd+V</strong> (o <strong>Ctrl+V</strong> en Windows) — el prompt ya está en tu portapapeles.</p>
+          {standalone ? (
+            <p>1. Cambia a la app de {provider.label} (o ábrela en tu navegador) y pega el prompt en el cuadro de mensaje — ya está en tu portapapeles. Tranquilo si esta app se reinicia al volver: retomarás donde estabas.</p>
+          ) : (
+            <p>1. En la pestaña de {provider.label} que se ha abierto, pulsa dentro del cuadro de mensaje y pega con <strong>Cmd+V</strong> (o <strong>Ctrl+V</strong> en Windows) — el prompt ya está en tu portapapeles.</p>
+          )}
           <p>2. Envíalo y espera a que {provider.label} te devuelva el guion.</p>
           <p>3. Copia toda su respuesta y pégala aquí abajo.</p>
         </div>
@@ -196,7 +223,7 @@ export function AudioguidePage() {
         </button>
         <Textarea
           value={pastedText}
-          onChange={(e) => setPastedText(e.target.value)}
+          onChange={(e) => { setPastedText(e.target.value); persistDraft(e.target.value) }}
           placeholder="###PARADA### ..."
           rows={8}
         />
@@ -204,7 +231,7 @@ export function AudioguidePage() {
           <Button onClick={handleProcess} disabled={!pastedText.trim()} className="gap-2">
             <Sparkles size={15} /> Procesar guion
           </Button>
-          <Button variant="ghost" onClick={() => { setShowPasteBox(false); setPastedText('') }}>
+          <Button variant="ghost" onClick={() => { clearAudioguideDraft(); setShowPasteBox(false); setPastedText('') }}>
             Cancelar
           </Button>
         </div>

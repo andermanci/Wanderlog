@@ -11,7 +11,7 @@ import {
   Loader2, Plus, Pencil, Trash2, RefreshCw, ExternalLink, Check, X, ChevronDown, MapPin,
   GripVertical, CalendarDays, Phone, Plug, Zap, Hash, Wand2,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -209,7 +209,7 @@ export function GuidePage() {
                 className="gap-2 sm:w-auto"
                 onClick={() => addAndImport(newName)}
                 disabled={adding || !newName.trim()}
-                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+                variant="brand"
               >
                 {adding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                 Añadir e importar
@@ -237,7 +237,7 @@ export function GuidePage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={runDetect}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+              className={buttonVariants({ variant: 'brand' })}>
               Crear e importar
             </AlertDialogAction>
           </AlertDialogFooter>

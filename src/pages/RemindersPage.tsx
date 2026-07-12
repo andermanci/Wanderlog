@@ -126,7 +126,7 @@ export function RemindersPage() {
         </div>
         <Button
           onClick={() => setFormOpen(true)}
-          style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+          variant="brand"
           className="gap-2"
         >
           <Plus size={16} />
@@ -254,7 +254,7 @@ export function RemindersPage() {
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
               <Button type="submit" disabled={isSubmitting}
-                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+                variant="brand">
                 {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
                 Crear
               </Button>

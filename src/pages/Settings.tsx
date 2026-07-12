@@ -3,7 +3,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { User, Globe, Loader2, LogOut, Bell, BellOff, Sun, Moon, Monitor, Type } from 'lucide-react'
+import { User, Globe, Loader2, LogOut, Bell, BellOff, Sun, Moon, Monitor, Type, Download, Share } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useA11yStore } from '@/store/a11yStore'
 import { useSignOut } from '@/hooks/useAuth'
 import { enablePush, disablePush, getPushStatus, type PushStatus } from '@/lib/push'
+import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { toast } from 'sonner'
 
 const schema = z.object({
@@ -29,6 +30,7 @@ export function SettingsPage() {
   const { theme, textSize, setTheme, setTextSize } = useA11yStore()
   const signOut = useSignOut()
   const [saving, setSaving] = useState(false)
+  const pwa = usePwaInstall()
 
   // Notificaciones push
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null)
@@ -120,7 +122,7 @@ export function SettingsPage() {
               </div>
 
               <Button type="submit" disabled={saving}
-                style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+                variant="brand">
                 {saving && <Loader2 size={14} className="animate-spin mr-2" />}
                 Guardar cambios
               </Button>
@@ -151,7 +153,7 @@ export function SettingsPage() {
             <Button
               onClick={handleSubmit(onSubmit)}
               disabled={saving}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+              variant="brand"
             >
               {saving && <Loader2 size={14} className="animate-spin mr-2" />}
               Guardar preferencias
@@ -237,11 +239,10 @@ export function SettingsPage() {
                     </p>
                   </div>
                   <Button
-                    variant={pushStatus === 'enabled' ? 'outline' : 'default'}
+                    variant={pushStatus === 'enabled' ? 'outline' : 'brand'}
                     className="gap-1.5 flex-shrink-0"
                     disabled={pushBusy || pushStatus === 'denied'}
                     onClick={togglePush}
-                    style={pushStatus === 'enabled' ? undefined : { background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
                   >
                     {pushBusy ? <Loader2 size={15} className="animate-spin" /> : pushStatus === 'enabled' ? <BellOff size={15} /> : <Bell size={15} />}
                     {pushStatus === 'enabled' ? 'Desactivar' : 'Activar'}
@@ -254,6 +255,42 @@ export function SettingsPage() {
                   En iPhone, instala antes la app en la pantalla de inicio (requiere iOS 16.4+).
                 </p>
               </>
+            )}
+          </div>
+        </section>
+
+        <Separator className="mb-8" />
+
+        {/* Aplicación */}
+        <section className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Download size={18} style={{ color: 'var(--primary)' }} aria-hidden="true" />
+            <h2 className="font-serif text-xl">Aplicación</h2>
+          </div>
+          <div className="p-6 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            {pwa.installed ? (
+              <p className="text-sm text-muted-foreground">Ya estás usando Wanderlog como app instalada. ✦</p>
+            ) : pwa.canInstall ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">Instalar en este dispositivo</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Ábrela como una app, con icono propio y soporte offline.
+                  </p>
+                </div>
+                <Button variant="brand" className="gap-1.5 flex-shrink-0" onClick={pwa.promptInstall}>
+                  <Download size={15} /> Instalar
+                </Button>
+              </div>
+            ) : pwa.isIos ? (
+              <p className="text-sm text-muted-foreground flex items-center gap-1 flex-wrap">
+                Para instalarla, toca <Share size={14} className="inline flex-shrink-0" aria-label="Compartir" /> Compartir
+                en Safari y elige «Añadir a pantalla de inicio».
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Instálala desde el menú del navegador («Instalar aplicación») para usarla con icono propio y offline.
+              </p>
             )}
           </div>
         </section>

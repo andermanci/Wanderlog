@@ -234,7 +234,7 @@ function Inner({ initial, center, onPick, onCancel }: {
               pending.lat != null && pending.lng != null ? { lat: pending.lat, lng: pending.lng } : null,
               { photoUrl: pending.photoUrl ?? null },
             )}
-            style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+            variant="brand"
           >
             Usar esta ubicación
           </Button>

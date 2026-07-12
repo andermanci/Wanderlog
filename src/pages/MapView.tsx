@@ -598,11 +598,10 @@ export function MapViewPage() {
         {/* Ver/ocultar el recorrido del itinerario en el mapa */}
         {routePoints.length >= 2 && (
           <Button
-            variant={showRoute ? 'default' : 'outline'}
+            variant={showRoute ? 'brand' : 'outline'}
             size="sm"
             className="w-full gap-1.5 text-xs"
             onClick={() => { const nv = !showRoute; setShowRoute(nv); if (nv) setPanelOpen(false) }}
-            style={showRoute ? { background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' } : undefined}
           >
             <Route size={14} /> {showRoute ? 'Ocultar recorrido' : 'Ver recorrido del viaje'}
           </Button>
@@ -1086,7 +1085,7 @@ export function MapViewPage() {
                         className="mt-2 text-xs"
                       />
                       <div className="flex gap-2 mt-2">
-                        <Button size="sm" className="flex-1 gap-1.5 text-xs" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }} onClick={() => handleSaveFavorite(p)} disabled={saveFavorite.isPending}>
+                        <Button size="sm" className="flex-1 gap-1.5 text-xs" variant="brand" onClick={() => handleSaveFavorite(p)} disabled={saveFavorite.isPending}>
                           <Bookmark size={12} /> Guardar
                         </Button>
                         <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => setAddToItineraryState({ open: true, place: { name: p.name, address: p.formatted_address, link: p.url ?? null, place_id: null, lat, lng } })}>
@@ -1127,7 +1126,7 @@ export function MapViewPage() {
                         <p className="text-sm mt-2 p-2 rounded-lg" style={{ background: 'var(--secondary)' }}>{f.notes}</p>
                       )}
                       <div className="flex gap-2 mt-3">
-                        <Button size="sm" className="flex-1 gap-1.5 text-xs" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }} onClick={() => setAddToItineraryState({ open: true, place: { name: f.name, address: f.address, link: f.link, place_id: f.id, lat: f.lat, lng: f.lng } })}>
+                        <Button size="sm" className="flex-1 gap-1.5 text-xs" variant="brand" onClick={() => setAddToItineraryState({ open: true, place: { name: f.name, address: f.address, link: f.link, place_id: f.id, lat: f.lat, lng: f.lng } })}>
                           <Calendar size={12} /> Itinerario
                         </Button>
                         <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => setDirectionsTo({ lat: f.lat, lng: f.lng, name: f.name })}>
@@ -1167,7 +1166,7 @@ export function MapViewPage() {
                         <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => s.lat != null && setDirectionsTo({ lat: s.lat, lng: s.lng!, name: s.label })}>
                           <Navigation size={12} /> Cómo llegar
                         </Button>
-                        <Button size="sm" className="flex-1 gap-1.5 text-xs" style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }} asChild>
+                        <Button size="sm" className="flex-1 gap-1.5 text-xs" variant="brand" asChild>
                           <Link to={`/trips/${tripId}/itinerary/${s.activityId}`}>
                             <Calendar size={12} /> Ver actividad
                           </Link>
@@ -1215,7 +1214,7 @@ export function MapViewPage() {
             <Button
               disabled={!selectedDate || createActivity.isPending}
               onClick={handleAddToItinerary}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}
+              variant="brand"
             >
               <Calendar size={14} className="mr-2" />
               Añadir al itinerario
@@ -1291,7 +1290,7 @@ export function MapViewPage() {
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setEditFav(null)}>Cancelar</Button>
             <Button disabled={updateFavorite.isPending} onClick={saveEditFav}
-              style={{ background: 'var(--gradient-primary)', color: 'var(--primary-foreground)' }}>
+              variant="brand">
               {updateFavorite.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
               Guardar
             </Button>

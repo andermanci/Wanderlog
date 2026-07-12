@@ -57,11 +57,6 @@ registerRoute(
   ({ url }) => url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com',
   cacheFirst('google-fonts', 30, 365),
 )
-// Imágenes de Unsplash (portadas por defecto).
-registerRoute(
-  ({ url }) => url.hostname === 'images.unsplash.com',
-  cacheFirst('unsplash', 60, 30),
-)
 
 // ---- Notificaciones push (avisos del viaje) ----
 self.addEventListener('push', (event) => {

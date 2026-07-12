@@ -4,6 +4,7 @@ import { MapPin, Calendar, Tag, Trash2, Pencil, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn, formatDate, countdownLabel, STATUS_LABELS, STATUS_COLORS, daysUntil, effectiveStatus } from '@/lib/utils'
+import { fallbackCover } from '@/lib/coverFallbacks'
 import { useAuthStore } from '@/store/authStore'
 import type { Trip } from '@/types/database'
 
@@ -14,16 +15,9 @@ interface TripCardProps {
   index?: number
 }
 
-const FALLBACK_IMAGES = [
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
-  'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800&q=80',
-  'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800&q=80',
-  'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80',
-]
-
 export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
   const { user } = useAuthStore()
-  const imageUrl = trip.cover_image_url || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length]
+  const imageUrl = trip.cover_image_url || fallbackCover(trip.id)
   const days = daysUntil(trip.start_date)
   const status = effectiveStatus(trip)
   const isUpcoming = days >= 0 && status !== 'completed'
@@ -35,15 +29,16 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="group relative rounded-xl overflow-hidden cursor-pointer"
-      style={{ border: '1px solid color-mix(in srgb, var(--primary) 10%, transparent)' }}
+      className="group relative rounded-xl overflow-hidden cursor-pointer h-full flex flex-col"
+      style={{ border: '1px solid color-mix(in srgb, var(--primary) 10%, transparent)', background: 'var(--card)' }}
     >
-      <Link to={`/trips/${trip.id}`} className="block">
+      <Link to={`/trips/${trip.id}`} className="flex flex-col flex-1">
         {/* Imagen de fondo */}
-        <div className="relative h-52 overflow-hidden">
+        <div className="relative h-52 overflow-hidden flex-shrink-0">
           <img
             src={imageUrl}
             alt={trip.name}
+            loading="lazy"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
           <div className="card-overlay absolute inset-0" />
@@ -52,12 +47,15 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
           <div className="absolute top-3 left-3 flex items-center gap-1.5">
             <span
               className="text-xs px-2 py-0.5 rounded-full font-medium"
-              style={{ background: 'rgba(20,14,10,0.5)', color: statusColor, border: `1px solid ${statusColor}66`, backdropFilter: 'blur(6px)' }}
+              style={{ background: 'rgb(20,14,10)', color: statusColor, border: `1px solid ${statusColor}` }}
             >
               {STATUS_LABELS[status]}
             </span>
             {isShared && (
-              <span className="glass-dark text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 text-white/90">
+              <span
+                className="text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 text-white"
+                style={{ background: 'rgb(20,14,10)', border: '1px solid rgba(255,255,255,0.28)' }}
+              >
                 <Users size={11} /> Compartido
               </span>
             )}
@@ -65,8 +63,11 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
 
           {/* Countdown */}
           {isUpcoming && (
-            <div className="absolute bottom-3 left-3 glass-dark rounded-lg px-2.5 py-1">
-              <span className="text-xs font-medium text-white/95">
+            <div
+              className="absolute bottom-3 left-3 rounded-lg px-2.5 py-1"
+              style={{ background: 'rgb(20,14,10)', border: '1px solid rgba(255,255,255,0.28)' }}
+            >
+              <span className="text-xs font-medium text-white">
                 {countdownLabel(trip.start_date)}
               </span>
             </div>
@@ -74,7 +75,7 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
         </div>
 
         {/* Contenido */}
-        <div className="p-4" style={{ background: 'var(--card)' }}>
+        <div className="p-4 flex-1" style={{ background: 'var(--card)' }}>
           <h3 className="font-serif text-xl font-medium text-foreground mb-1 line-clamp-1">{trip.name}</h3>
 
           <div className="flex items-center gap-1.5 text-muted-foreground text-sm mb-3">
