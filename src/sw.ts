@@ -57,6 +57,11 @@ registerRoute(
   ({ url }) => url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com',
   cacheFirst('google-fonts', 30, 365),
 )
+// Portadas de las guías del destino (Wikipedia/Wikimedia), para verlas offline.
+registerRoute(
+  ({ url }) => url.hostname === 'upload.wikimedia.org',
+  cacheFirst('wiki-images', 100, 60),
+)
 
 // ---- Notificaciones push (avisos del viaje) ----
 self.addEventListener('push', (event) => {

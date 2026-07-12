@@ -20,7 +20,10 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
       await prefetchTripOffline(qc, tripId, (done, total) => setProgress(Math.round((done / total) * 100)))
       localStorage.setItem(flagKey, '1')
       setSaved(true)
-      toast.success('Viaje disponible sin conexión')
+      toast.success('Viaje disponible sin conexión', {
+        description: 'Consejo: descarga también el área del destino en Google Maps (Mapas sin conexión) para navegar sin datos.',
+        duration: 8000,
+      })
     } catch {
       toast.error('No se pudo guardar todo sin conexión')
     } finally {
@@ -47,7 +50,7 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
             {saving ? `Guardando… ${progress}%` : saved ? 'Disponible sin conexión' : 'Guardar viaje sin conexión'}
           </p>
           <p className="text-xs text-muted-foreground line-clamp-1">
-            {saved && !saving ? 'Toca para actualizar la copia offline' : 'Itinerario, documentos, gastos e imágenes'}
+            {saved && !saving ? 'Toca para actualizar la copia offline' : 'Itinerario, documentos, gastos, guía e imágenes'}
           </p>
         </div>
       </div>

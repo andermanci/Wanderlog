@@ -4,7 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Plus, Receipt, Trash2, Loader2, Landmark, Zap, CloudOff, ListPlus, Users, ArrowRight } from 'lucide-react'
+import { Plus, Receipt, Trash2, Loader2, Landmark, Zap, CloudOff, ListPlus, Users, ArrowRight, Coins, ChevronDown } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -25,6 +25,7 @@ import { useTravelers } from '@/lib/queries/travelers'
 import { Checkbox } from '@/components/ui/checkbox'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { CurrencySelect } from '@/components/CurrencySelect'
+import { CurrencyConverter } from '@/components/CurrencyConverter'
 import { useAuthStore } from '@/store/authStore'
 import { computeBalances, settleBalances } from '@/lib/split'
 import { EXPENSE_CATEGORIES, formatCurrency, formatDate, sumByCurrency } from '@/lib/utils'
@@ -100,6 +101,7 @@ export function ExpensesPage() {
   const [quickAmount, setQuickAmount] = useState('')
   const [quickDesc, setQuickDesc] = useState('')
   const [quickCat, setQuickCat] = useState('Comida')
+  const [converterOpen, setConverterOpen] = useState(false)
 
   function quickAdd() {
     const amount = Number(quickAmount.replace(',', '.'))
@@ -218,6 +220,21 @@ export function ExpensesPage() {
           </div>
         </div>
       )}
+
+      {/* Conversor rápido (plegable) */}
+      <div className="rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <button type="button" onClick={() => setConverterOpen(o => !o)}
+          className="w-full flex items-center gap-1.5 p-4" aria-expanded={converterOpen}>
+          <Coins size={14} style={{ color: 'var(--primary)' }} />
+          <span className="text-sm font-medium">Conversor rápido</span>
+          <ChevronDown size={14} className={`ml-auto text-muted-foreground transition-transform ${converterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {converterOpen && (
+          <div className="px-4 pb-4">
+            <CurrencyConverter defaultFrom={tripCurrency} defaultTo={mainCurrency} />
+          </div>
+        )}
+      </div>
 
       {/* Gasto rápido */}
       <div className="p-4 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>

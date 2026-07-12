@@ -1,20 +1,12 @@
-import { useEffect, useState } from 'react'
 import { WifiOff } from 'lucide-react'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
 // Banner global tranquilizador cuando no hay conexión: la app sigue siendo
 // usable (caché offline) y los cambios se sincronizan al reconectar.
 export function OfflineBanner() {
-  const [offline, setOffline] = useState(typeof navigator !== 'undefined' && !navigator.onLine)
+  const online = useOnlineStatus()
 
-  useEffect(() => {
-    const on = () => setOffline(false)
-    const off = () => setOffline(true)
-    window.addEventListener('online', on)
-    window.addEventListener('offline', off)
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
-  }, [])
-
-  if (!offline) return null
+  if (online) return null
   return (
     <div role="status" aria-live="polite"
       className="flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium text-center"

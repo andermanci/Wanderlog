@@ -6,7 +6,7 @@ import { APIProvider, Map, AdvancedMarker, Pin, ColorScheme, useMap, useMapsLibr
 import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import {
   Search, Star, MapPin, ExternalLink, Bookmark, X, Calendar, Route,
-  LocateFixed, Loader2, List, Navigation, Pencil, Eye, EyeOff,
+  LocateFixed, Loader2, List, Navigation, Pencil, Eye, EyeOff, WifiOff, Copy, Car, Footprints,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,6 +24,9 @@ import { useCreateActivity, useItineraryDays, useUpsertDays, useActivities } fro
 import { useTrip } from '@/lib/queries/trips'
 import { placeTypeToCategory, getCategoryColor } from '@/lib/maps'
 import { buildRoutePoints, type RoutePoint } from '@/lib/route'
+import { DirectionsDialog } from '@/components/DirectionsDialog'
+import type { DirectionsTarget } from '@/lib/directions'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { cn, PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
 import { PlaceIcon } from '@/components/places/PlaceIcon'
 import type { FavoritePlace } from '@/types/database'
@@ -35,7 +38,7 @@ const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
 // 1) Usa las coordenadas guardadas de cada parada; geocodifica solo las que falten.
 // 2) Traza la ruta por carretera (Directions) con esas coordenadas.
 // 3) Si no hay ruta por carretera, dibuja una línea aproximada que las conecta.
-function MapDirections({ stops }: { stops: RoutePoint[] }) {
+function MapDirections({ stops, mode }: { stops: RoutePoint[]; mode: 'DRIVING' | 'WALKING' }) {
   const map = useMap()
   const routesLib = useMapsLibrary('routes')
   const placesLib = useMapsLibrary('places')
@@ -87,7 +90,7 @@ function MapDirections({ stops }: { stops: RoutePoint[] }) {
         origin: uniq[0],
         destination: uniq[uniq.length - 1],
         waypoints: uniq.slice(1, -1).map(location => ({ location, stopover: true })),
-        travelMode: google.maps.TravelMode.DRIVING,
+        travelMode: google.maps.TravelMode[mode],
       }, (res, status) => {
         if (cancelled) return
         if (status === 'OK' && res) {
@@ -102,13 +105,15 @@ function MapDirections({ stops }: { stops: RoutePoint[] }) {
           const bounds = new google.maps.LatLngBounds()
           uniq.forEach(p => bounds.extend(p))
           map.fitBounds(bounds, 56)
-          toast.info('Mostrando ruta aproximada (no hay ruta por carretera entre todas las paradas).')
+          toast.info(mode === 'WALKING'
+            ? 'Mostrando ruta aproximada (no hay ruta a pie entre todas las paradas).'
+            : 'Mostrando ruta aproximada (no hay ruta por carretera entre todas las paradas).')
         }
       })
     })()
 
     return () => { cancelled = true; polyline?.setMap(null) }
-  }, [routesLib, placesLib, renderer, map, stops])
+  }, [routesLib, placesLib, renderer, map, stops, mode])
 
   return null
 }
@@ -234,8 +239,18 @@ export function MapViewPage() {
   // Filtro por día del itinerario: en viajes largos el mapa se llena de
   // paradas; permite ver solo las de un día (y su tramo de ruta).
   const [dayFilter, setDayFilter] = useState<string>('all')
+  const online = useOnlineStatus()
+
+  // Modo de la ruta dibujada, por viaje (urbano → a pie; roadtrip → coche).
+  const travelModeKey = `wanderlog-travelmode-${tripId}`
+  const [travelMode, setTravelMode] = useState<'DRIVING' | 'WALKING'>(() =>
+    localStorage.getItem(travelModeKey) === 'WALKING' ? 'WALKING' : 'DRIVING')
+  function changeTravelMode(m: 'DRIVING' | 'WALKING') {
+    setTravelMode(m)
+    localStorage.setItem(travelModeKey, m)
+  }
   // Destino para el selector "Cómo llegar" (Google/Apple/Waze).
-  const [directionsTo, setDirectionsTo] = useState<{ lat: number; lng: number; name: string } | null>(null)
+  const [directionsTo, setDirectionsTo] = useState<DirectionsTarget | null>(null)
 
   // Chips de día: solo los días que tienen alguna parada localizada, en orden.
   const dayChips = useMemo(() => {
@@ -255,31 +270,63 @@ export function MapViewPage() {
     [routePoints, dayFilter],
   )
 
-  // En iOS/macOS ofrecemos Apple Maps; Google Maps y Waze siempre.
-  const isApple = typeof navigator !== 'undefined' && /iP(hone|ad|od)|Macintosh/.test(navigator.userAgent)
-  const navApps = directionsTo
-    ? [
-        { name: 'Google Maps', href: `https://www.google.com/maps/dir/?api=1&destination=${directionsTo.lat},${directionsTo.lng}`, show: true },
-        { name: 'Apple Maps', href: `https://maps.apple.com/?daddr=${directionsTo.lat},${directionsTo.lng}&dirflg=d`, show: isApple },
-        { name: 'Waze', href: `https://waze.com/ul?ll=${directionsTo.lat},${directionsTo.lng}&navigate=yes`, show: true },
-      ].filter(a => a.show)
-    : []
+  // Modo "seguirme": watchPosition mientras caminas. El mapa recentra en cada
+  // fix salvo que el usuario lo haya arrastrado a mano (dragstart).
+  const [following, setFollowing] = useState(false)
+  const watchIdRef = useRef<number | null>(null)
+  const userMovedRef = useRef(false)
+  const firstFixRef = useRef(true)
 
-  function locateMe() {
+  function stopFollowing() {
+    if (watchIdRef.current != null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+    setFollowing(false)
+    setLocating(false)
+  }
+
+  function toggleFollow() {
+    if (following) { stopFollowing(); return }
     if (!('geolocation' in navigator)) { toast.error('Tu navegador no soporta geolocalización'); return }
     setLocating(true)
-    navigator.geolocation.getCurrentPosition(
+    userMovedRef.current = false
+    firstFixRef.current = true
+    setFollowing(true)
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
         setMyPos(p)
-        mapInstance?.panTo(p)
-        mapInstance?.setZoom(15)
         setLocating(false)
+        if (firstFixRef.current) {
+          firstFixRef.current = false
+          mapInstance?.panTo(p)
+          mapInstance?.setZoom(16)
+        } else if (!userMovedRef.current) {
+          mapInstance?.panTo(p)
+        }
       },
-      () => { toast.error('No se pudo obtener tu ubicación'); setLocating(false) },
-      { enableHighAccuracy: true, timeout: 10000 },
+      (err) => {
+        toast.error(err.code === 1
+          ? 'Permiso de ubicación denegado. Actívalo en los ajustes del navegador.'
+          : 'No se pudo obtener tu ubicación')
+        stopFollowing()
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
     )
   }
+
+  // Arrastrar el mapa a mano pausa el recentrado automático.
+  useEffect(() => {
+    if (!mapInstance) return
+    const l = mapInstance.addListener('dragstart', () => { userMovedRef.current = true })
+    return () => l.remove()
+  }, [mapInstance])
+
+  // Nunca dejar un watch vivo al salir de la página.
+  useEffect(() => () => {
+    if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current)
+  }, [])
 
   // Si llegamos con ?route=1 (desde el itinerario), mostramos la ruta y limpiamos el query.
   useEffect(() => {
@@ -546,6 +593,76 @@ export function MapViewPage() {
   const mapCenter = favorites && favorites.length > 0
     ? { lat: favorites[0].lat, lng: favorites[0].lng }
     : { lat: 40.4168, lng: -3.7038 }
+
+  // Sin conexión el mapa de Google no puede cargar: en su lugar, las paradas
+  // del itinerario (ya en la caché offline) con dirección copiable y "Cómo
+  // llegar" — las apps nativas de mapas sí tienen mapas sin conexión.
+  if (!online) {
+    const offlineDates = Array.from(new Set(routePoints.map(p => p.date).filter(Boolean)))
+    const offlineStops = dayFilter === 'all' ? routePoints : routePoints.filter(p => p.date === dayFilter)
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-24">
+        <h2 className="font-serif text-2xl mb-1 flex items-center gap-2">
+          <WifiOff size={20} style={{ color: 'var(--primary)' }} /> Mapa no disponible sin conexión
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Estas son las paradas de tu itinerario. Consejo: descarga el área del destino en
+          Google Maps (Mapas sin conexión) antes del viaje para navegar sin datos.
+        </p>
+
+        {offlineDates.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto mb-4 [scrollbar-width:none]">
+            <button type="button" onClick={() => setDayFilter('all')}
+              className={cn('text-xs px-3 py-1.5 rounded-full border flex-shrink-0 transition-colors',
+                dayFilter === 'all' ? 'border-primary text-primary font-semibold' : 'border-border text-muted-foreground')}
+              style={{ background: 'var(--card)' }}>
+              Todos
+            </button>
+            {offlineDates.map(date => (
+              <button key={date} type="button" onClick={() => setDayFilter(date)}
+                className={cn('text-xs px-3 py-1.5 rounded-full border flex-shrink-0 transition-colors',
+                  dayFilter === date ? 'border-primary text-primary font-semibold' : 'border-border text-muted-foreground')}
+                style={{ background: 'var(--card)' }}>
+                {format(parseISO(date), 'd MMM', { locale: es })}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {offlineStops.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">No hay paradas con ubicación en el itinerario.</p>
+        ) : (
+          <div className="space-y-2">
+            {offlineStops.map((p, i) => (
+              <div key={p.key} className="flex items-center gap-3 p-3 rounded-xl"
+                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
+                  style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
+                  {i + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium line-clamp-1">{p.label}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    {format(parseISO(p.date), 'd MMM', { locale: es })} · {p.location}
+                  </p>
+                </div>
+                <Button size="icon" variant="ghost" className="w-8 h-8 flex-shrink-0" aria-label="Copiar dirección"
+                  onClick={() => { navigator.clipboard.writeText(p.location).then(() => toast.success('Dirección copiada')).catch(() => toast.error('No se pudo copiar')) }}>
+                  <Copy size={14} />
+                </Button>
+                <Button size="icon" variant="ghost" className="w-8 h-8 flex-shrink-0" aria-label="Cómo llegar"
+                  onClick={() => setDirectionsTo({ name: p.label, lat: p.lat, lng: p.lng, address: p.location })}>
+                  <Navigation size={14} style={{ color: 'var(--primary)' }} />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <DirectionsDialog target={directionsTo} onClose={() => setDirectionsTo(null)} />
+      </div>
+    )
+  }
 
   if (!API_KEY) {
     return (
@@ -890,6 +1007,34 @@ export function MapViewPage() {
               })}
             </div>
           )}
+
+          {/* Modo de la ruta: a pie / coche (solo con el recorrido visible) */}
+          {showRoute && (
+            <div
+              className={cn('absolute left-3 z-10 flex rounded-full shadow-md overflow-hidden',
+                dayChips.length >= 2 ? 'top-14' : 'top-3')}
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+              role="group" aria-label="Modo de la ruta"
+            >
+              {([
+                { m: 'DRIVING' as const, Icon: Car, label: 'Coche' },
+                { m: 'WALKING' as const, Icon: Footprints, label: 'A pie' },
+              ]).map(({ m, Icon, label }) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => changeTravelMode(m)}
+                  aria-pressed={travelMode === m}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-colors"
+                  style={travelMode === m
+                    ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
+                    : { color: 'var(--muted-foreground)' }}
+                >
+                  <Icon size={13} /> {label}
+                </button>
+              ))}
+            </div>
+          )}
           <Map
             defaultCenter={mapCenter}
             defaultZoom={12}
@@ -902,7 +1047,9 @@ export function MapViewPage() {
             className="w-full h-full"
           >
             {/* Recorrido del itinerario dibujado en el mapa (filtrado por día) */}
-            {showRoute && routeStops.length >= 2 && <MapDirections key={dayFilter} stops={routeStops} />}
+            {showRoute && routeStops.length >= 2 && (
+              <MapDirections key={`${dayFilter}-${travelMode}`} stops={routeStops} mode={travelMode} />
+            )}
 
             {/* Paradas del itinerario con ubicación: pines numerados (del día filtrado).
                 El icono es de 24px pero el área pulsable ronda los 44px (padding). */}
@@ -1006,14 +1153,16 @@ export function MapViewPage() {
               (en móvil la tarjeta ocupa la franja inferior y los tapaba). */}
           {!selected && (
             <>
-              {/* Mi ubicación */}
+              {/* Seguir mi ubicación (toggle) */}
               <Button
                 size="icon"
-                onClick={locateMe}
-                disabled={locating}
-                aria-label="Dónde estoy" title="Dónde estoy"
+                onClick={toggleFollow}
+                aria-label="Seguir mi ubicación" title="Seguir mi ubicación"
+                aria-pressed={following}
                 className="absolute bottom-20 right-4 md:bottom-6 z-10 rounded-full w-12 h-12 md:w-11 md:h-11 shadow-xl"
-                style={{ background: 'var(--card)', color: 'var(--primary)', border: '1px solid var(--border)' }}
+                style={following
+                  ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
+                  : { background: 'var(--card)', color: 'var(--primary)', border: '1px solid var(--border)' }}
               >
                 {locating ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
               </Button>
@@ -1224,34 +1373,7 @@ export function MapViewPage() {
       </Dialog>
 
       {/* Selector de app para "Cómo llegar" */}
-      <Dialog open={!!directionsTo} onOpenChange={() => setDirectionsTo(null)}>
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-          <DialogHeader>
-            <DialogTitle className="font-serif flex items-center gap-2">
-              <Navigation size={18} style={{ color: 'var(--primary)' }} />
-              Cómo llegar
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground -mt-1">{directionsTo?.name}</p>
-          <div className="grid gap-2 py-2">
-            {navApps.map(app => (
-              <a
-                key={app.name}
-                href={app.href}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => setDirectionsTo(null)}
-                className="flex items-center justify-between px-4 py-3 rounded-lg border border-border hover:border-primary transition-colors"
-                style={{ background: 'var(--secondary)' }}
-              >
-                <span className="text-sm font-medium">{app.name}</span>
-                <ExternalLink size={14} className="text-muted-foreground" />
-              </a>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">Se abrirá la app si la tienes instalada; si no, en el navegador.</p>
-        </DialogContent>
-      </Dialog>
+      <DirectionsDialog target={directionsTo} onClose={() => setDirectionsTo(null)} />
 
       {/* Editar favorito: lista, nota y enlace */}
       <Dialog open={!!editFav} onOpenChange={(o) => !o && setEditFav(null)}>

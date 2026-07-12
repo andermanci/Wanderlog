@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Clock, MapPin, Euro, ExternalLink, Pencil, FileText, Navigation,
   Upload, Loader2, X, Calendar, Trash2, Map as MapIcon, Bell,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/ui/back-button'
@@ -12,6 +13,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { TripHeader } from '@/components/trips/TripHeader'
+import { DirectionsDialog } from '@/components/DirectionsDialog'
+import type { DirectionsTarget } from '@/lib/directions'
 import { useActivities, useItineraryDays, useDeleteActivity } from '@/lib/queries/itinerary'
 import { useCreateReminder } from '@/lib/queries/reminders'
 import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAttachment } from '@/lib/queries/attachments'
@@ -37,6 +40,7 @@ export function ActivityDetailPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [directionsTo, setDirectionsTo] = useState<DirectionsTarget | null>(null)
 
   const activity = activities?.find(a => a.id === activityId)
   const day = days?.find(d => d.id === activity?.day_id)
@@ -93,6 +97,17 @@ export function ActivityDetailPage() {
   const color = ACTIVITY_COLORS[activity.type]
   const isTransport = activity.type === 'transport' && (activity.origin || activity.destination)
   const mapsQuery = activity.address ? encodeURIComponent(activity.address) : null
+
+  // Navegación secuencial por el itinerario (fecha del día + order_index).
+  // Los hoteles quedan fuera: son un banner de estancia, no un paso puntual.
+  const dayDate = new Map((days ?? []).map(d => [d.id, d.date]))
+  const navigable = (activities ?? [])
+    .filter(a => a.type !== 'hotel' && dayDate.has(a.day_id))
+    .map(a => ({ a, date: dayDate.get(a.day_id)! }))
+    .sort((x, y) => x.date !== y.date ? x.date.localeCompare(y.date) : x.a.order_index - y.a.order_index)
+  const navIdx = navigable.findIndex(x => x.a.id === activityId)
+  const prevActivity = navIdx > 0 ? navigable[navIdx - 1].a : null
+  const nextActivity = navIdx >= 0 && navIdx < navigable.length - 1 ? navigable[navIdx + 1].a : null
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
@@ -181,10 +196,13 @@ export function ActivityDetailPage() {
                   className="w-full h-56 rounded-lg border border-border"
                   loading="lazy"
                 />
-                <Button size="sm" variant="outline" className="gap-1.5 text-xs" asChild>
-                  <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(activity.origin)}&destination=${encodeURIComponent(activity.destination)}`} target="_blank" rel="noreferrer">
-                    <Navigation size={12} /> Cómo llegar
-                  </a>
+                <Button size="sm" variant="outline" className="gap-1.5 text-xs"
+                  onClick={() => setDirectionsTo({
+                    name: activity.destination!,
+                    lat: activity.destination_lat, lng: activity.destination_lng,
+                    address: activity.destination,
+                  })}>
+                  <Navigation size={12} /> Cómo llegar
                 </Button>
               </>
             )}
@@ -199,10 +217,13 @@ export function ActivityDetailPage() {
                 <MapPin size={13} style={{ color: 'var(--primary)' }} className="flex-shrink-0 mt-0.5" />
                 <span className="break-words min-w-0">{activity.address}</span>
               </p>
-              <Button size="sm" variant="outline" className="gap-1.5 text-xs flex-shrink-0" asChild>
-                <a href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`} target="_blank" rel="noreferrer">
-                  <Navigation size={12} /> <span className="hidden sm:inline">Cómo llegar</span>
-                </a>
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs flex-shrink-0"
+                onClick={() => setDirectionsTo({
+                  name: activity.title,
+                  lat: activity.lat, lng: activity.lng,
+                  address: activity.address,
+                })}>
+                <Navigation size={12} /> <span className="hidden sm:inline">Cómo llegar</span>
               </Button>
             </div>
             <iframe
@@ -326,6 +347,34 @@ export function ActivityDetailPage() {
             />
           </div>
         </div>
+
+        {/* Navegar a la actividad anterior/siguiente del itinerario */}
+        {(prevActivity || nextActivity) && (
+          <div className="flex gap-2">
+            {prevActivity ? (
+              <Button variant="outline" className="flex-1 h-auto py-2.5 justify-start gap-1.5" asChild>
+                <Link to={`/trips/${tripId}/itinerary/${prevActivity.id}`}>
+                  <ChevronLeft size={15} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                  <span className="min-w-0 text-left">
+                    <span className="block text-[10px] text-muted-foreground">Anterior</span>
+                    <span className="block text-sm font-medium truncate">{prevActivity.title}</span>
+                  </span>
+                </Link>
+              </Button>
+            ) : <div className="flex-1" />}
+            {nextActivity ? (
+              <Button variant="outline" className="flex-1 h-auto py-2.5 justify-end gap-1.5" asChild>
+                <Link to={`/trips/${tripId}/itinerary/${nextActivity.id}`}>
+                  <span className="min-w-0 text-right">
+                    <span className="block text-[10px] text-muted-foreground">Siguiente</span>
+                    <span className="block text-sm font-medium truncate">{nextActivity.title}</span>
+                  </span>
+                  <ChevronRight size={15} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                </Link>
+              </Button>
+            ) : <div className="flex-1" />}
+          </div>
+        )}
       </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -350,6 +399,8 @@ export function ActivityDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DirectionsDialog target={directionsTo} onClose={() => setDirectionsTo(null)} />
     </div>
   )
 }

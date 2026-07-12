@@ -1,14 +1,30 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Clock, BedDouble, Receipt, Map as MapIcon, CalendarDays, ChevronRight, BookOpen } from 'lucide-react'
+import { Clock, BedDouble, Receipt, Map as MapIcon, CalendarDays, ChevronRight, BookOpen, Navigation, Coins } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { CurrencyConverter } from '@/components/CurrencyConverter'
+import { useAuthStore } from '@/store/authStore'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
-import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
+import { DirectionsDialog } from '@/components/DirectionsDialog'
+import { UsefulInfoCard } from '@/components/trips/UsefulInfoCard'
+import { useTripWeather, useTodayWeatherHourly, weatherIcon, destinationHourKey } from '@/lib/queries/weather'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { lodgingByDayMap } from '@/lib/lodging'
+import type { DirectionsTarget } from '@/lib/directions'
 import { ACTIVITY_COLORS } from '@/lib/utils'
 import type { Trip, Activity, ItineraryDay } from '@/types/database'
+
+// Destino navegable de una actividad: coords propias, o las de destino/origen
+// (transportes), o su dirección en texto. null si no hay nada que navegar.
+function activityTarget(a: Activity): DirectionsTarget | null {
+  const lat = a.lat ?? a.destination_lat ?? a.origin_lat
+  const lng = a.lng ?? a.destination_lng ?? a.origin_lng
+  const address = a.address ?? a.destination ?? a.origin
+  if (lat == null && !address) return null
+  return { name: a.title, lat, lng, address }
+}
 
 const toMin = (t: string) => {
   const [h, m] = t.slice(0, 5).split(':').map(Number)
@@ -23,7 +39,11 @@ export function TodayHub({ trip, activities, days }: {
   days: ItineraryDay[] | undefined
 }) {
   const { data: weather } = useTripWeather(trip, days, activities)
+  const { data: hourly } = useTodayWeatherHourly(trip, days, activities)
   const { data: guides } = useDestinationGuides(trip.id)
+  const [directionsTo, setDirectionsTo] = useState<DirectionsTarget | null>(null)
+  const [converterOpen, setConverterOpen] = useState(false)
+  const { profile } = useAuthStore()
   const todayStr = format(new Date(), 'yyyy-MM-dd')
   const todayDay = days?.find(d => d.date === todayStr)
   const todayGuide = todayDay?.guide_id ? guides?.find(g => g.id === todayDay.guide_id) : undefined
@@ -47,6 +67,18 @@ export function TodayHub({ trip, activities, days }: {
   const w = weather?.[todayStr]
   const featured = current ?? next ?? todayActs[0] ?? null
 
+  // Próximas horas (en hora local del DESTINO, como las sirve Open-Meteo).
+  const upcomingHours = useMemo(() => {
+    if (!hourly) return []
+    const nowKey = destinationHourKey(hourly.timezone)
+    return hourly.hours.filter(h => h.time >= nowKey).slice(0, 10)
+  }, [hourly])
+  const rainAt = upcomingHours.find(h => h.precipProb >= 50)
+
+  // Facts de la guía: la de hoy, o la primera con datos.
+  const facts = (todayDay?.guide_id ? guides?.find(g => g.id === todayDay.guide_id)?.facts : undefined)
+    ?? guides?.find(g => g.facts && Object.values(g.facts).some(Boolean))?.facts
+
   if (!todayDay) return null
 
   return (
@@ -65,6 +97,29 @@ export function TodayHub({ trip, activities, days }: {
           </span>
         )}
       </div>
+
+      {/* Próximas horas: aviso de lluvia + mini-franja horaria */}
+      {rainAt && (
+        <p className="flex items-center gap-1.5 text-xs font-medium mb-2 px-2 py-1 rounded-md w-fit"
+          style={{ color: 'var(--info)', background: 'color-mix(in srgb, var(--info) 10%, transparent)' }}>
+          🌧 Lluvia probable ({rainAt.precipProb}%) a las {rainAt.time.slice(11, 13)}h
+        </p>
+      )}
+      {upcomingHours.length > 1 && (
+        <div className="flex gap-1 overflow-x-auto mb-3 -mx-1 px-1 [scrollbar-width:none]">
+          {upcomingHours.map(h => (
+            <div key={h.time} className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg flex-shrink-0"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <span className="text-[10px] text-muted-foreground tabular-nums">{h.time.slice(11, 16)}</span>
+              <span className="text-sm leading-none">{weatherIcon(h.code)}</span>
+              <span className="text-[11px] font-medium tabular-nums">{h.temp}°</span>
+              {h.precipProb >= 30 && (
+                <span className="text-[9px] tabular-nums" style={{ color: 'var(--info)' }}>{h.precipProb}%</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Ciudad de hoy (guía del destino) */}
       {todayGuide && (
@@ -104,6 +159,17 @@ export function TodayHub({ trip, activities, days }: {
               </p>
             )}
           </div>
+          {activityTarget(featured) && (
+            <button
+              type="button"
+              aria-label="Cómo llegar"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDirectionsTo(activityTarget(featured)) }}
+              className="flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0 transition-colors hover:brightness-110"
+              style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)' }}
+            >
+              <Navigation size={16} style={{ color: 'var(--primary)' }} />
+            </button>
+          )}
           <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
         </Link>
       ) : (
@@ -120,8 +186,11 @@ export function TodayHub({ trip, activities, days }: {
         </Link>
       )}
 
+      {/* Hora local, emergencias y datos del destino */}
+      <UsefulInfoCard hourly={hourly} facts={facts} />
+
       {/* Accesos rápidos */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         <Link to={`/trips/${trip.id}/itinerary?day=${todayStr}`}
           className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary"
           style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
@@ -137,6 +206,11 @@ export function TodayHub({ trip, activities, days }: {
           style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <Receipt size={16} style={{ color: 'var(--primary)' }} /> Gasto
         </Link>
+        <button type="button" onClick={() => setConverterOpen(true)}
+          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <Coins size={16} style={{ color: 'var(--primary)' }} /> Divisas
+        </button>
       </div>
 
       {/* Resto de actividades de hoy */}
@@ -154,6 +228,22 @@ export function TodayHub({ trip, activities, days }: {
           ))}
         </div>
       )}
+
+      <DirectionsDialog target={directionsTo} onClose={() => setDirectionsTo(null)} />
+
+      <Dialog open={converterOpen} onOpenChange={setConverterOpen}>
+        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <Coins size={18} style={{ color: 'var(--primary)' }} /> Conversor de divisas
+            </DialogTitle>
+          </DialogHeader>
+          <CurrencyConverter
+            defaultFrom={trip.default_currency || profile?.default_currency || 'EUR'}
+            defaultTo={profile?.default_currency ?? 'EUR'}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

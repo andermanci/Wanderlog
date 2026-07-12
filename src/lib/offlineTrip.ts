@@ -10,6 +10,7 @@ import { reminderKeys } from '@/lib/queries/reminders'
 import { placeKeys } from '@/lib/queries/places'
 import { journalKeys } from '@/lib/queries/journal'
 import { attachmentKeys } from '@/lib/queries/attachments'
+import { guideKeys } from '@/lib/queries/guide'
 
 // Prefetchea TODOS los datos de un viaje (con las mismas query keys que usan los
 // hooks) y calienta la caché de imágenes del service worker, para poder usar el
@@ -44,6 +45,15 @@ export async function prefetchTripOffline(
     { key: placeKeys.all(tripId), fn: sel('favorite_places', { col: 'created_at' }) },
     { key: journalKeys.photos(tripId), fn: sel('journal_photos', { col: 'created_at' }) },
     { key: attachmentKeys.byTrip(tripId), fn: sel('activity_attachments', { col: 'created_at' }) },
+    // ⚠️ Añadir tareas nuevas SIEMPRE al final: el destructuring de `results`
+    // de abajo es posicional.
+    { key: guideKeys.all(tripId), fn: async () => {
+      const { data, error } = await supabase
+        .from('destination_guides').select('*').eq('trip_id', tripId)
+        .order('order_index').order('created_at')
+      if (error) throw error
+      return data ?? []
+    } },
   ]
 
   let done = 0
@@ -57,12 +67,26 @@ export async function prefetchTripOffline(
   // 2) Calentar la caché de imágenes (el SW las guarda con CacheFirst).
   const urls = new Set<string>()
   const add = (u?: string | null) => { if (u && /^https?:\/\//.test(u)) urls.add(u) }
-  const [trip, , , documents, , , , , places, journal, attachments] = results
+  const [trip, , , documents, , , , , places, journal, attachments, guides] = results
   add(trip?.cover_image_url)
   ;(documents ?? []).forEach((d: any) => { add(d.file_url); add(d.back_url) }) // eslint-disable-line @typescript-eslint/no-explicit-any
   ;(places ?? []).forEach(() => {})
   ;(journal ?? []).forEach((j: any) => add(j.file_url)) // eslint-disable-line @typescript-eslint/no-explicit-any
   ;(attachments ?? []).forEach((a: any) => add(a.file_url)) // eslint-disable-line @typescript-eslint/no-explicit-any
+  ;(guides ?? []).forEach((g: any) => add(g.cover_image_url)) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  // Tipos de cambio en la divisa del viaje: el conversor funciona offline.
+  if (trip?.default_currency) {
+    await qc.ensureQueryData({
+      queryKey: ['rates', trip.default_currency],
+      queryFn: async () => {
+        const res = await fetch(`https://open.er-api.com/v6/latest/${trip.default_currency}`)
+        if (!res.ok) throw new Error('rates')
+        const data = await res.json()
+        return (data?.rates ?? {}) as Record<string, number>
+      },
+    }).catch(() => null)
+  }
 
   await Promise.all([...urls].map((u) => fetch(u).catch(() => {})))
   onProgress?.(total, total)
