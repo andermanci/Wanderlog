@@ -157,3 +157,21 @@ export function useDeleteTrip() {
     onError: () => toast.error('Error al eliminar el viaje'),
   })
 }
+
+// Duplica el viaje (itinerario, días y guías del destino) vía RPC: la
+// función en BD hace todo el remapeo de ids en una sola transacción.
+export function useDuplicateTrip() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase.rpc('duplicate_trip', { p_trip_id: id })
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: tripKeys.lists() })
+      toast.success('Viaje duplicado')
+    },
+    onError: () => toast.error('No se pudo duplicar el viaje'),
+  })
+}

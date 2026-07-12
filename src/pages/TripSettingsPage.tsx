@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Wallet, Coins, Flag, Trash2, Loader2 } from 'lucide-react'
+import { Wallet, Coins, Flag, Trash2, Loader2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { CurrencySelect } from '@/components/CurrencySelect'
 import { TripHeader } from '@/components/trips/TripHeader'
-import { useTrip, useUpdateTrip, useDeleteTrip } from '@/lib/queries/trips'
+import { useTrip, useUpdateTrip, useDeleteTrip, useDuplicateTrip } from '@/lib/queries/trips'
 import { STATUS_LABELS } from '@/lib/utils'
 import type { Trip } from '@/types/database'
 import { toast } from 'sonner'
@@ -25,6 +25,7 @@ export function TripSettingsPage() {
   const { data: trip } = useTrip(tripId!)
   const updateTrip = useUpdateTrip()
   const deleteTrip = useDeleteTrip()
+  const duplicateTrip = useDuplicateTrip()
   const navigate = useNavigate()
 
   const [currency, setCurrency] = useState('EUR')
@@ -65,6 +66,12 @@ export function TripSettingsPage() {
     if (!tripId) return
     await deleteTrip.mutateAsync(tripId)
     navigate('/dashboard')
+  }
+
+  async function onDuplicate() {
+    if (!tripId) return
+    const copy = await duplicateTrip.mutateAsync(tripId)
+    navigate(`/trips/${copy.id}`)
   }
 
   const cardStyle = { background: 'var(--card)', border: '1px solid var(--border)' } as const
@@ -141,6 +148,32 @@ export function TripSettingsPage() {
           {updateTrip.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
           Guardar cambios
         </Button>
+
+        {/* Duplicar viaje */}
+        <section className="mt-12">
+          <div className="flex items-center gap-2 mb-4">
+            <Copy size={18} style={{ color: 'var(--primary)' }} />
+            <h2 className="font-serif text-xl">Duplicar viaje</h2>
+          </div>
+          <div className="p-6 rounded-xl flex items-center justify-between gap-3" style={cardStyle}>
+            <div className="min-w-0">
+              <p className="font-medium text-sm">Crear una copia</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Copia el itinerario, días y guía del destino a un viaje nuevo. Gastos,
+                documentos y avisos no se duplican.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-1.5 flex-shrink-0"
+              disabled={duplicateTrip.isPending}
+              onClick={onDuplicate}
+            >
+              {duplicateTrip.isPending ? <Loader2 size={15} className="animate-spin" /> : <Copy size={15} />}
+              Duplicar
+            </Button>
+          </div>
+        </section>
 
         {/* Zona de peligro */}
         <section className="mt-12">

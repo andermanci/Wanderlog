@@ -773,6 +773,10 @@ export type Database = {
         Args: { p_trip_id: string }
         Returns: boolean
       }
+      duplicate_trip: {
+        Args: { p_trip_id: string }
+        Returns: Database['public']['Tables']['trips']['Row']
+      }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>

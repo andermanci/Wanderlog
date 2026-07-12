@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { TripCard } from '@/components/trips/TripCard'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
-import { useTrips, useDeleteTrip, useCreateTrip } from '@/lib/queries/trips'
+import { useTrips, useDeleteTrip, useCreateTrip, useDuplicateTrip } from '@/lib/queries/trips'
 import { OnboardingWelcome } from '@/components/OnboardingWelcome'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
 import { usePendingReminders } from '@/lib/queries/reminders'
@@ -39,6 +39,7 @@ export function Dashboard() {
   const { data: todayActs } = useTodayActivities()
   const deleteTrip = useDeleteTrip()
   const createTrip = useCreateTrip()
+  const duplicateTrip = useDuplicateTrip()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -294,6 +295,7 @@ export function Dashboard() {
                   index={i}
                   onEdit={(t) => { setEditTrip(t); setFormOpen(true) }}
                   onDelete={setDeleteTarget}
+                  onDuplicate={(t) => duplicateTrip.mutate(t.id)}
                 />
               ))}
             </div>

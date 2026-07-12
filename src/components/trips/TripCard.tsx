@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { MapPin, Calendar, Tag, Trash2, Pencil, Users } from 'lucide-react'
+import { MapPin, Calendar, Tag, Trash2, Pencil, Users, Copy } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn, formatDate, countdownLabel, STATUS_LABELS, STATUS_COLORS, daysUntil, effectiveStatus } from '@/lib/utils'
@@ -12,10 +12,11 @@ interface TripCardProps {
   trip: Trip
   onEdit: (trip: Trip) => void
   onDelete: (trip: Trip) => void
+  onDuplicate: (trip: Trip) => void
   index?: number
 }
 
-export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
+export function TripCard({ trip, onEdit, onDelete, onDuplicate, index = 0 }: TripCardProps) {
   const { user } = useAuthStore()
   const imageUrl = trip.cover_image_url || fallbackCover(trip.id)
   const days = daysUntil(trip.start_date)
@@ -119,6 +120,15 @@ export function TripCard({ trip, onEdit, onDelete, index = 0 }: TripCardProps) {
           onClick={(e) => { e.preventDefault(); onEdit(trip) }}
         >
           <Pencil size={12} />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="w-7 h-7 glass rounded-md"
+          onClick={(e) => { e.preventDefault(); onDuplicate(trip) }}
+          aria-label="Duplicar viaje" title="Duplicar viaje"
+        >
+          <Copy size={12} />
         </Button>
         {!isShared && (
           <Button
