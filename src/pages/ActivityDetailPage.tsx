@@ -352,7 +352,7 @@ export function ActivityDetailPage() {
         {(prevActivity || nextActivity) && (
           <div className="flex gap-2">
             {prevActivity ? (
-              <Button variant="outline" className="flex-1 h-auto py-2.5 justify-start gap-1.5" asChild>
+              <Button variant="outline" className="flex-1 min-w-0 h-auto py-2.5 justify-start gap-1.5" asChild>
                 <Link to={`/trips/${tripId}/itinerary/${prevActivity.id}`}>
                   <ChevronLeft size={15} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
                   <span className="min-w-0 text-left">
@@ -363,7 +363,7 @@ export function ActivityDetailPage() {
               </Button>
             ) : <div className="flex-1" />}
             {nextActivity ? (
-              <Button variant="outline" className="flex-1 h-auto py-2.5 justify-end gap-1.5" asChild>
+              <Button variant="outline" className="flex-1 min-w-0 h-auto py-2.5 justify-end gap-1.5" asChild>
                 <Link to={`/trips/${tripId}/itinerary/${nextActivity.id}`}>
                   <span className="min-w-0 text-right">
                     <span className="block text-[10px] text-muted-foreground">Siguiente</span>
