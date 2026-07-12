@@ -1,29 +1,50 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { eachDayOfInterval, parseISO, format } from 'date-fns'
+import { eachDayOfInterval, parseISO, format, addDays, differenceInCalendarDays } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { itineraryKeys } from '@/lib/queries/itinerary'
 import type { Trip } from '@/types/database'
 import { toast } from 'sonner'
 
-// Sincroniza los días del itinerario con el rango de fechas del viaje:
-// añade los que falten y borra los que quedan fuera SIN actividades (los que
-// tienen actividades se conservan para no perder datos).
-async function reconcileItineraryDays(tripId: string, startDate: string, endDate: string) {
-  const want = eachDayOfInterval({ start: parseISO(startDate), end: parseISO(endDate) })
+// Sincroniza los días del itinerario con el nuevo rango de fechas del viaje.
+// Si cambia la fecha de inicio, primero DESPLAZA en bloque todos los días
+// existentes ese mismo número de días (mismo id de día, solo cambia `date`):
+// como las actividades referencian el id del día (no la fecha), todo el
+// itinerario "viaja" junto automáticamente sin tocar una sola actividad.
+// Después, como antes: añade los días que falten al final del nuevo rango y
+// borra los que sobren SIN actividades (los que tienen se conservan, avisando).
+async function reconcileItineraryDays(tripId: string, oldStartDate: string, newStartDate: string, newEndDate: string) {
+  const { data: existing } = await supabase
+    .from('itinerary_days').select('id, date').eq('trip_id', tripId)
+
+  const deltaDays = differenceInCalendarDays(parseISO(newStartDate), parseISO(oldStartDate))
+  if (deltaDays !== 0 && existing?.length) {
+    // Se actualiza uno a uno, en el orden que evita chocar con la restricción
+    // unique(trip_id, date): si el viaje se retrasa, primero el día más
+    // tardío (su nueva fecha no puede coincidir con la de otro aún sin
+    // mover); si se adelanta, al revés.
+    const ordered = [...existing].sort((a, b) =>
+      deltaDays > 0 ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))
+    for (const day of ordered) {
+      const newDate = format(addDays(parseISO(day.date), deltaDays), 'yyyy-MM-dd')
+      await supabase.from('itinerary_days').update({ date: newDate }).eq('id', day.id)
+    }
+  }
+
+  const want = eachDayOfInterval({ start: parseISO(newStartDate), end: parseISO(newEndDate) })
     .map(d => format(d, 'yyyy-MM-dd'))
   const wantSet = new Set(want)
 
-  const { data: existing } = await supabase
+  const { data: afterShift } = await supabase
     .from('itinerary_days').select('id, date').eq('trip_id', tripId)
-  const existingDates = new Set((existing ?? []).map(d => d.date))
+  const existingDates = new Set((afterShift ?? []).map(d => d.date))
 
   const toAdd = want.filter(d => !existingDates.has(d)).map(date => ({ trip_id: tripId, date, notes: null }))
   if (toAdd.length) {
     await supabase.from('itinerary_days').upsert(toAdd, { onConflict: 'trip_id,date' })
   }
 
-  const outside = (existing ?? []).filter(d => !wantSet.has(d.date))
+  const outside = (afterShift ?? []).filter(d => !wantSet.has(d.date))
   if (outside.length) {
     const { data: acts } = await supabase
       .from('activities').select('day_id, end_day_id').eq('trip_id', tripId)
@@ -120,6 +141,14 @@ export function useUpdateTrip() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...values }: Partial<Trip> & { id: string }) => {
+      // Si cambian las fechas, hace falta el start_date ANTERIOR para poder
+      // desplazar el itinerario en bloque: se pide antes de aplicar el cambio.
+      let prevStartDate: string | null = null
+      if (values.start_date && values.end_date) {
+        const { data: prev } = await supabase.from('trips').select('start_date').eq('id', id).single()
+        prevStartDate = prev?.start_date ?? null
+      }
+
       const { data, error } = await supabase
         .from('trips')
         .update(values)
@@ -127,9 +156,9 @@ export function useUpdateTrip() {
         .select()
         .single()
       if (error) throw error
-      // Si cambian las fechas, reconciliar los días del itinerario.
+      // Si cambian las fechas, reconciliar (y desplazar) los días del itinerario.
       if (values.start_date && values.end_date) {
-        await reconcileItineraryDays(id, values.start_date, values.end_date)
+        await reconcileItineraryDays(id, prevStartDate ?? values.start_date, values.start_date, values.end_date)
       }
       return data
     },
@@ -137,6 +166,9 @@ export function useUpdateTrip() {
       qc.invalidateQueries({ queryKey: tripKeys.lists() })
       qc.invalidateQueries({ queryKey: tripKeys.detail(data.id) })
       qc.invalidateQueries({ queryKey: itineraryKeys.days(data.id) })
+      // El clima está cacheado por día: si las fechas se movieron, refrescar.
+      qc.invalidateQueries({ queryKey: ['weather', data.id] })
+      qc.invalidateQueries({ queryKey: ['weather-hourly', data.id] })
       toast.success('Viaje actualizado')
     },
     onError: () => toast.error('Error al actualizar el viaje'),
