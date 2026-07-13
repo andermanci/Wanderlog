@@ -72,18 +72,20 @@ export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdi
       )}
 
       {/* Media box: mismo tamaño siempre (foto o icono del tipo), para que todas
-          las filas tengan la misma estética y el texto quede alineado. */}
+          las filas tengan la misma estética y el texto quede alineado. Más
+          grande que antes: le da a la tarjeta un aire más editorial (foto
+          protagonista) en vez de una fila de texto con un icono pequeño. */}
       {activity.cover_image_url ? (
         <img
           src={activity.cover_image_url}
           alt=""
-          className="flex-shrink-0 w-11 h-11 rounded-lg object-cover border border-border"
+          className="flex-shrink-0 w-14 h-14 sm:w-20 sm:h-20 rounded-xl object-cover border border-border"
           loading="lazy"
         />
       ) : (
-        <span className="flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center"
+        <span className="flex-shrink-0 w-14 h-14 sm:w-20 sm:h-20 rounded-xl flex items-center justify-center"
           style={{ background: `color-mix(in srgb, ${color} 14%, transparent)` }}>
-          <ActivityIcon type={activity.type} size={19} style={{ color }} aria-hidden="true" />
+          <ActivityIcon type={activity.type} size={24} style={{ color }} aria-hidden="true" />
         </span>
       )}
 
@@ -92,12 +94,13 @@ export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdi
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <p className={cn(
-              'font-medium text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors',
+              'font-serif font-semibold text-[15px] sm:text-base text-foreground line-clamp-1 group-hover:text-primary transition-colors',
               done && 'line-through',
             )}>
               {activity.title}
             </p>
 
+            {/* Kicker: tipo, horario y demás metadatos breves */}
             <div className="flex items-center gap-2.5 mt-1 flex-wrap">
               <span
                 className="text-[11px] font-medium px-1.5 py-0.5 rounded-md leading-none"
@@ -118,17 +121,6 @@ export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdi
                   {activity.type === 'hotel' ? 'estancia' : 'llega otro día'}
                 </span>
               )}
-              {activity.type === 'transport' && (activity.origin || activity.destination) ? (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
-                  <MapPin size={10} className="flex-shrink-0" />
-                  <span className="break-words">{activity.origin}{activity.origin && activity.destination ? ' → ' : ''}{activity.destination}</span>
-                </span>
-              ) : activity.address && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
-                  <MapPin size={10} className="flex-shrink-0" />
-                  <span className="break-words">{activity.address}</span>
-                </span>
-              )}
               {activity.price != null && (
                 <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--primary)' }}>
                   <Euro size={10} />
@@ -145,6 +137,19 @@ export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdi
                 </span>
               )}
             </div>
+
+            {/* Línea secundaria (más aire): dirección u origen → destino */}
+            {activity.type === 'transport' && (activity.origin || activity.destination) ? (
+              <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5 min-w-0">
+                <MapPin size={10} className="flex-shrink-0" />
+                <span className="break-words">{activity.origin}{activity.origin && activity.destination ? ' → ' : ''}{activity.destination}</span>
+              </p>
+            ) : activity.address && (
+              <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5 min-w-0">
+                <MapPin size={10} className="flex-shrink-0" />
+                <span className="break-words">{activity.address}</span>
+              </p>
+            )}
 
             {activity.description && (
               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{activity.description}</p>

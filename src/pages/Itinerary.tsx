@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, useDroppable,
 } from '@dnd-kit/core'
@@ -22,12 +23,15 @@ import { ActivityBlock } from '@/components/itinerary/ActivityBlock'
 import { DayJournalDialog } from '@/components/itinerary/DayJournalDialog'
 import { DayAlerts } from '@/components/itinerary/DayAlerts'
 import { TripOverview } from '@/components/itinerary/TripOverview'
+import { TravelConnector } from '@/components/itinerary/TravelConnector'
 import { useJournalPhotos } from '@/lib/queries/journal'
 import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
 import {
   useItineraryDays, useActivities, useUpsertDays,
   useDeleteActivity, useReorderActivities, useUpdateDayGuide, useUpdateDayCity, useSetActivityDone,
 } from '@/lib/queries/itinerary'
+import { useTripTravelTimes } from '@/lib/queries/travelTime'
+import { pairKey, formatDayTotal } from '@/lib/travelTime'
 import { useItineraryModeStore, resolveEditMode } from '@/store/itineraryModeStore'
 import { useDayAlerts } from '@/lib/queries/dayAlerts'
 import { useDestinationGuides } from '@/lib/queries/guide'
@@ -41,7 +45,20 @@ import type { Activity, DayAlert, ItineraryDay } from '@/types/database'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
+
+// El conector de tiempos de viaje necesita la librería 'routes' de Google
+// Maps, que a su vez necesita un <APIProvider> ancestro — de ahí este
+// envoltorio ligero alrededor del componente real de la página.
 export function ItineraryPage() {
+  return (
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+      <ItineraryPageInner />
+    </APIProvider>
+  )
+}
+
+function ItineraryPageInner() {
   const { tripId } = useParams<{ tripId: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -158,6 +175,11 @@ export function ItineraryPage() {
     const lodgings = (lodgingByDay.get(dayId) ?? []).map(l => l.activity)
     return [...acts, ...lodgings].sort((a, b) => dayOrderOf(a, dayId) - dayOrderOf(b, dayId))
   }
+
+  // Tiempos de viaje (a pie / en coche) entre paradas consecutivas de cada
+  // día, para el conector que se pinta entre tarjetas de actividad.
+  const routesLib = useMapsLibrary('routes')
+  const travelTimes = useTripTravelTimes({ days, combinedItemsFor, collapsedDays, routesLib })
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -307,6 +329,12 @@ export function ItineraryPage() {
                   ...dayActs.map(a => ({ id: a.id, order: a.order_index, act: a, lodge: null as Lodging | null })),
                   ...dayLodging.map(l => ({ id: l.activity.id, order: dayOrderOf(l.activity, day.id), act: null as Activity | null, lodge: l })),
                 ].sort((x, y) => x.order - y.order)
+                // Suma de los tramos con tiempo ya resuelto (los que faltan por
+                // cargar o sin coordenadas simplemente no cuentan).
+                const dayTravelTotalSeconds = dayItems.slice(0, -1).reduce((sum, it, i) => {
+                  const leg = travelTimes.get(pairKey(it.id, dayItems[i + 1].id))
+                  return leg ? sum + leg.durationSeconds : sum
+                }, 0)
                 const collapsed = collapsedDays.has(day.id)
                 const dateLabel = format(parseISO(day.date), "EEEE dd 'de' MMMM", { locale: es })
                 const isToday = day.date === todayStr
@@ -363,6 +391,7 @@ export function ItineraryPage() {
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Día {dayIdx + 1} · {dayActs.length} {dayActs.length === 1 ? 'actividad' : 'actividades'}
                           {dayArrivals.length > 0 && ` · ${dayArrivals.length} llegada${dayArrivals.length > 1 ? 's' : ''}`}
+                          {dayTravelTotalSeconds > 0 && ` · ${formatDayTotal(dayTravelTotalSeconds)}`}
                         </p>
                         {/* Guía de destino del día (contenido de la ciudad, opcional) */}
                         {editMode && (guides?.length ?? 0) > 0 && (
@@ -510,8 +539,10 @@ export function ItineraryPage() {
                             </div>
                           )}
 
-                          {/* Actividades + estancias (lista combinada, arrastrable, a todo el ancho) */}
-                          <DayDroppable id={day.id} className="space-y-2">
+                          {/* Actividades + estancias (lista combinada, arrastrable, a todo el ancho).
+                              Sin space-y: el ritmo vertical lo pone el propio TravelConnector
+                              intercalado entre cada par (línea de tiempos de viaje o hueco simple). */}
+                          <DayDroppable id={day.id}>
                             <SortableContext items={dayItems.map(it => `${it.id}::${day.id}`)} strategy={verticalListSortingStrategy}>
                               {dayItems.length === 0 ? (
                                 editMode ? (
@@ -526,22 +557,28 @@ export function ItineraryPage() {
                                   <p className="text-sm text-muted-foreground py-2">Sin actividades</p>
                                 )
                               ) : (
-                                dayItems.map(it => it.lodge ? (
-                                  <SortableLodgingBanner key={it.id} sortableId={`${it.id}::${day.id}`} lodging={it.lodge} tripId={tripId!} editMode={editMode} />
-                                ) : (
-                                  <ActivityBlock
-                                    key={it.id}
-                                    sortableId={`${it.id}::${day.id}`}
-                                    activity={it.act!}
-                                    attachments={tripAttachments?.filter(a => a.activity_id === it.id)}
-                                    hasAudioguide={audioguideReadyIds?.has(it.id)}
-                                    editMode={editMode}
-                                    onEdit={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}/edit`)}
-                                    onDelete={setDeleteTarget}
-                                    onOpen={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}`)}
-                                    onToggleDone={(a) => setActivityDone.mutate({ id: a.id, done: !a.done, tripId: tripId! })}
-                                  />
-                                ))
+                                dayItems.flatMap((it, i) => {
+                                  const card = it.lodge ? (
+                                    <SortableLodgingBanner key={it.id} sortableId={`${it.id}::${day.id}`} lodging={it.lodge} tripId={tripId!} editMode={editMode} />
+                                  ) : (
+                                    <ActivityBlock
+                                      key={it.id}
+                                      sortableId={`${it.id}::${day.id}`}
+                                      activity={it.act!}
+                                      attachments={tripAttachments?.filter(a => a.activity_id === it.id)}
+                                      hasAudioguide={audioguideReadyIds?.has(it.id)}
+                                      editMode={editMode}
+                                      onEdit={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}/edit`)}
+                                      onDelete={setDeleteTarget}
+                                      onOpen={(a) => navigate(`/trips/${tripId}/itinerary/${a.id}`)}
+                                      onToggleDone={(a) => setActivityDone.mutate({ id: a.id, done: !a.done, tripId: tripId! })}
+                                    />
+                                  )
+                                  const next = dayItems[i + 1]
+                                  if (!next) return [card]
+                                  const leg = travelTimes.get(pairKey(it.id, next.id))
+                                  return [card, <TravelConnector key={`conn-${it.id}-${next.id}`} leg={leg} />]
+                                })
                               )}
                             </SortableContext>
                           </DayDroppable>
@@ -623,13 +660,18 @@ function SortableLodgingBanner({ sortableId, lodging, tripId, editMode = true }:
         background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
         border: '1px solid color-mix(in srgb, var(--primary) 22%, transparent)',
       }}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
+      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm"
     >
-      {editMode && (
+      {/* Columna de igual ancho que la asa/checkbox de ActivityBlock, para que
+          el TravelConnector quede alineado igual sobre cualquier combinación
+          de tarjeta/banner consecutivos. */}
+      {editMode ? (
         <button {...attributes} {...listeners} onClick={(e) => e.stopPropagation()}
-          className="flex-shrink-0 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+          className="flex-shrink-0 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
           <GripVertical size={13} />
         </button>
+      ) : (
+        <span className="flex-shrink-0 w-8" />
       )}
       <BedDouble size={15} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
       <Link to={`/trips/${tripId}/itinerary/${l.activity.id}`} className="flex-1 min-w-0 truncate font-medium hover:underline">
