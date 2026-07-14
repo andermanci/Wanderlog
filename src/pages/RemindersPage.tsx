@@ -22,6 +22,7 @@ import { useReminders, useCreateReminder, useDeleteReminder } from '@/lib/querie
 import { useTrip } from '@/lib/queries/trips'
 import { useDocuments } from '@/lib/queries/documents'
 import { TripHeader } from '@/components/trips/TripHeader'
+import { enablePush, getPushStatus, type PushStatus } from '@/lib/push'
 import { useAuthStore } from '@/store/authStore'
 import type { Reminder } from '@/types/database'
 import { format, parseISO, isPast } from 'date-fns'
@@ -46,7 +47,7 @@ type FormValues = z.infer<typeof schema>
 
 export function RemindersPage() {
   const { tripId } = useParams<{ tripId: string }>()
-  useAuthStore()
+  const { user } = useAuthStore()
   const { data: reminders, isLoading } = useReminders(tripId!)
   const { data: trip } = useTrip(tripId!)
   const { data: documents } = useDocuments(tripId!)
@@ -55,19 +56,22 @@ export function RemindersPage() {
 
   const [formOpen, setFormOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Reminder | null>(null)
-  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default')
+  // Los avisos llegan por push (VAPID + la edge function send-reminders). Pedir
+  // solo Notification.requestPermission() concedía el permiso del navegador pero
+  // no suscribía a nada: el usuario creía haberlos activado y no recibía ninguno.
+  const [pushStatus, setPushStatus] = useState<PushStatus>('disabled')
 
   useEffect(() => {
-    if ('Notification' in window) {
-      setNotifPermission(Notification.permission)
-    }
+    getPushStatus().then(setPushStatus)
   }, [])
 
-  async function requestNotifPermission() {
-    if (!('Notification' in window)) return
-    const perm = await Notification.requestPermission()
-    setNotifPermission(perm)
-    if (perm === 'granted') toast.success('Notificaciones activadas')
+  async function activatePush() {
+    if (!user) return
+    const status = await enablePush(user.id)
+    setPushStatus(status)
+    if (status === 'enabled') toast.success('Notificaciones activadas')
+    else if (status === 'denied') toast.error('Permiso de notificaciones denegado')
+    else if (status === 'unsupported') toast.error('Este navegador no admite notificaciones')
   }
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -135,7 +139,7 @@ export function RemindersPage() {
       </div>
 
       {/* Banner notificaciones */}
-      {notifPermission !== 'granted' && (
+      {pushStatus !== 'enabled' && pushStatus !== 'unsupported' && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -151,7 +155,7 @@ export function RemindersPage() {
           </div>
           <Button
             size="sm"
-            onClick={requestNotifPermission}
+            onClick={activatePush}
             style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
             className="text-xs"
           >
