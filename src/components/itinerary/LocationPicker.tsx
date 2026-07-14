@@ -80,6 +80,9 @@ function Inner({ initial, center, onPick, onCancel }: {
   const [results, setResults] = useState<SearchHit[]>([])
   const [pending, setPending] = useState<Pending | null>(initial ? { address: initial } : null)
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null)
+  // Cada mapa que se renderiza se factura, y la mayoría de las veces basta con
+  // buscar y elegir de la lista. El mapa solo se monta si el usuario lo pide.
+  const [showMap, setShowMap] = useState(false)
   const defaultCenter = center ?? { lat: 40.4168, lng: -3.7038 }
 
 
@@ -101,7 +104,8 @@ function Inner({ initial, center, onPick, onCancel }: {
   const search = useCallback(async () => {
     const q = query.trim()
     if (!q || typeof google === 'undefined' || !google.maps?.places?.Place) return
-    const bias = mapInstance?.getCenter() ?? undefined
+    // Sin mapa montado, sesga la búsqueda hacia el destino del viaje.
+    const bias = mapInstance?.getCenter() ?? center
     try {
       const { places } = await google.maps.places.Place.searchByText({
         textQuery: q,
@@ -124,7 +128,7 @@ function Inner({ initial, center, onPick, onCancel }: {
     } catch {
       setResults([])
     }
-  }, [query, mapInstance])
+  }, [query, mapInstance, center])
 
   function choose(hit: SearchHit) {
     setPending({ address: hit.address, lat: hit.lat, lng: hit.lng, photoUrl: hit.photoUrl })
@@ -179,24 +183,38 @@ function Inner({ initial, center, onPick, onCancel }: {
           </ScrollArea>
         )}
 
-        <p className="text-xs text-muted-foreground">Busca arriba o toca un punto del mapa.</p>
+        <p className="text-xs text-muted-foreground">
+          {showMap ? 'Busca arriba o toca un punto del mapa.' : 'Busca arriba, o ábrelo en el mapa para elegir el punto exacto.'}
+        </p>
 
         <div className="rounded-lg overflow-hidden border border-border" style={{ height: 300 }}>
-          <Map
-            defaultCenter={pending?.lat ? { lat: pending.lat, lng: pending.lng! } : defaultCenter}
-            defaultZoom={pending?.lat ? 15 : 11}
-            mapId="wanderlog-map"
-            colorScheme={ColorScheme.FOLLOW_SYSTEM}
-            onIdle={(e) => setMapInstance(e.map)}
-            onClick={handleMapClick}
-            className="w-full h-full"
-          >
-            {pending?.lat != null && pending.lng != null && (
-              <AdvancedMarker position={{ lat: pending.lat, lng: pending.lng }}>
-                <Pin background="#bf4d22" glyphColor="#ffffff" borderColor="#e0815a" />
-              </AdvancedMarker>
-            )}
-          </Map>
+          {showMap ? (
+            <Map
+              defaultCenter={pending?.lat ? { lat: pending.lat, lng: pending.lng! } : defaultCenter}
+              defaultZoom={pending?.lat ? 15 : 11}
+              mapId="wanderlog-map"
+              colorScheme={ColorScheme.FOLLOW_SYSTEM}
+              onIdle={(e) => setMapInstance(e.map)}
+              onClick={handleMapClick}
+              className="w-full h-full"
+            >
+              {pending?.lat != null && pending.lng != null && (
+                <AdvancedMarker position={{ lat: pending.lat, lng: pending.lng }}>
+                  <Pin background="#bf4d22" glyphColor="#ffffff" borderColor="#e0815a" />
+                </AdvancedMarker>
+              )}
+            </Map>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowMap(true)}
+              className="w-full h-full flex flex-col items-center justify-center gap-2 bg-secondary/40 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <MapPin size={22} />
+              <span className="text-sm font-medium">Elegir en el mapa</span>
+              <span className="text-xs">Para ajustar el punto exacto</span>
+            </button>
+          )}
         </div>
 
         {pending?.address && (

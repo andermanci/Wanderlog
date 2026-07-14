@@ -106,15 +106,40 @@ function MapDirections({ stops, mode }: { stops: RoutePoint[]; mode: 'DRIVING' |
   return null
 }
 
+// Resultado de búsqueda ya normalizado y SERIALIZABLE: coordenadas planas, sin
+// los getters de la API de Google. Así se puede cachear (y persistir) tal cual.
 interface PlaceResult {
   place_id: string
   name: string
   formatted_address: string
   rating?: number
-  geometry: { location: { lat: () => number; lng: () => number } }
+  lat: number
+  lng: number
   types: string[]
   website?: string
   url?: string
+}
+
+// Una llamada a Places Text Search. Fuera del componente para poder usarla
+// como queryFn cacheable.
+async function searchPlacesByText(query: string, bias: { lat: number; lng: number } | null): Promise<PlaceResult[]> {
+  const { places } = await google.maps.places.Place.searchByText({
+    textQuery: query,
+    fields: ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'types', 'websiteURI', 'googleMapsURI'],
+    maxResultCount: 12,
+    ...(bias ? { locationBias: bias } : {}),
+  })
+  return (places ?? []).filter(p => p.location).map(p => ({
+    place_id: p.id,
+    name: p.displayName ?? '',
+    formatted_address: p.formattedAddress ?? '',
+    rating: p.rating ?? undefined,
+    lat: p.location!.lat(),
+    lng: p.location!.lng(),
+    types: p.types ?? [],
+    website: p.websiteURI ?? undefined,
+    url: p.googleMapsURI ?? undefined,
+  }))
 }
 
 // Forma normalizada para añadir al itinerario, válida tanto para un
@@ -339,20 +364,8 @@ export function MapViewPage() {
       toast.error('El mapa todavía se está cargando. Inténtalo en un momento.')
       return
     }
-    const center = mapInstance?.getCenter() ?? undefined
+    const center = mapInstance?.getCenter()
     setSearching(true)
-
-    // Mapea un Place de la API nueva al shape que usa el resto del componente.
-    const fromNew = (p: google.maps.places.Place): PlaceResult => ({
-      place_id: p.id,
-      name: p.displayName ?? '',
-      formatted_address: p.formattedAddress ?? '',
-      rating: p.rating ?? undefined,
-      geometry: { location: { lat: () => p.location!.lat(), lng: () => p.location!.lng() } },
-      types: p.types ?? [],
-      website: p.websiteURI ?? undefined,
-      url: p.googleMapsURI ?? undefined,
-    })
 
     // Pinta los resultados y centra el mapa en ellos.
     const applyResults = (rs: PlaceResult[]) => {
@@ -360,23 +373,26 @@ export function MapViewPage() {
       setSelected(rs.length === 1 ? { kind: 'place', place: rs[0] } : null)
       if (!mapInstance || !rs.length) return
       if (rs.length === 1) {
-        mapInstance.panTo({ lat: rs[0].geometry.location.lat(), lng: rs[0].geometry.location.lng() })
+        mapInstance.panTo({ lat: rs[0].lat, lng: rs[0].lng })
         mapInstance.setZoom(15)
       } else {
         const bounds = new google.maps.LatLngBounds()
-        rs.forEach(r => bounds.extend({ lat: r.geometry.location.lat(), lng: r.geometry.location.lng() }))
+        rs.forEach(r => bounds.extend({ lat: r.lat, lng: r.lng }))
         mapInstance.fitBounds(bounds, 64)
       }
     }
 
     try {
-      const { places } = await google.maps.places.Place.searchByText({
-        textQuery: q,
-        fields: ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'types', 'websiteURI', 'googleMapsURI'],
-        maxResultCount: 12,
-        ...(center ? { locationBias: center } : {}),
+      // Text Search es el SKU más caro de Google: la misma búsqueda desde el
+      // mismo sitio no se vuelve a pagar (la caché está persistida, ver App.tsx).
+      // El centro se redondea para que un pelín de scroll no invalide la caché.
+      const bias = center ? { lat: +center.lat().toFixed(2), lng: +center.lng().toFixed(2) } : null
+      const hits = await qc.fetchQuery({
+        queryKey: ['placeSearch', q.toLowerCase(), bias] as const,
+        queryFn: () => searchPlacesByText(q, bias),
+        staleTime: Infinity,
+        gcTime: 1000 * 60 * 60 * 24,
       })
-      const hits = (places ?? []).filter(p => p.location).map(fromNew)
       applyResults(hits)
       if (hits.length === 0) toast.info('Sin resultados para esa búsqueda')
     } catch (e) {
@@ -386,14 +402,14 @@ export function MapViewPage() {
     } finally {
       setSearching(false)
     }
-  }, [searchInput, mapInstance])
+  }, [searchInput, mapInstance, qc])
 
   // Selecciona un resultado y centra el mapa en él.
   const selectPlace = useCallback((place: PlaceResult) => {
     setSelected({ kind: 'place', place })
     setPanelOpen(false) // en móvil, cierra la hoja para ver el mapa
     if (mapInstance) {
-      mapInstance.panTo({ lat: place.geometry.location.lat(), lng: place.geometry.location.lng() })
+      mapInstance.panTo({ lat: place.lat, lng: place.lng })
       mapInstance.setZoom(16)
     }
   }, [mapInstance])
@@ -477,8 +493,8 @@ export function MapViewPage() {
       google_place_id: place.place_id,
       name: place.name,
       address: place.formatted_address,
-      lat: place.geometry.location.lat(),
-      lng: place.geometry.location.lng(),
+      lat: place.lat,
+      lng: place.lng,
       category: cat,
       rating: place.rating ?? null,
       notes: saveNote.trim() || null,
@@ -1098,10 +1114,7 @@ export function MapViewPage() {
               return (
                 <AdvancedMarker
                   key={place.place_id}
-                  position={{
-                    lat: place.geometry.location.lat(),
-                    lng: place.geometry.location.lng(),
-                  }}
+                  position={{ lat: place.lat, lng: place.lng }}
                   zIndex={isSel ? 10 : 1}
                   onClick={() => selectPlace(place)}
                 >
@@ -1170,7 +1183,7 @@ export function MapViewPage() {
                 {/* Lugar buscado */}
                 {selected.kind === 'place' && (() => {
                   const p = selected.place
-                  const lat = p.geometry.location.lat(), lng = p.geometry.location.lng()
+                  const { lat, lng } = p
                   return (
                     <>
                       <h3 className="font-serif text-lg font-medium pr-6">{p.name}</h3>
