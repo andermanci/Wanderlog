@@ -17,6 +17,7 @@ import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
 import { usePackingItems } from '@/lib/queries/packing'
 import { useDocuments } from '@/lib/queries/documents'
 import { useExchangeRates, sumConverted } from '@/lib/queries/rates'
+import { useTripRole, canEditRole, canShareRole } from '@/lib/queries/sharing'
 import { TripFormDialog } from '@/components/trips/TripFormDialog'
 import { ShareTripDialog } from '@/components/trips/ShareTripDialog'
 import { OfflineSaveButton } from '@/components/trips/OfflineSaveButton'
@@ -53,6 +54,7 @@ export function TripDetail() {
   const [editOpen, setEditOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const isOwner = !!trip && trip.user_id === user?.id
+  const { data: myRole } = useTripRole(tripId!)
 
   const mainCurrency = profile?.default_currency ?? 'EUR'
   const totalsByCurrency = sumByCurrency(expenses ?? [])
@@ -116,20 +118,24 @@ export function TripDetail() {
         <div className="card-overlay absolute inset-0" />
 
         <div className="absolute top-4 right-4 flex items-center gap-2">
-          {/* Cualquier miembro del viaje puede invitar (no solo el dueño) */}
           {!isOwner && (
             <span className="glass-dark rounded-lg px-2.5 h-9 flex items-center gap-1.5 text-white/90 text-xs" title="Compartido contigo">
               <Users size={14} /> Compartido
             </span>
           )}
-          <Button size="icon" variant="ghost" onClick={() => setShareOpen(true)}
-            className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white" title="Compartir viaje" aria-label="Compartir viaje">
-            <UserPlus size={16} aria-hidden="true" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)}
-            className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white" title="Editar viaje" aria-label="Editar viaje">
-            <Pencil size={16} aria-hidden="true" />
-          </Button>
+          {/* Invitar: dueño o colaborador con permiso de compartir */}
+          {canShareRole(myRole) && (
+            <Button size="icon" variant="ghost" onClick={() => setShareOpen(true)}
+              className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white" title="Compartir viaje" aria-label="Compartir viaje">
+              <UserPlus size={16} aria-hidden="true" />
+            </Button>
+          )}
+          {canEditRole(myRole) && (
+            <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)}
+              className="glass-dark rounded-lg w-9 h-9 text-white hover:text-white" title="Editar viaje" aria-label="Editar viaje">
+              <Pencil size={16} aria-hidden="true" />
+            </Button>
+          )}
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">

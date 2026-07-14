@@ -742,6 +742,7 @@ export type Database = {
           email: string
           user_id: string | null
           invited_by: string
+          role: 'viewer' | 'editor' | 'admin'
           created_at: string
         }
         Insert: {
@@ -750,6 +751,7 @@ export type Database = {
           email: string
           user_id?: string | null
           invited_by: string
+          role?: 'viewer' | 'editor' | 'admin'
           created_at?: string
         }
         Update: {
@@ -758,6 +760,7 @@ export type Database = {
           email?: string
           user_id?: string | null
           invited_by?: string
+          role?: 'viewer' | 'editor' | 'admin'
           created_at?: string
         }
         Relationships: []
@@ -772,6 +775,10 @@ export type Database = {
       has_trip_access: {
         Args: { p_trip_id: string }
         Returns: boolean
+      }
+      my_trip_role: {
+        Args: { p_trip_id: string }
+        Returns: 'owner' | 'admin' | 'editor' | 'viewer' | null
       }
       duplicate_trip: {
         Args: { p_trip_id: string }

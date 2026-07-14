@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Wallet, Coins, Flag, Trash2, Loader2, Copy } from 'lucide-react'
+import { Wallet, Coins, Flag, Trash2, Loader2, Copy, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { CurrencySelect } from '@/components/CurrencySelect'
 import { TripHeader } from '@/components/trips/TripHeader'
+import { CollaboratorsManager } from '@/components/trips/CollaboratorsManager'
 import { useTrip, useUpdateTrip, useDeleteTrip, useDuplicateTrip } from '@/lib/queries/trips'
 import { STATUS_LABELS } from '@/lib/utils'
 import type { Trip } from '@/types/database'
@@ -148,6 +149,21 @@ export function TripSettingsPage() {
           {updateTrip.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
           Guardar cambios
         </Button>
+
+        {/* Colaboradores y permisos */}
+        <section className="mt-12">
+          <div className="flex items-center gap-2 mb-4">
+            <Users size={18} style={{ color: 'var(--primary)' }} />
+            <h2 className="font-serif text-xl">Colaboradores</h2>
+          </div>
+          <div className="p-6 rounded-xl" style={cardStyle}>
+            <p className="text-xs text-muted-foreground mb-4">
+              Los invitados entran con permiso de solo lectura. Como propietario puedes
+              subirles el nivel a «Editar» o «Editar y compartir».
+            </p>
+            <CollaboratorsManager tripId={tripId!} />
+          </div>
+        </section>
 
         {/* Duplicar viaje */}
         <section className="mt-12">

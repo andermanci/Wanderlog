@@ -30,6 +30,7 @@ import {
   useItineraryDays, useActivities, useUpsertDays,
   useDeleteActivity, useReorderActivities, useUpdateDayGuide, useUpdateDayCity, useSetActivityDone,
 } from '@/lib/queries/itinerary'
+import { useTripRole, canEditRole } from '@/lib/queries/sharing'
 import { useTripTravelTimes } from '@/lib/queries/travelTime'
 import { pairKey, formatDayTotal } from '@/lib/travelTime'
 import { useItineraryModeStore, resolveEditMode } from '@/store/itineraryModeStore'
@@ -82,7 +83,11 @@ function ItineraryPageInner() {
   const { data: guides } = useDestinationGuides(tripId!)
   const { data: dayAlerts } = useDayAlerts(tripId!)
   const { mode, setMode } = useItineraryModeStore()
-  const editMode = resolveEditMode(mode, trip)
+  const { data: myRole } = useTripRole(tripId!)
+  // Solo lectura para colaboradores con permiso 'viewer' (la RLS bloquearía
+  // igualmente las escrituras; esto evita ofrecer botones que fallarían).
+  const canEdit = canEditRole(myRole)
+  const editMode = resolveEditMode(mode, trip) && canEdit
 
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
   const [journalDay, setJournalDay] = useState<ItineraryDay | null>(null)
@@ -258,7 +263,8 @@ function ItineraryPageInner() {
               <span className="hidden sm:inline">{allDaysCollapsed ? 'Expandir todos' : 'Colapsar todos'}</span>
             </button>
           )}
-          {/* Toggle Editar / Ver */}
+          {/* Toggle Editar / Ver (sin permiso de edición, siempre en Ver) */}
+          {canEdit && (
           <div className="flex items-center p-0.5 rounded-lg" style={{ background: 'var(--secondary)' }} role="group" aria-label="Modo del itinerario">
             <button
               onClick={() => setMode('edit')}
@@ -283,6 +289,7 @@ function ItineraryPageInner() {
               Ver
             </button>
           </div>
+          )}
           {hasRoute && (
             <Button variant="outline" className="gap-2" asChild>
               <Link to={`/trips/${tripId}/map?route=1`} aria-label="Ver recorrido" title="Ver recorrido">
