@@ -5,18 +5,32 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const OPENCV_SRC = 'https://docs.opencv.org/4.10.0/opencv.js'
-const JSCANIFY_SRC = 'https://cdn.jsdelivr.net/npm/jscanify@1.2.0/dist/jscanify.min.js'
+// Ambos scripts salen del mismo paquete en jsDelivr (inmutable y versionado):
+// jscanify trae vendorizado el OpenCV contra el que está compilado. Las URLs de
+// antes estaban MUERTAS —docs.opencv.org borró la 4.10 y jscanify no publica un
+// dist/— así que las dos daban 404 y el recorte nunca llegaba a ejecutarse: el
+// fallo se tragaba en ensureLibs() y siempre se subía la foto sin recortar.
+//
+// Van con SRI (integrity): es la página donde el usuario acaba de fotografiar su
+// DNI, y un CDN comprometido podría inyectar JS justo ahí. Si algún día se sube
+// de versión hay que recalcular los hashes:
+//   curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A
+const OPENCV_SRC = 'https://cdn.jsdelivr.net/npm/jscanify@1.2.0/src/opencv.js'
+const OPENCV_SRI = 'sha384-7NgX/1nBIFcqsilWilRzcsVBOcPRmtwBvqsFS0QdyP6i356G43SIDx5JKd1aNqtz'
+const JSCANIFY_SRC = 'https://cdn.jsdelivr.net/npm/jscanify@1.2.0/src/jscanify.js'
+const JSCANIFY_SRI = 'sha384-7AgnUm6MIi86SO1PvPHKOGHJHQkijMHYk051Qg1oBGbHh8s9oKnRx0i6M1LDY3oO'
 
 let libsPromise: Promise<boolean> | null = null
 
-function loadScript(src: string): Promise<void> {
+function loadScript(src: string, integrity: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[src="${src}"]`)
     if (existing) { resolve(); return }
     const s = document.createElement('script')
     s.src = src
     s.async = true
+    s.integrity = integrity
+    s.crossOrigin = 'anonymous'
     s.onload = () => resolve()
     s.onerror = () => reject(new Error(`No se pudo cargar ${src}`))
     document.head.appendChild(s)
@@ -27,7 +41,7 @@ function loadScript(src: string): Promise<void> {
 function ensureLibs(): Promise<boolean> {
   if (libsPromise) return libsPromise
   libsPromise = (async () => {
-    await loadScript(OPENCV_SRC)
+    await loadScript(OPENCV_SRC, OPENCV_SRI)
     // OpenCV.js inicializa su runtime de WASM de forma asíncrona.
     await new Promise<void>((resolve, reject) => {
       const start = Date.now()
@@ -40,7 +54,7 @@ function ensureLibs(): Promise<boolean> {
       }
       tick()
     })
-    await loadScript(JSCANIFY_SRC)
+    await loadScript(JSCANIFY_SRC, JSCANIFY_SRI)
     return !!(window as any).jscanify
   })().catch(() => false)
   return libsPromise
