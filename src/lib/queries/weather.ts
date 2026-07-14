@@ -27,7 +27,7 @@ interface OpenMeteoDaily {
 }
 
 // Respaldo compartido: geocodificar el destino del viaje (también Open-Meteo).
-async function geocodeDestination(trip: Trip): Promise<{ lat: number; lng: number } | null> {
+export async function geocodeDestination(trip: Trip): Promise<{ lat: number; lng: number } | null> {
   try {
     const name = trip.destination.split(',')[0].trim()
     const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=es`)

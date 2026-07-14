@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Package, Trash2, Check, ChevronDown, Loader2, Copy } from 'lucide-react'
+import { Plus, Package, Trash2, Check, ChevronDown, Loader2, Copy, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -14,6 +14,10 @@ import {
 } from '@/lib/queries/packing'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { EmptyState } from '@/components/EmptyState'
+import { PackingSuggestDialog } from '@/components/trips/PackingSuggestDialog'
+import { useTrip } from '@/lib/queries/trips'
+import { dedupeAgainst } from '@/lib/packing/suggest'
+import { toast } from 'sonner'
 import type { PackingItem } from '@/types/database'
 
 const PACKING_TEMPLATES = [
@@ -46,6 +50,8 @@ const PACKING_TEMPLATES = [
 export function PackingPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const { data: items, isLoading } = usePackingItems(tripId!)
+  const { data: trip } = useTrip(tripId!)
+  const [suggestOpen, setSuggestOpen] = useState(false)
   const createItem = useCreatePackingItem()
   const toggleItem = useTogglePackingItem()
   const deleteItem = useDeletePackingItem()
@@ -72,18 +78,25 @@ export function PackingPage() {
   }
 
   function applyTemplate(template: typeof PACKING_TEMPLATES[0]) {
-    const allItems: Omit<PackingItem, 'id'>[] = []
-    template.items.forEach(cat => {
-      cat.items.forEach((name, i) => {
-        allItems.push({
-          trip_id: tripId!,
-          category: cat.category,
-          name,
-          is_checked: false,
-          order_index: i,
-        })
-      })
-    })
+    const suggestions = template.items.flatMap(cat =>
+      cat.items.map(name => ({ category: cat.category, name })),
+    )
+    // Antes no se deduplicaba: aplicar la misma plantilla dos veces te dejaba
+    // dos pasaportes y dos cepillos de dientes.
+    const allItems: Omit<PackingItem, 'id'>[] = dedupeAgainst(suggestions, items ?? [])
+      .map((s, i) => ({
+        trip_id: tripId!,
+        category: s.category,
+        name: s.name,
+        is_checked: false,
+        order_index: i,
+      }))
+
+    if (allItems.length === 0) {
+      toast.info('Ya tienes todo lo de esa plantilla en la lista')
+      setShowTemplates(false)
+      return
+    }
     bulkCreate.mutate(allItems)
     setShowTemplates(false)
   }
@@ -107,15 +120,27 @@ export function PackingPage() {
           <h1 className="font-serif text-2xl font-medium">Equipaje</h1>
           <p className="text-muted-foreground text-sm mt-0.5">{checkedItems} de {totalItems} items listos</p>
         </div>
-        <Button
-          variant="outline"
-          className="gap-2 text-sm"
-          onClick={() => setShowTemplates(s => !s)}
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <Copy size={14} />
-          Plantillas
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2 text-sm"
+            onClick={() => setShowTemplates(s => !s)}
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <Copy size={14} />
+            <span className="hidden sm:inline">Plantillas</span>
+          </Button>
+          <Button
+            variant="brand"
+            className="gap-2 text-sm"
+            disabled={!trip}
+            onClick={() => setSuggestOpen(true)}
+            title="Generar la lista según el viaje, el tiempo y el itinerario"
+          >
+            <Sparkles size={14} />
+            Generar mi lista
+          </Button>
+        </div>
       </div>
 
       {/* Progreso */}
@@ -264,6 +289,15 @@ export function PackingPage() {
             )
           })}
         </div>
+      )}
+
+      {trip && (
+        <PackingSuggestDialog
+          open={suggestOpen}
+          onClose={() => setSuggestOpen(false)}
+          trip={trip}
+          existing={items ?? []}
+        />
       )}
     </div>
   )
