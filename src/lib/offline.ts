@@ -37,6 +37,20 @@ export function enqueue(op: OutboxOp) {
   writeOutbox([...filtered, op])
 }
 
+/**
+ * Cancela una operación que aún no se ha subido. Sin esto, borrar un gasto
+ * creado sin conexión lo eliminaba de la pantalla pero dejaba el alta en la
+ * cola: al reconectar, el gasto resucitaba.
+ * Devuelve true si había algo pendiente con ese id.
+ */
+export function dequeue(id: string): boolean {
+  const ops = readOutbox()
+  const remaining = ops.filter(o => o.id !== id)
+  if (remaining.length === ops.length) return false
+  writeOutbox(remaining)
+  return true
+}
+
 // Detecta fallos de red (fetch rechazado) frente a errores del servidor.
 export function isNetworkError(e: unknown): boolean {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return true

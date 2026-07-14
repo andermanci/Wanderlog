@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { enqueue, isNetworkError } from '@/lib/offline'
+import { enqueue, dequeue, isNetworkError } from '@/lib/offline'
 import type { Expense } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -103,12 +103,24 @@ export function useDeleteExpense() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, tripId }: { id: string; tripId: string }) => {
+      // Si el gasto aún estaba en la cola offline, basta con cancelarlo: en el
+      // servidor no existe todavía, y borrarlo allí sin sacarlo de la cola lo
+      // haría reaparecer en la próxima sincronización.
+      if (dequeue(id)) return { id, tripId, wasPending: true }
+
       const { error } = await supabase.from('expenses').delete().eq('id', id)
       if (error) throw error
-      return { tripId }
+      return { id, tripId, wasPending: false }
     },
-    onSuccess: ({ tripId }) => {
-      qc.invalidateQueries({ queryKey: expenseKeys.all(tripId) })
+    onSuccess: ({ id, tripId, wasPending }) => {
+      if (wasPending) {
+        // Seguimos probablemente sin conexión: invalidar no serviría de nada
+        // (el refetch fallaría y devolvería la caché con el gasto dentro).
+        qc.setQueryData<PendingExpense[]>(expenseKeys.all(tripId), (old) =>
+          (old ?? []).filter(e => e.id !== id))
+      } else {
+        qc.invalidateQueries({ queryKey: expenseKeys.all(tripId) })
+      }
       toast.success('Gasto eliminado')
     },
     onError: () => toast.error('Error al eliminar gasto'),
