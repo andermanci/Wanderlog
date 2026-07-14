@@ -154,8 +154,8 @@ export function useUpsertDays() {
 // Los husos NO se piden al crear: los resuelve después useBackfillTimezones, en
 // segundo plano, a partir de las coordenadas.
 export type NewActivity =
-  Omit<Activity, 'id' | 'created_at' | 'day_orders' | 'done' | 'origin_tz' | 'destination_tz'>
-  & Partial<Pick<Activity, 'origin_tz' | 'destination_tz'>>
+  Omit<Activity, 'id' | 'created_at' | 'day_orders' | 'done' | 'origin_tz' | 'destination_tz' | 'fixed_time'>
+  & Partial<Pick<Activity, 'origin_tz' | 'destination_tz' | 'fixed_time'>>
 
 export function useCreateActivity() {
   const qc = useQueryClient()

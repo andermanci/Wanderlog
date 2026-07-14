@@ -198,6 +198,7 @@ export type Database = {
           done: boolean
           origin_tz: string | null
           destination_tz: string | null
+          fixed_time: boolean
           created_at: string
         }
         Insert: {
@@ -228,6 +229,7 @@ export type Database = {
           day_orders?: Record<string, number>
           origin_tz?: string | null
           destination_tz?: string | null
+          fixed_time?: boolean
           done?: boolean
           created_at?: string
         }
@@ -259,6 +261,7 @@ export type Database = {
           day_orders?: Record<string, number>
           origin_tz?: string | null
           destination_tz?: string | null
+          fixed_time?: boolean
           done?: boolean
           created_at?: string
         }

@@ -10,6 +10,7 @@ import { BackButton } from '@/components/ui/back-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,6 +30,7 @@ const schema = z.object({
   end_day_id: z.string().optional(),
   start_time: z.string().optional(),
   end_time: z.string().optional(),
+  fixed_time: z.boolean().optional(),
   address: z.string().optional(),
   origin: z.string().optional(),
   destination: z.string().optional(),
@@ -137,6 +139,7 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
     end_day_id: activity.end_day_id ?? '',
     start_time: activity.start_time ?? '',
     end_time: activity.end_time ?? '',
+    fixed_time: activity.fixed_time,
     address: activity.address ?? '',
     origin: activity.origin ?? '',
     destination: activity.destination ?? '',
@@ -176,6 +179,8 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
       destination: values.destination || null,
       start_time: values.start_time || null,
       end_time: values.end_time || null,
+      // Los vuelos y transportes ya son hora fija por definición: el tren no espera.
+      fixed_time: isTransport || !!values.fixed_time,
       price: values.price ?? null,
       external_link: values.external_link || null,
       notes: values.notes ?? null,
@@ -255,6 +260,28 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
           <Input type="time" {...register('end_time')} />
         </div>
       </div>
+
+      {/* Hora fija: distingue una cita de un bloque aproximado. Solo las citas
+          generan aviso si no da tiempo de llegar — si no, encadenar museos
+          teñiría el día entero de rojo. Los vuelos y transportes ya lo son
+          siempre, así que ahí no hace falta preguntar. */}
+      {watch('start_time') && !isMove && (
+        <label className="flex items-start gap-2.5 p-3 rounded-lg cursor-pointer"
+          style={{ background: 'var(--secondary)' }}>
+          <Checkbox
+            className="mt-0.5"
+            checked={watch('fixed_time') ?? false}
+            onCheckedChange={(v) => setValue('fixed_time', v === true)}
+          />
+          <span className="min-w-0">
+            <span className="text-sm font-medium block">Hora fija</span>
+            <span className="text-xs text-muted-foreground">
+              Tengo entrada o reserva a esa hora. Te avisaré si no te da tiempo de llegar.
+            </span>
+          </span>
+        </label>
+      )}
+
       <div className="space-y-1.5">
         <Label>{endDayLabel} <span className="text-muted-foreground font-normal">(si termina otro día)</span></Label>
         <div className="flex gap-2">

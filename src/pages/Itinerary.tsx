@@ -36,12 +36,13 @@ import { useTripTravelTimes } from '@/lib/queries/travelTime'
 import { pairKey, formatDayTotal, isMove } from '@/lib/travelTime'
 import { useBackfillTimezones } from '@/lib/queries/timezones'
 import { detectTripConflicts } from '@/lib/conflicts'
-import { DayConflicts, ConflictBadge } from '@/components/itinerary/DayConflicts'
+import { DayConflicts, ConflictBadge, DayDriftNote } from '@/components/itinerary/DayConflicts'
 import { useItineraryModeStore, resolveEditMode } from '@/store/itineraryModeStore'
 import { useDayAlerts } from '@/lib/queries/dayAlerts'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { useTrip } from '@/lib/queries/trips'
 import { useTripAttachments } from '@/lib/queries/attachments'
+import { useDocuments } from '@/lib/queries/documents'
 import { useTripAudioguidesReadiness } from '@/lib/queries/audioguides'
 import { buildRoutePoints } from '@/lib/route'
 import { lodgingByDayMap, dayOrderOf, type Lodging } from '@/lib/lodging'
@@ -71,6 +72,7 @@ function ItineraryPageInner() {
   const { data: days, isLoading: loadingDays } = useItineraryDays(tripId!)
   const { data: activities, isLoading: loadingActs } = useActivities(tripId!)
   const { data: tripAttachments } = useTripAttachments(tripId!)
+  const { data: documents } = useDocuments(tripId!)
   const { data: audioguideReadyIdList } = useTripAudioguidesReadiness(tripId!)
   // Array.isArray como defensa: la caché persistida en localStorage puede
   // traer todavía un valor viejo (de antes de este cambio) con otra forma.
@@ -198,11 +200,19 @@ function ItineraryPageInner() {
   // y los conflictos entre husos distintos no se pueden calcular.
   const zones = useBackfillTimezones(tripId, activities, days, canEdit)
 
+  // Actividades con una reserva vinculada (documents.activity_id, que enlaza la
+  // importación del .ics): tienen hora comprometida, así que sí se avisa si no
+  // se llega.
+  const bookedIds = useMemo(
+    () => new Set((documents ?? []).map(d => d.activity_id).filter((id): id is string => !!id)),
+    [documents],
+  )
+
   // Conflictos del itinerario: cruza las horas con los tiempos de trayecto que
   // ya se estaban calculando. Se derivan de `activities`, que el drag & drop ya
   // actualiza de forma optimista, así que el aviso aparece o desaparece al
   // soltar, sin trabajo extra durante el gesto.
-  const { byDay: conflictsByDay, legSeverity } = useMemo(() => detectTripConflicts({
+  const { byDay: conflictsByDay, legSeverity, driftByDay } = useMemo(() => detectTripConflicts({
     days: days ?? [],
     itemsFor: combinedItemsFor,
     arrivalsFor: (dayId: string) => arrivalsByDay.get(dayId) ?? [],
@@ -210,7 +220,8 @@ function ItineraryPageInner() {
     zones,
     legs: travelTimes,
     today: format(new Date(), 'yyyy-MM-dd'),
-  }), [days, activities, arrivalsByDay, zones, travelTimes]) // eslint-disable-line react-hooks/exhaustive-deps
+    bookedIds,
+  }), [days, activities, arrivalsByDay, zones, travelTimes, bookedIds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -429,6 +440,8 @@ function ItineraryPageInner() {
                           {dayArrivals.length > 0 && ` · ${dayArrivals.length} llegada${dayArrivals.length > 1 ? 's' : ''}`}
                           {dayTravelTotalSeconds > 0 && ` · ${formatDayTotal(dayTravelTotalSeconds)}`}
                         </p>
+                        {/* Los trayectos que no caben en las horas escritas */}
+                        <DayDriftNote drift={driftByDay.get(day.id)} />
                         {/* Guía de destino del día (contenido de la ciudad, opcional) */}
                         {editMode && (guides?.length ?? 0) > 0 && (
                           <div className="flex items-center gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
