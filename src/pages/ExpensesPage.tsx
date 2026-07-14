@@ -4,7 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Plus, Receipt, Trash2, Loader2, Landmark, Zap, CloudOff, ListPlus, Users, ArrowRight, Coins, ChevronDown } from 'lucide-react'
+import { Plus, Receipt, Trash2, Pencil, Loader2, Landmark, Zap, CloudOff, ListPlus, Users, ArrowRight, Coins, ChevronDown } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { useExpenses, useCreateExpense, useDeleteExpense, type PendingExpense } from '@/lib/queries/expenses'
+import { useExpenses, useCreateExpense, useUpdateExpense, useDeleteExpense, type PendingExpense } from '@/lib/queries/expenses'
 import { useExchangeRates, sumConverted } from '@/lib/queries/rates'
 import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
@@ -53,6 +53,7 @@ export function ExpensesPage() {
   const { data: days } = useItineraryDays(tripId!)
   const { profile } = useAuthStore()
   const createExpense = useCreateExpense()
+  const updateExpense = useUpdateExpense()
   const deleteExpense = useDeleteExpense()
 
   // Divisa por defecto al ANOTAR un gasto: la de los ajustes del viaje. Los
@@ -62,16 +63,18 @@ export function ExpensesPage() {
 
   const { data: travelers } = useTravelers(tripId!)
   const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<PendingExpense | null>(null)
   const [payer, setPayer] = useState('')
   const [split, setSplit] = useState<string[]>([])
 
-  // Al abrir el formulario, por defecto repartir entre todos y pagar "yo".
+  // Al abrir el formulario para un gasto NUEVO, por defecto repartir entre
+  // todos y pagar "yo". Editando, se respetan los valores del gasto.
   useEffect(() => {
-    if (formOpen && travelers?.length) {
+    if (formOpen && travelers?.length && !editing) {
       setSplit(travelers.map(t => t.id))
       setPayer(travelers.find(t => t.is_self)?.id ?? travelers[0]?.id ?? '')
     }
-  }, [formOpen, travelers])
+  }, [formOpen, travelers, editing])
 
   // Actividades del itinerario con precio que aún NO se han registrado como
   // gasto (se ofrecen para añadir; el enlace activity_id evita duplicar).
@@ -161,14 +164,50 @@ export function ExpensesPage() {
 
   const canSplit = (travelers?.length ?? 0) >= 2
 
-  async function onSubmit(values: FormValues) {
-    await createExpense.mutateAsync({
-      ...values, trip_id: tripId!,
-      paid_by: canSplit ? (payer || null) : null,
-      split_between: canSplit ? split : [],
-    })
+  function closeForm() {
     setFormOpen(false)
-    reset({ category: 'Otros', currency: tripCurrency, date: new Date().toISOString().slice(0, 10) })
+    setEditing(null)
+    // Todos los campos explícitos: reset() con objeto parcial no limpia los
+    // omitidos (la descripción del gasto editado se quedaba en el form).
+    reset({
+      description: '',
+      category: 'Otros',
+      amount: '' as unknown as number,
+      currency: tripCurrency,
+      date: new Date().toISOString().slice(0, 10),
+    })
+  }
+
+  // Abre el mismo dialog de creación pre-rellenado con el gasto a corregir.
+  function startEdit(expense: PendingExpense) {
+    setEditing(expense)
+    reset({
+      description: expense.description,
+      category: expense.category,
+      amount: expense.amount,
+      currency: expense.currency,
+      date: expense.date,
+    })
+    setPayer(expense.paid_by ?? '')
+    setSplit(expense.split_between ?? [])
+    setFormOpen(true)
+  }
+
+  async function onSubmit(values: FormValues) {
+    if (editing) {
+      await updateExpense.mutateAsync({
+        id: editing.id, ...values,
+        paid_by: canSplit ? (payer || null) : editing.paid_by,
+        split_between: canSplit ? split : editing.split_between,
+      })
+    } else {
+      await createExpense.mutateAsync({
+        ...values, trip_id: tripId!,
+        paid_by: canSplit ? (payer || null) : null,
+        split_between: canSplit ? split : [],
+      })
+    }
+    closeForm()
   }
 
   return (
@@ -491,10 +530,23 @@ export function ExpensesPage() {
                 <span className="font-medium text-sm" style={{ color: 'var(--primary)' }}>
                   {formatCurrency(expense.amount, expense.currency)}
                 </span>
+                {/* Pendientes de subir (offline): sin editar hasta que sincronicen */}
+                {!(expense as PendingExpense)._pending && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="w-6 h-6 opacity-60 hover:opacity-100 transition-opacity"
+                    aria-label={`Editar gasto ${expense.description}`}
+                    onClick={() => startEdit(expense)}
+                  >
+                    <Pencil size={11} />
+                  </Button>
+                )}
                 <Button
                   size="icon"
                   variant="ghost"
                   className="w-6 h-6 opacity-60 hover:opacity-100 text-destructive transition-opacity"
+                  aria-label={`Eliminar gasto ${expense.description}`}
                   onClick={() => deleteExpense.mutate({ id: expense.id, tripId: tripId! })}
                 >
                   <Trash2 size={11} />
@@ -505,10 +557,10 @@ export function ExpensesPage() {
         </div>
       )}
 
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) closeForm() }}>
         <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">Nuevo gasto</DialogTitle>
+            <DialogTitle className="font-serif text-xl">{editing ? 'Editar gasto' : 'Nuevo gasto'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
             <div className="space-y-1.5">
@@ -575,11 +627,11 @@ export function ExpensesPage() {
             )}
 
             <DialogFooter className="gap-2 pt-2">
-              <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="ghost" onClick={closeForm}>Cancelar</Button>
               <Button type="submit" disabled={isSubmitting}
                 variant="brand">
                 {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
-                Añadir gasto
+                {editing ? 'Guardar cambios' : 'Añadir gasto'}
               </Button>
             </DialogFooter>
           </form>

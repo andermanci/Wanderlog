@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { DirectionsDialog } from '@/components/DirectionsDialog'
 import { UsefulInfoCard } from '@/components/trips/UsefulInfoCard'
+import { TodayDocsRow } from '@/components/trips/TodayDocsRow'
 import { useTripWeather, useTodayWeatherHourly, weatherIcon, destinationHourKey } from '@/lib/queries/weather'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { lodgingByDayMap } from '@/lib/lodging'
@@ -185,6 +186,14 @@ export function TodayHub({ trip, activities, days }: {
           <span className="font-medium truncate">{lodging.activity.title}</span>
         </Link>
       )}
+
+      {/* Billetes, reservas y adjuntos que se necesitan hoy */}
+      <TodayDocsRow
+        tripId={trip.id}
+        todayStr={todayStr}
+        todayActs={todayActs}
+        lodgingActivityId={lodging?.activity.id}
+      />
 
       {/* Hora local, emergencias y datos del destino */}
       <UsefulInfoCard hourly={hourly} facts={facts} />

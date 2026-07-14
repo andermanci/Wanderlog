@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight, MapPin, Calendar } from 'lucide-react'
+import { ChevronRight, MapPin, Calendar, Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useTrip } from '@/lib/queries/trips'
+import { useTripSearchStore } from '@/store/tripSearchStore'
 import { formatDate, countdownLabel } from '@/lib/utils'
 import { fallbackCover } from '@/lib/coverFallbacks'
 
@@ -13,6 +15,7 @@ interface TripHeaderProps {
 // nombre, destino, fechas, cuenta atrás). Da orientación en todas las secciones.
 export function TripHeader({ tripId, section }: TripHeaderProps) {
   const { data: trip } = useTrip(tripId)
+  const openSearch = useTripSearchStore(s => s.setOpen)
 
   return (
     <div className="mb-6">
@@ -45,8 +48,18 @@ export function TripHeader({ tripId, section }: TripHeaderProps) {
               {formatDate(trip.start_date, 'dd MMM')} — {formatDate(trip.end_date, 'dd MMM yyyy')}
             </p>
           </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="ml-auto w-9 h-9 flex-shrink-0"
+            aria-label="Buscar en el viaje"
+            title="Buscar en el viaje (⌘K)"
+            onClick={() => openSearch(true)}
+          >
+            <Search size={16} />
+          </Button>
           <span
-            className="ml-auto text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0"
+            className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0"
             style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}
           >
             {countdownLabel(trip.start_date)}

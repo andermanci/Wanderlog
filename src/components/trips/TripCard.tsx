@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { MapPin, Calendar, Tag, Trash2, Pencil, Users, Copy } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { cn, formatDate, countdownLabel, STATUS_LABELS, STATUS_COLORS, daysUntil, effectiveStatus } from '@/lib/utils'
+import { formatDate, countdownLabel, STATUS_LABELS, STATUS_COLORS, daysUntil, effectiveStatus } from '@/lib/utils'
 import { fallbackCover } from '@/lib/coverFallbacks'
 import { useAuthStore } from '@/store/authStore'
 import type { Trip } from '@/types/database'
@@ -108,23 +108,23 @@ export function TripCard({ trip, onEdit, onDelete, onDuplicate, index = 0 }: Tri
         </div>
       </Link>
 
-      {/* Acciones (aparecen en hover) */}
-      <div className={cn(
-        'absolute top-2 right-2 flex gap-1 opacity-60 hover:opacity-100 transition-opacity',
-        'pointer-events-none group-hover:pointer-events-auto',
-      )}>
+      {/* Acciones: siempre pulsables. En táctil no existe hover, así que nada
+          de pointer-events-none — con eso los taps atravesaban al Link y era
+          imposible editar/duplicar/borrar desde el móvil. */}
+      <div className="absolute top-2 right-2 flex gap-1.5 sm:gap-1 opacity-100 sm:opacity-60 sm:hover:opacity-100 transition-opacity">
         <Button
           size="icon"
           variant="ghost"
-          className="w-7 h-7 glass rounded-md"
+          className="w-9 h-9 sm:w-7 sm:h-7 glass rounded-md"
           onClick={(e) => { e.preventDefault(); onEdit(trip) }}
+          aria-label="Editar viaje" title="Editar viaje"
         >
           <Pencil size={12} />
         </Button>
         <Button
           size="icon"
           variant="ghost"
-          className="w-7 h-7 glass rounded-md"
+          className="w-9 h-9 sm:w-7 sm:h-7 glass rounded-md"
           onClick={(e) => { e.preventDefault(); onDuplicate(trip) }}
           aria-label="Duplicar viaje" title="Duplicar viaje"
         >
@@ -134,8 +134,9 @@ export function TripCard({ trip, onEdit, onDelete, onDuplicate, index = 0 }: Tri
           <Button
             size="icon"
             variant="ghost"
-            className="w-7 h-7 glass rounded-md text-destructive hover:text-destructive"
+            className="w-9 h-9 sm:w-7 sm:h-7 glass rounded-md text-destructive hover:text-destructive"
             onClick={(e) => { e.preventDefault(); onDelete(trip) }}
+            aria-label="Eliminar viaje" title="Eliminar viaje"
           >
             <Trash2 size={12} />
           </Button>

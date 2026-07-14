@@ -179,6 +179,59 @@ export function Dashboard() {
             </motion.div>
           )}
 
+          {/* Próximos avisos en móvil: el aside lateral solo existe en lg:,
+              justo al revés de donde más se necesita (el móvil en ruta). */}
+          {reminders && reminders.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="lg:hidden mb-6 rounded-xl p-4"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Bell size={16} style={{ color: 'var(--primary)' }} />
+                <h2 className="font-serif text-lg">Próximos avisos</h2>
+                <Badge variant="outline" className="text-xs">{reminders.length}</Badge>
+              </div>
+              <div className="space-y-1">
+                {reminders.slice(0, 3).map(r => (
+                  <Link
+                    key={r.id}
+                    to={`/trips/${r.trip_id}/reminders`}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium line-clamp-1">{r.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                        {r.trips && (
+                          <span className="flex items-center gap-1 truncate">
+                            <MapPin size={10} className="flex-shrink-0" />
+                            {r.trips.destination}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--primary)' }}>
+                          <Calendar size={10} />
+                          {format(parseISO(r.remind_at), "dd MMM · HH:mm", { locale: es })}
+                        </span>
+                      </p>
+                    </div>
+                    <ChevronRight size={14} className="text-muted-foreground flex-shrink-0" />
+                  </Link>
+                ))}
+              </div>
+              {reminders.length > 3 && (
+                <Link
+                  to={`/trips/${reminders[0].trip_id}/reminders`}
+                  className="flex items-center justify-center gap-1 text-xs mt-2 py-1.5 rounded-md hover:bg-secondary transition-colors"
+                  style={{ color: 'var(--primary)' }}
+                >
+                  Ver todos ({reminders.length})
+                  <ChevronRight size={12} />
+                </Link>
+              )}
+            </motion.div>
+          )}
+
           {/* Toolbar */}
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
             <div className="relative flex-1">

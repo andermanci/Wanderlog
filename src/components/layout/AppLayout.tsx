@@ -3,6 +3,7 @@ import { Outlet, useParams, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { OfflineBanner } from '@/components/OfflineBanner'
+import { TripSearchCommand } from '@/components/trips/TripSearchCommand'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 export function AppLayout() {
@@ -53,6 +54,8 @@ export function AppLayout() {
         </div>
         {/* Navegación inferior solo en móvil */}
         <BottomNav tripId={tripId} />
+        {/* Búsqueda del viaje (Cmd+K); solo dentro de un viaje */}
+        {tripId && <TripSearchCommand tripId={tripId} />}
       </div>
     </TooltipProvider>
   )
