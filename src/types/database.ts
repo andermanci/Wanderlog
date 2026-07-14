@@ -87,6 +87,7 @@ export type Database = {
           journal: string | null
           guide_id: string | null
           city: string | null
+          tz: string | null
         }
         Insert: {
           id?: string
@@ -96,6 +97,7 @@ export type Database = {
           journal?: string | null
           guide_id?: string | null
           city?: string | null
+          tz?: string | null
         }
         Update: {
           id?: string
@@ -105,6 +107,7 @@ export type Database = {
           journal?: string | null
           guide_id?: string | null
           city?: string | null
+          tz?: string | null
         }
         Relationships: []
       }
@@ -193,6 +196,8 @@ export type Database = {
           cover_image_url: string | null
           day_orders: Record<string, number>
           done: boolean
+          origin_tz: string | null
+          destination_tz: string | null
           created_at: string
         }
         Insert: {
@@ -221,6 +226,8 @@ export type Database = {
           destination_lng?: number | null
           cover_image_url?: string | null
           day_orders?: Record<string, number>
+          origin_tz?: string | null
+          destination_tz?: string | null
           done?: boolean
           created_at?: string
         }
@@ -250,6 +257,8 @@ export type Database = {
           destination_lng?: number | null
           cover_image_url?: string | null
           day_orders?: Record<string, number>
+          origin_tz?: string | null
+          destination_tz?: string | null
           done?: boolean
           created_at?: string
         }
@@ -274,6 +283,7 @@ export type Database = {
           file_url: string | null
           back_url: string | null
           traveler_id: string | null
+          activity_id: string | null
           notes: string | null
           created_at: string
         }
@@ -295,6 +305,7 @@ export type Database = {
           file_url?: string | null
           back_url?: string | null
           traveler_id?: string | null
+          activity_id?: string | null
           notes?: string | null
           created_at?: string
         }
@@ -316,6 +327,7 @@ export type Database = {
           file_url?: string | null
           back_url?: string | null
           traveler_id?: string | null
+          activity_id?: string | null
           notes?: string | null
           created_at?: string
         }

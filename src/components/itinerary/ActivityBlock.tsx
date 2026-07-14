@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { cn, ACTIVITY_COLORS, ACTIVITY_LABELS } from '@/lib/utils'
+import { isMove } from '@/lib/travelTime'
 import type { Activity, ActivityAttachment } from '@/types/database'
 
 interface ActivityBlockProps {
@@ -139,7 +140,7 @@ export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdi
             </div>
 
             {/* Línea secundaria (más aire): dirección u origen → destino */}
-            {activity.type === 'transport' && (activity.origin || activity.destination) ? (
+            {isMove(activity) && (activity.origin || activity.destination) ? (
               <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5 min-w-0">
                 <MapPin size={10} className="flex-shrink-0" />
                 <span className="break-words">{activity.origin}{activity.origin && activity.destination ? ' → ' : ''}{activity.destination}</span>

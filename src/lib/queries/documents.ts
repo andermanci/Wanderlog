@@ -23,10 +23,16 @@ export function useDocuments(tripId: string) {
   })
 }
 
+// activity_id solo lo rellena la importación de .ics (que enlaza la reserva con
+// su actividad del itinerario); el formulario de a mano no lo pide.
+export type NewDocument =
+  Omit<Document, 'id' | 'created_at' | 'activity_id'>
+  & Partial<Pick<Document, 'activity_id'>>
+
 export function useCreateDocument() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (values: Omit<Document, 'id' | 'created_at'>) => {
+    mutationFn: async (values: NewDocument) => {
       const { data, error } = await supabase
         .from('documents')
         .insert(values)

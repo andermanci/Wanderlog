@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
 import {
-  Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, Calendar,
+  Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, Calendar, CalendarPlus,
   MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair, ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument, uploadDocumentFile } from '@/lib/queries/documents'
+import { useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument, uploadDocumentFile, type NewDocument } from '@/lib/queries/documents'
 import { useTravelers, useCreateTraveler, useDeleteTraveler } from '@/lib/queries/travelers'
 import { useTripAttachments, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useActivities } from '@/lib/queries/itinerary'
@@ -31,6 +31,7 @@ import { IdPhotoInput } from '@/components/documents/IdPhotoInput'
 import { IdCardViewer } from '@/components/documents/IdCardViewer'
 import { DocLightbox } from '@/components/documents/DocLightbox'
 import { DocImage } from '@/components/documents/DocImage'
+import { IcsImportDialog } from '@/components/trips/IcsImportDialog'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate, DOCUMENT_LABELS, PERSONAL_DOC_CATEGORIES } from '@/lib/utils'
 import type { Document, ActivityAttachment, Traveler } from '@/types/database'
@@ -131,6 +132,7 @@ export function DocumentsPage() {
   const [deleteTravTarget, setDeleteTravTarget] = useState<Traveler | null>(null)
   const [uploading, setUploading] = useState(false)
   const [fileUrl, setFileUrl] = useState<string | null>(null)
+  const [icsOpen, setIcsOpen] = useState(false)
   // Viajero nuevo
   const [travelerName, setTravelerName] = useState('')
   const [travelerFormOpen, setTravelerFormOpen] = useState(false)
@@ -170,7 +172,7 @@ export function DocumentsPage() {
     finally { setUploading(false) }
   }
   async function onSubmit(values: FormValues) {
-    const payload: Omit<Document, 'id' | 'created_at'> = {
+    const payload: NewDocument = {
       trip_id: tripId!, ...values,
       confirmation_number: values.confirmation_number || null,
       locator: values.locator || null, provider: values.provider || null,
@@ -198,7 +200,7 @@ export function DocumentsPage() {
   }
   async function submitPersonal() {
     if (!pForm) return
-    const payload: Omit<Document, 'id' | 'created_at'> = {
+    const payload: NewDocument = {
       trip_id: tripId!,
       category: pForm.category as Document['category'],
       title: DOCUMENT_LABELS[pForm.category] ?? 'Documento',
@@ -330,10 +332,17 @@ export function DocumentsPage() {
                 <FileText size={16} style={{ color: 'var(--primary)' }} />
                 <h2 className="font-serif text-xl font-medium">Reservas y billetes</h2>
               </div>
-              <Button size="sm" className="gap-1.5 flex-shrink-0" onClick={openCreate}
-                variant="brand">
-                <Plus size={14} /> Añadir
-              </Button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Button size="sm" variant="outline" className="gap-1.5"
+                  onClick={() => setIcsOpen(true)}
+                  title="Importar el .ics de la aerolínea, el hotel o la agencia">
+                  <CalendarPlus size={14} /> <span className="hidden sm:inline">Importar .ics</span>
+                </Button>
+                <Button size="sm" className="gap-1.5" onClick={openCreate}
+                  variant="brand">
+                  <Plus size={14} /> Añadir
+                </Button>
+              </div>
             </div>
 
             {!bookingDocs.length ? (
@@ -436,6 +445,8 @@ export function DocumentsPage() {
         url={lightbox?.url ?? null}
         name={lightbox?.name ?? ''}
       />
+
+      <IcsImportDialog open={icsOpen} onClose={() => setIcsOpen(false)} tripId={tripId!} />
 
       {/* ---- Nuevo viajero ---- */}
       <Dialog open={travelerFormOpen} onOpenChange={setTravelerFormOpen}>

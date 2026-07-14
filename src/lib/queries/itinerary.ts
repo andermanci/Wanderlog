@@ -151,10 +151,16 @@ export function useUpsertDays() {
   })
 }
 
+// Los husos NO se piden al crear: los resuelve después useBackfillTimezones, en
+// segundo plano, a partir de las coordenadas.
+export type NewActivity =
+  Omit<Activity, 'id' | 'created_at' | 'day_orders' | 'done' | 'origin_tz' | 'destination_tz'>
+  & Partial<Pick<Activity, 'origin_tz' | 'destination_tz'>>
+
 export function useCreateActivity() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (values: Omit<Activity, 'id' | 'created_at' | 'day_orders' | 'done'>) => {
+    mutationFn: async (values: NewActivity) => {
       const { data, error } = await supabase
         .from('activities')
         .insert(values)
