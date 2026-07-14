@@ -42,4 +42,27 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Invalida la caché de queries persistida (60 días en localStorage) en cada
+  // despliegue: sin esto, un cliente rehidrata la FORMA vieja de un dato después
+  // de que la hayamos cambiado y revienta. Solo llega a este valor quien ya ha
+  // descargado el JS nuevo, o sea, estando online: puede volver a pedir los datos.
+  define: {
+    __APP_VERSION__: JSON.stringify(String(Date.now())),
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Las librerías pesadas van a su propio chunk: FullCalendar solo lo
+        // necesita /calendar, Recharts solo /expenses y Maps solo /map. Antes
+        // se descargaban todas para poder pintar la pantalla de login.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('@fullcalendar') || id.includes('ical.js')) return 'fullcalendar'
+          if (id.includes('recharts') || id.includes('d3-')) return 'charts'
+          if (id.includes('@vis.gl/react-google-maps')) return 'maps'
+          if (/react-markdown|remark-|micromark|mdast|hast|turndown/.test(id)) return 'markdown'
+        },
+      },
+    },
+  },
 })

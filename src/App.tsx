@@ -1,37 +1,55 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { MotionConfig } from 'framer-motion'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { Skeleton } from '@/components/ui/skeleton'
 import { flushOutbox } from '@/lib/offline'
 
 import { useAuthListener } from '@/hooks/useAuth'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 
+// El login es la pantalla de arranque en frío: va en el bundle principal.
 import { LoginPage } from '@/pages/Login'
 import { AuthCallback } from '@/pages/AuthCallback'
-import { RevolutCallback } from '@/pages/RevolutCallback'
-import { Dashboard } from '@/pages/Dashboard'
-import { TripDetail } from '@/pages/TripDetail'
-import { ItineraryPage } from '@/pages/Itinerary'
-import { ActivityFormPage } from '@/pages/ActivityFormPage'
-import { ActivityDetailPage } from '@/pages/ActivityDetailPage'
-import { AudioguidePage } from '@/pages/AudioguidePage'
-import { TripMemoryPage } from '@/pages/TripMemoryPage'
-import { MapViewPage } from '@/pages/MapView'
-import { SavedPlacesPage } from '@/pages/SavedPlacesPage'
-import { DocumentsPage } from '@/pages/Documents'
-import { CalendarPage } from '@/pages/CalendarPage'
-import { RemindersPage } from '@/pages/RemindersPage'
-import { PackingPage } from '@/pages/PackingPage'
-import { ExpensesPage } from '@/pages/ExpensesPage'
-import { GuidePage } from '@/pages/GuidePage'
-import { TripSettingsPage } from '@/pages/TripSettingsPage'
-import { SettingsPage } from '@/pages/Settings'
+
+// El resto, por ruta. Sin esto, quien abre /login se descarga FullCalendar,
+// Recharts y Google Maps antes de poder escribir su email.
+const RevolutCallback = lazy(() => import('@/pages/RevolutCallback').then(m => ({ default: m.RevolutCallback })))
+const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })))
+const TripDetail = lazy(() => import('@/pages/TripDetail').then(m => ({ default: m.TripDetail })))
+const ItineraryPage = lazy(() => import('@/pages/Itinerary').then(m => ({ default: m.ItineraryPage })))
+const ActivityFormPage = lazy(() => import('@/pages/ActivityFormPage').then(m => ({ default: m.ActivityFormPage })))
+const ActivityDetailPage = lazy(() => import('@/pages/ActivityDetailPage').then(m => ({ default: m.ActivityDetailPage })))
+const AudioguidePage = lazy(() => import('@/pages/AudioguidePage').then(m => ({ default: m.AudioguidePage })))
+const TripMemoryPage = lazy(() => import('@/pages/TripMemoryPage').then(m => ({ default: m.TripMemoryPage })))
+const MapViewPage = lazy(() => import('@/pages/MapView').then(m => ({ default: m.MapViewPage })))
+const SavedPlacesPage = lazy(() => import('@/pages/SavedPlacesPage').then(m => ({ default: m.SavedPlacesPage })))
+const DocumentsPage = lazy(() => import('@/pages/Documents').then(m => ({ default: m.DocumentsPage })))
+const CalendarPage = lazy(() => import('@/pages/CalendarPage').then(m => ({ default: m.CalendarPage })))
+const RemindersPage = lazy(() => import('@/pages/RemindersPage').then(m => ({ default: m.RemindersPage })))
+const PackingPage = lazy(() => import('@/pages/PackingPage').then(m => ({ default: m.PackingPage })))
+const ExpensesPage = lazy(() => import('@/pages/ExpensesPage').then(m => ({ default: m.ExpensesPage })))
+const GuidePage = lazy(() => import('@/pages/GuidePage').then(m => ({ default: m.GuidePage })))
+const TripSettingsPage = lazy(() => import('@/pages/TripSettingsPage').then(m => ({ default: m.TripSettingsPage })))
+const SettingsPage = lazy(() => import('@/pages/Settings').then(m => ({ default: m.SettingsPage })))
+
+declare const __APP_VERSION__: string
+
+function PageFallback() {
+  return (
+    <div className="p-4 space-y-3 max-w-4xl mx-auto w-full">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-32 w-full" />
+    </div>
+  )
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,12 +97,17 @@ export default function App() {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 * 60 }}
+      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 * 60, buster: __APP_VERSION__ }}
     >
+      {/* framer-motion anima con estilos en línea, así que el bloque
+          @media (prefers-reduced-motion) de index.css no lo frena: hay que
+          decírselo aquí para que respete la preferencia del sistema. */}
+      <MotionConfig reducedMotion="user">
       <BrowserRouter>
         <AuthListener />
         <OfflineSync />
         <ErrorBoundary>
+        <Suspense fallback={<PageFallback />}>
         <Routes>
           {/* Públicas */}
           <Route path="/login" element={<LoginPage />} />
@@ -122,6 +145,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </Suspense>
         </ErrorBoundary>
 
         <Toaster
@@ -135,6 +159,7 @@ export default function App() {
           }}
         />
       </BrowserRouter>
+      </MotionConfig>
     </PersistQueryClientProvider>
   )
 }
