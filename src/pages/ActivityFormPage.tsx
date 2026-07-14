@@ -15,7 +15,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LocationPicker, type LatLng } from '@/components/itinerary/LocationPicker'
 import { TripHeader } from '@/components/trips/TripHeader'
-import { useCreateActivity, useUpdateActivity, useItineraryDays, useActivities, uploadActivityCover } from '@/lib/queries/itinerary'
+import { useCreateActivity, useUpdateActivity, useItineraryDays, useActivities, uploadActivityCover, rehostPlacePhoto } from '@/lib/queries/itinerary'
 import { useAuthStore } from '@/store/authStore'
 import { ACTIVITY_LABELS } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -108,6 +108,16 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
     setCoverUploading(true)
     try { setCoverUrl(await uploadActivityCover(file, user.id, tripId)) }
     catch { toast.error('No se pudo subir la imagen') }
+    finally { setCoverUploading(false) }
+  }
+
+  // La foto que trae Google al elegir el lugar se copia a nuestro Storage antes
+  // de usarla: su URL original se cobra en cada render de la portada.
+  async function applyGooglePhotoCover(photoUri: string) {
+    if (!user) return
+    setCoverUploading(true)
+    try { setCoverUrl(await rehostPlacePhoto(photoUri, user.id, tripId)) }
+    catch { /* sin portada automática: el usuario siempre puede subir una foto */ }
     finally { setCoverUploading(false) }
   }
 
@@ -291,7 +301,7 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
               setValue('address', v, { shouldDirty: true })
               setCoords(prev => ({ ...prev, address: c ?? null }))
               // Si el lugar trae foto de Google y aún no hay portada, la usamos.
-              if (meta?.photoUrl && !coverUrl) setCoverUrl(meta.photoUrl)
+              if (meta?.photoUrl && !coverUrl) applyGooglePhotoCover(meta.photoUrl)
             }}
             placeholder="Buscar o elegir en el mapa"
           />

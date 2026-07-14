@@ -29,6 +29,7 @@ import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
 import {
   useItineraryDays, useActivities, useUpsertDays,
   useDeleteActivity, useReorderActivities, useUpdateDayGuide, useUpdateDayCity, useSetActivityDone,
+  useRehostGoogleCovers,
 } from '@/lib/queries/itinerary'
 import { useTripRole, canEditRole } from '@/lib/queries/sharing'
 import { useTripTravelTimes } from '@/lib/queries/travelTime'
@@ -88,6 +89,10 @@ function ItineraryPageInner() {
   // igualmente las escrituras; esto evita ofrecer botones que fallarían).
   const canEdit = canEditRole(myRole)
   const editMode = resolveEditMode(mode, trip) && canEdit
+
+  // Las portadas heredadas que aún apuntan a Google se copian a Storage la
+  // primera vez que se abre el viaje (después dejan de facturarse en cada vista).
+  useRehostGoogleCovers(tripId, activities, canEdit)
 
   const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null)
   const [journalDay, setJournalDay] = useState<ItineraryDay | null>(null)

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -21,6 +22,9 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { useFavoritePlaces, useSaveFavoritePlace, useDeleteFavoritePlace, useUpdateFavoritePlace } from '@/lib/queries/places'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { useCreateActivity, useItineraryDays, useUpsertDays, useActivities } from '@/lib/queries/itinerary'
+import { useBackfillRoutePoints } from '@/lib/queries/geocoding'
+import { useTripRole, canEditRole } from '@/lib/queries/sharing'
+import { geocodeQueryOptions } from '@/lib/geocode'
 import { useTrip } from '@/lib/queries/trips'
 import { placeTypeToCategory, getCategoryColor } from '@/lib/maps'
 import { buildRoutePoints, type RoutePoint } from '@/lib/route'
@@ -34,14 +38,13 @@ import { toast } from 'sonner'
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
 
-// Dibuja la ruta del itinerario sobre el mapa de la app.
-// 1) Usa las coordenadas guardadas de cada parada; geocodifica solo las que falten.
-// 2) Traza la ruta por carretera (Directions) con esas coordenadas.
-// 3) Si no hay ruta por carretera, dibuja una línea aproximada que las conecta.
+// Dibuja la ruta del itinerario sobre el mapa de la app. Las paradas llegan ya
+// con coordenadas (useBackfillRoutePoints las geocodifica y las guarda una vez).
+// 1) Traza la ruta por carretera (Directions) con esas coordenadas.
+// 2) Si no hay ruta por carretera, dibuja una línea aproximada que las conecta.
 function MapDirections({ stops, mode }: { stops: RoutePoint[]; mode: 'DRIVING' | 'WALKING' }) {
   const map = useMap()
   const routesLib = useMapsLibrary('routes')
-  const placesLib = useMapsLibrary('places')
   const [renderer, setRenderer] = useState<google.maps.DirectionsRenderer | null>(null)
 
   useEffect(() => {
@@ -57,63 +60,48 @@ function MapDirections({ stops, mode }: { stops: RoutePoint[]; mode: 'DRIVING' |
   }, [routesLib, map])
 
   useEffect(() => {
-    if (!routesLib || !placesLib || !renderer || !map || stops.length < 2) return
+    if (!routesLib || !renderer || !map || stops.length < 2) return
     let cancelled = false
     let polyline: google.maps.Polyline | null = null
 
-    ;(async () => {
-      // 1) Coordenadas guardadas directamente; Places solo para las que falten.
-      const resolved = await Promise.all(stops.slice(0, 25).map(async (p) => {
-        if (p.lat != null && p.lng != null) return { lat: p.lat, lng: p.lng }
-        try {
-          const { places } = await placesLib.Place.searchByText({
-            textQuery: p.location, fields: ['location'], maxResultCount: 1,
-          })
-          const loc = places?.[0]?.location
-          return loc ? { lat: loc.lat(), lng: loc.lng() } : null
-        } catch { return null }
-      }))
+    const pts = stops
+      .slice(0, 25)
+      .filter((p): p is RoutePoint & { lat: number; lng: number } => p.lat != null && p.lng != null)
+      .map(p => ({ lat: p.lat, lng: p.lng }))
+    // Quita paradas consecutivas casi idénticas.
+    const uniq = pts.filter((p, i) =>
+      i === 0 || Math.abs(p.lat - pts[i - 1].lat) > 1e-4 || Math.abs(p.lng - pts[i - 1].lng) > 1e-4)
+    if (uniq.length < 2) return
+
+    // 1) Ruta por carretera con las coordenadas de las paradas.
+    const svc = new routesLib.DirectionsService()
+    svc.route({
+      origin: uniq[0],
+      destination: uniq[uniq.length - 1],
+      waypoints: uniq.slice(1, -1).map(location => ({ location, stopover: true })),
+      travelMode: google.maps.TravelMode[mode],
+    }, (res, status) => {
       if (cancelled) return
-
-      const pts = resolved.filter((p): p is { lat: number; lng: number } => !!p)
-      // Quita paradas consecutivas casi idénticas.
-      const uniq = pts.filter((p, i) =>
-        i === 0 || Math.abs(p.lat - pts[i - 1].lat) > 1e-4 || Math.abs(p.lng - pts[i - 1].lng) > 1e-4)
-      if (uniq.length < 2) {
-        toast.error('No se pudieron localizar las paradas del itinerario.')
-        return
+      if (status === 'OK' && res) {
+        renderer.setDirections(res)
+      } else {
+        // 2) Fallback: línea aproximada conectando las paradas.
+        renderer.set('directions', null)
+        polyline = new google.maps.Polyline({
+          path: uniq, map,
+          strokeColor: '#bf4d22', strokeWeight: 4, strokeOpacity: 0.85,
+        })
+        const bounds = new google.maps.LatLngBounds()
+        uniq.forEach(p => bounds.extend(p))
+        map.fitBounds(bounds, 56)
+        toast.info(mode === 'WALKING'
+          ? 'Mostrando ruta aproximada (no hay ruta a pie entre todas las paradas).'
+          : 'Mostrando ruta aproximada (no hay ruta por carretera entre todas las paradas).')
       }
-
-      // 2) Ruta por carretera con coordenadas.
-      const svc = new routesLib.DirectionsService()
-      svc.route({
-        origin: uniq[0],
-        destination: uniq[uniq.length - 1],
-        waypoints: uniq.slice(1, -1).map(location => ({ location, stopover: true })),
-        travelMode: google.maps.TravelMode[mode],
-      }, (res, status) => {
-        if (cancelled) return
-        if (status === 'OK' && res) {
-          renderer.setDirections(res)
-        } else {
-          // 3) Fallback: línea aproximada conectando las paradas.
-          renderer.set('directions', null)
-          polyline = new google.maps.Polyline({
-            path: uniq, map,
-            strokeColor: '#bf4d22', strokeWeight: 4, strokeOpacity: 0.85,
-          })
-          const bounds = new google.maps.LatLngBounds()
-          uniq.forEach(p => bounds.extend(p))
-          map.fitBounds(bounds, 56)
-          toast.info(mode === 'WALKING'
-            ? 'Mostrando ruta aproximada (no hay ruta a pie entre todas las paradas).'
-            : 'Mostrando ruta aproximada (no hay ruta por carretera entre todas las paradas).')
-        }
-      })
-    })()
+    })
 
     return () => { cancelled = true; polyline?.setMap(null) }
-  }, [routesLib, placesLib, renderer, map, stops, mode])
+  }, [routesLib, renderer, map, stops, mode])
 
   return null
 }
@@ -125,7 +113,6 @@ interface PlaceResult {
   rating?: number
   geometry: { location: { lat: () => number; lng: () => number } }
   types: string[]
-  photos?: { getUrl(opts: { maxWidth: number }): string }[]
   website?: string
   url?: string
 }
@@ -160,6 +147,9 @@ export function MapViewPage() {
   const { data: guides } = useDestinationGuides(tripId!)
   const { data: days } = useItineraryDays(tripId!)
   const { data: activities } = useActivities(tripId!)
+  const { data: myRole } = useTripRole(tripId!)
+  const canEdit = canEditRole(myRole)
+  const qc = useQueryClient()
   const saveFavorite = useSaveFavoritePlace()
   const deleteFavorite = useDeleteFavoritePlace()
   const updateFavorite = useUpdateFavoritePlace()
@@ -218,10 +208,13 @@ export function MapViewPage() {
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [mapInstance])
 
-  const routePoints = useMemo(
+  const rawRoutePoints = useMemo(
     () => buildRoutePoints(activities ?? [], days ?? []),
     [activities, days],
   )
+  // Las paradas sin coordenadas se geocodifican UNA vez y se guardan en la
+  // actividad; a partir de ahí llegan ya localizadas desde la base de datos.
+  const routePoints = useBackfillRoutePoints(tripId, rawRoutePoints, !!mapInstance, canEdit)
   // Paradas con coordenadas guardadas: se pintan siempre como pines numerados.
   const placedPoints = useMemo(
     () => routePoints.filter(p => p.lat != null && p.lng != null),
@@ -491,12 +484,13 @@ export function MapViewPage() {
       pts.forEach(p => bounds.extend(p))
       mapInstance.fitBounds(bounds, 64)
     } else if (trip?.destination) {
-      new google.maps.Geocoder().geocode({ address: trip.destination }, (res, status) => {
-        if (status === 'OK' && res?.[0]) {
-          mapInstance.panTo(res[0].geometry.location)
-          mapInstance.setZoom(12)
-        }
-      })
+      // Vía caché: el destino de un viaje se geocodifica una vez, no en cada
+      // apertura del mapa.
+      qc.fetchQuery(geocodeQueryOptions(trip.destination)).then(coords => {
+        if (!coords) return
+        mapInstance.panTo(coords)
+        mapInstance.setZoom(12)
+      }).catch(() => { /* sin centrado automático */ })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapInstance, favorites, activities, placedPoints, trip])
@@ -1205,9 +1199,6 @@ export function MapViewPage() {
                   const lat = p.geometry.location.lat(), lng = p.geometry.location.lng()
                   return (
                     <>
-                      {p.photos?.[0] && (
-                        <img src={p.photos[0].getUrl({ maxWidth: 400 })} alt={p.name} className="w-full h-28 object-cover rounded-lg mb-3" />
-                      )}
                       <h3 className="font-serif text-lg font-medium pr-6">{p.name}</h3>
                       <p className="text-xs text-muted-foreground mt-1">{p.formatted_address}</p>
                       {p.rating && (

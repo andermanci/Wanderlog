@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
@@ -12,6 +13,62 @@ export async function uploadActivityCover(file: File, userId: string, tripId: st
   const { error } = await supabase.storage.from('attachments').upload(path, file)
   if (error) throw error
   return supabase.storage.from('attachments').getPublicUrl(path).data.publicUrl
+}
+
+// La URL de una foto de Google Places apunta a su endpoint de fotos: cada vez
+// que se pinta la portada es una petición facturada. Nunca se guarda tal cual.
+export function isGooglePhotoUrl(url: string | null | undefined): url is string {
+  return !!url && /^https:\/\/(places|maps)\.googleapis\.com\//.test(url)
+}
+
+// Copia la foto a nuestro Storage (una única petición a Google) y devuelve la
+// URL definitiva. El navegador no puede leer esos bytes (CORS), de ahí la
+// edge function.
+export async function rehostPlacePhoto(photoUri: string, userId: string, tripId: string): Promise<string> {
+  const path = `${userId}/${tripId}/covers/${Date.now()}-place`
+  const { data, error } = await supabase.functions.invoke('place-photo', {
+    body: { photoUri, path },
+  })
+  if (error || data?.error) throw new Error(data?.error ?? error?.message ?? 'No se pudo copiar la foto')
+  return data.url as string
+}
+
+// Portadas guardadas antes de que las fotos se copiaran a Storage: siguen
+// apuntando a Google y cobrando en cada vista. Se rehospedan de una en una
+// (son peticiones facturadas) la primera vez que se abre el viaje; después ya
+// no queda ninguna URL de Google en la base de datos. Solo con permiso de
+// escritura: si no, la copia no se podría guardar y la foto se pagaría en balde.
+export function useRehostGoogleCovers(tripId: string | undefined, activities: Activity[] | undefined, canEdit: boolean) {
+  const qc = useQueryClient()
+  const { user } = useAuthStore()
+  const running = useRef(false)
+
+  useEffect(() => {
+    if (!tripId || !user || !activities || !canEdit || running.current) return
+    const flag = `wanderlog-covers-rehosted-${tripId}`
+    if (sessionStorage.getItem(flag)) return
+    const pending = activities.filter(a => isGooglePhotoUrl(a.cover_image_url))
+    if (pending.length === 0) return
+
+    running.current = true
+    ;(async () => {
+      let changed = false
+      for (const a of pending) {
+        try {
+          const url = await rehostPlacePhoto(a.cover_image_url!, user.id, tripId)
+          const { error } = await supabase.from('activities').update({ cover_image_url: url }).eq('id', a.id)
+          if (error) throw error
+          changed = true
+        } catch {
+          // Colaborador sin permiso de escritura, o foto que ya no existe:
+          // se deja como estaba, sin molestar al usuario.
+        }
+      }
+      sessionStorage.setItem(flag, '1')
+      running.current = false
+      if (changed) qc.invalidateQueries({ queryKey: itineraryKeys.activities(tripId) })
+    })()
+  }, [tripId, user, activities, canEdit, qc])
 }
 
 export const itineraryKeys = {
