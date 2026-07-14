@@ -1,6 +1,7 @@
 import {
   Plane, TrainFront, Bus, BedDouble, Car, CarTaxiFront, Ticket, Flag,
-  ShieldCheck, FileText, BookUser, IdCard, Stamp, HeartPulse, type LucideProps,
+  ShieldCheck, FileText, BookUser, IdCard, Stamp, HeartPulse, UtensilsCrossed,
+  type LucideProps,
 } from 'lucide-react'
 
 // Icono de línea por categoría de documento (identidad + reservas/billetes).
@@ -22,6 +23,8 @@ const MAP: Record<string, React.ComponentType<LucideProps>> = {
   ticket: Ticket,
   insurance: ShieldCheck,
   other: FileText,
+  // Solo para agrupar adjuntos del itinerario, no es categoría de documento.
+  restaurant: UtensilsCrossed,
 }
 
 export function DocIcon({ category, ...props }: { category: string } & LucideProps) {

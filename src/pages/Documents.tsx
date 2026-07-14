@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
 import {
-  Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, Calendar, CalendarPlus,
+  Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, CalendarPlus, ShieldCheck,
   MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair, ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -58,6 +58,28 @@ type FormValues = z.infer<typeof schema>
 
 const BOOKING_CATEGORIES = Object.entries(DOCUMENT_LABELS).filter(([k]) => !PERSONAL_DOC_CATEGORIES.includes(k))
 
+// Orden de los grupos dentro de "Reservas y billetes": primero cómo llegas,
+// luego dónde duermes y por último qué haces. `insurance` va en su propia sección.
+const BOOKING_GROUP_ORDER = ['flight', 'train', 'bus', 'transfer', 'car_rental', 'hotel', 'restaurant', 'tour', 'ticket', 'other']
+
+// Los adjuntos del itinerario no tienen categoría propia: heredan la del tipo de
+// actividad para poder mezclarlos con las reservas en los mismos grupos.
+const ACTIVITY_TO_GROUP: Record<string, string> = {
+  flight: 'flight',
+  hotel: 'hotel',
+  transport: 'transfer',
+  restaurant: 'restaurant',
+  activity: 'ticket',
+  place: 'ticket',
+  other: 'other',
+}
+
+const GROUP_LABELS: Record<string, string> = { ...DOCUMENT_LABELS, restaurant: 'Restaurante' }
+
+type BookingItem =
+  | { kind: 'doc'; id: string; sort: string; doc: Document }
+  | { kind: 'attachment'; id: string; sort: string; att: ActivityAttachment; activityTitle: string }
+
 // datetime_end actúa como fecha de caducidad en documentación personal.
 function expiryState(end: string | null): 'expired' | 'soon' | null {
   if (!end) return null
@@ -109,20 +131,41 @@ export function DocumentsPage() {
   const deleteTraveler = useDeleteTraveler()
 
   const activityById = new Map((activities ?? []).map(a => [a.id, a]))
-  const attachmentsByActivity = (attachments ?? []).reduce<Record<string, typeof attachments>>((acc, att) => {
-    (acc[att.activity_id] ??= []).push(att)
-    return acc
-  }, {})
 
   const personalDocs = (documents ?? []).filter(d => PERSONAL_DOC_CATEGORIES.includes(d.category))
-  const bookingDocs = (documents ?? []).filter(d => !PERSONAL_DOC_CATEGORIES.includes(d.category))
+  const insuranceDocs = (documents ?? []).filter(d => d.category === 'insurance')
+  const bookingDocs = (documents ?? []).filter(
+    d => !PERSONAL_DOC_CATEGORIES.includes(d.category) && d.category !== 'insurance',
+  )
   const docsByTraveler = (id: string) => personalDocs.filter(d => d.traveler_id === id)
   const unassignedPersonal = personalDocs.filter(d => !d.traveler_id)
 
-  const groupedBooking = bookingDocs.reduce<Record<string, Document[]>>((acc, doc) => {
-    (acc[doc.category] ??= []).push(doc)
+  // Reservas y adjuntos del itinerario conviven en los mismos grupos: primero por
+  // tipo (BOOKING_GROUP_ORDER) y, dentro de cada tipo, los que tienen fecha por orden
+  // cronológico y el resto al final.
+  const bookingItems: BookingItem[] = [
+    ...bookingDocs.map((doc): BookingItem => ({ kind: 'doc', id: doc.id, sort: doc.datetime_start ?? '', doc })),
+    ...(attachments ?? []).map((att): BookingItem => ({
+      kind: 'attachment', id: att.id, sort: '',
+      att, activityTitle: activityById.get(att.activity_id)?.title ?? 'Actividad',
+    })),
+  ]
+
+  const groupOf = (item: BookingItem) => item.kind === 'doc'
+    ? item.doc.category
+    : ACTIVITY_TO_GROUP[activityById.get(item.att.activity_id)?.type ?? 'other'] ?? 'other'
+
+  const groupedBooking = bookingItems.reduce<Record<string, BookingItem[]>>((acc, item) => {
+    (acc[groupOf(item)] ??= []).push(item)
     return acc
   }, {})
+  for (const items of Object.values(groupedBooking)) {
+    items.sort((a, b) => (a.sort || '￿').localeCompare(b.sort || '￿'))
+  }
+  const bookingGroups = [
+    ...BOOKING_GROUP_ORDER.filter(c => groupedBooking[c]?.length),
+    ...Object.keys(groupedBooking).filter(c => !BOOKING_GROUP_ORDER.includes(c)),
+  ]
 
   // ---- Estado de UI ----
   const [formOpen, setFormOpen] = useState(false)
@@ -149,8 +192,8 @@ export function DocumentsPage() {
   })
 
   // ---- Reservas/billetes (formulario genérico) ----
-  function openCreate() {
-    reset({ category: 'other' }); setFileUrl(null); setEditDoc(null); setFormOpen(true)
+  function openCreate(category: FormValues['category'] = 'other') {
+    reset({ category }); setFileUrl(null); setEditDoc(null); setFormOpen(true)
   }
   function openEdit(doc: Document) {
     reset({
@@ -235,7 +278,7 @@ export function DocumentsPage() {
       <TripHeader tripId={tripId!} section="Documentos" />
       <div className="mb-8">
         <h1 className="font-serif text-2xl font-medium">Documentos</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Identidad de los viajeros, reservas y billetes</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Identidad de los viajeros, seguros, reservas y billetes</p>
       </div>
 
       {isLoading ? (
@@ -325,7 +368,37 @@ export function DocumentsPage() {
 
           <Separator />
 
-          {/* ============ Reservas y billetes ============ */}
+          {/* ============ Seguros ============ */}
+          <section>
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShieldCheck size={16} style={{ color: 'var(--primary)' }} />
+                <h2 className="font-serif text-xl font-medium">Seguros</h2>
+                <span className="text-xs text-muted-foreground hidden sm:inline">Pólizas y teléfonos de asistencia</span>
+              </div>
+              <Button size="sm" variant="outline" className="gap-1.5 flex-shrink-0" onClick={() => openCreate('insurance')}>
+                <Plus size={14} /> Añadir seguro
+              </Button>
+            </div>
+
+            {!insuranceDocs.length ? (
+              <div className="rounded-xl p-6 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                <ShieldCheck size={26} className="mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Guarda la póliza de viaje y el teléfono de asistencia, a mano por si acaso.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {insuranceDocs.map((doc, i) => (
+                  <DocRow key={doc.id} doc={doc} i={i} onEdit={openEdit} onDelete={setDeleteTarget}
+                    onOpenFile={(url, name) => setLightbox({ url, name })} onOpen={setDetailDoc} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <Separator />
+
+          {/* ============ Reservas y billetes (incluye adjuntos del itinerario) ============ */}
           <section>
             <div className="flex items-center justify-between mb-4 gap-3">
               <div className="flex items-center gap-2 min-w-0">
@@ -338,31 +411,34 @@ export function DocumentsPage() {
                   title="Importar el .ics de la aerolínea, el hotel o la agencia">
                   <CalendarPlus size={14} /> <span className="hidden sm:inline">Importar .ics</span>
                 </Button>
-                <Button size="sm" className="gap-1.5" onClick={openCreate}
+                <Button size="sm" className="gap-1.5" onClick={() => openCreate()}
                   variant="brand">
                   <Plus size={14} /> Añadir
                 </Button>
               </div>
             </div>
 
-            {!bookingDocs.length ? (
+            {!bookingItems.length ? (
               <div className="rounded-xl p-6 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                 <FileText size={26} className="mx-auto mb-2 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">Guarda vuelos, hoteles, entradas y confirmaciones.</p>
               </div>
             ) : (
               <div className="space-y-6">
-                {Object.entries(groupedBooking).map(([c, docs]) => (
+                {bookingGroups.map(c => (
                   <div key={c}>
                     <div className="flex items-center gap-2 mb-3">
                       <DocIcon category={c} size={18} style={{ color: 'var(--primary)' }} />
-                      <h3 className="font-serif text-lg font-medium">{DOCUMENT_LABELS[c]}</h3>
-                      <Badge variant="outline" className="text-xs">{docs.length}</Badge>
+                      <h3 className="font-serif text-lg font-medium">{GROUP_LABELS[c] ?? 'Otro'}</h3>
+                      <Badge variant="outline" className="text-xs">{groupedBooking[c].length}</Badge>
                     </div>
                     <div className="space-y-2">
-                      {docs.map((doc, i) => (
-                        <DocRow key={doc.id} doc={doc} i={i} onEdit={openEdit} onDelete={setDeleteTarget}
+                      {groupedBooking[c].map((item, i) => item.kind === 'doc' ? (
+                        <DocRow key={item.id} doc={item.doc} i={i} onEdit={openEdit} onDelete={setDeleteTarget}
                           onOpenFile={(url, name) => setLightbox({ url, name })} onOpen={setDetailDoc} />
+                      ) : (
+                        <AttachmentRow key={item.id} att={item.att} activityTitle={item.activityTitle} i={i}
+                          onOpenFile={(url, name) => setLightbox({ url, name })} onDelete={setDeleteAttTarget} />
                       ))}
                     </div>
                   </div>
@@ -370,54 +446,6 @@ export function DocumentsPage() {
               </div>
             )}
           </section>
-
-          {/* ============ Del itinerario (adjuntos de actividades) ============ */}
-          {Object.keys(attachmentsByActivity).length > 0 && (
-            <section>
-              <div className="flex items-center gap-2 mb-1">
-                <Calendar size={16} style={{ color: 'var(--primary)' }} />
-                <h2 className="font-serif text-xl font-medium">Del itinerario</h2>
-              </div>
-              <p className="text-sm text-muted-foreground mb-4">Entradas, QRs y documentos adjuntos a actividades</p>
-              <div className="space-y-4">
-                {Object.entries(attachmentsByActivity).map(([activityId, atts]) => {
-                  const act = activityById.get(activityId)
-                  return (
-                    <div key={activityId} className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <MapPin size={13} style={{ color: 'var(--primary)' }} />
-                        <p className="font-medium text-sm">{act?.title ?? 'Actividad'}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {atts?.map(att => {
-                          const isImg = att.mime?.startsWith('image/') ?? /\.(png|jpe?g|webp)$/i.test(att.file_url)
-                          return (
-                            <div key={att.id} className="flex items-center gap-2 rounded-lg border border-border pr-1" style={{ background: 'var(--secondary)' }}>
-                              <button type="button" onClick={() => setLightbox({ url: att.file_url, name: att.name })}
-                                className="flex items-center gap-2 pl-1.5 py-1.5 min-w-0" title={att.name}>
-                                {isImg ? (
-                                  <img src={att.file_url} alt={att.name} className="w-8 h-8 rounded object-cover flex-shrink-0" />
-                                ) : (
-                                  <span className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0" style={{ background: 'var(--card)' }}>
-                                    <File size={14} style={{ color: 'var(--primary)' }} />
-                                  </span>
-                                )}
-                                <span className="text-xs truncate max-w-[160px]">{att.name}</span>
-                              </button>
-                              <button type="button" onClick={() => setDeleteAttTarget(att)}
-                                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive flex-shrink-0" aria-label="Eliminar adjunto" title="Eliminar adjunto">
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )}
         </div>
       )}
 
@@ -734,6 +762,49 @@ function PersonalDocCard({ doc, travelerName, onView, onEdit, onDelete }: {
   )
 }
 
+// Adjunto de una actividad del itinerario, listado junto a las reservas de su mismo tipo.
+function AttachmentRow({ att, activityTitle, i, onOpenFile, onDelete }: {
+  att: ActivityAttachment
+  activityTitle: string
+  i: number
+  onOpenFile: (url: string, name: string) => void
+  onDelete: (a: ActivityAttachment) => void
+}) {
+  const isImg = att.mime?.startsWith('image/') ?? /\.(png|jpe?g|webp)$/i.test(att.file_url)
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: i * 0.05 }}
+      onClick={() => onOpenFile(att.file_url, att.name)}
+      role="button"
+      className="group flex items-center gap-3 p-4 rounded-xl border border-border bg-card cursor-pointer transition-all hover:border-primary hover:bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))] hover:shadow-md active:scale-[0.98]"
+    >
+      {isImg ? (
+        <img src={att.file_url} alt="" className="flex-shrink-0 w-9 h-9 rounded-lg object-cover" />
+      ) : (
+        <span className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
+          style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)' }}>
+          <File size={18} style={{ color: 'var(--primary)' }} />
+        </span>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="font-medium truncate">{att.name}</p>
+        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1 truncate">
+          <MapPin size={11} className="flex-shrink-0" /> {activityTitle}
+        </p>
+      </div>
+      <div className="flex gap-1 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0">
+        <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive"
+          onClick={(e) => { e.stopPropagation(); onDelete(att) }} aria-label="Eliminar adjunto" title="Eliminar adjunto">
+          <Trash2 size={12} />
+        </Button>
+      </div>
+      <ChevronRight size={18} className="self-center flex-shrink-0 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+    </motion.div>
+  )
+}
+
 // Detalle de una reserva/billete: todos los campos + notas + archivo.
 function DocDetailDialog({ doc, onClose, onEdit, onDelete, onOpenFile }: {
   doc: Document | null
@@ -866,6 +937,12 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile, onOpen }: {
                 </span>
               )}
               {doc.confirmation_number && <span className="text-xs text-muted-foreground">#{doc.confirmation_number}</span>}
+              {doc.phone && (
+                <a href={`tel:${doc.phone}`} onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-primary hover:underline flex items-center gap-1">
+                  <Phone size={11} /> {doc.phone}
+                </a>
+              )}
             </div>
             {(doc.origin || doc.destination) && (
               <p className="text-xs text-muted-foreground mt-1">
