@@ -47,7 +47,7 @@ import type { Activity, DayAlert, ItineraryDay } from '@/types/database'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ?? ''
 
 // El conector de tiempos de viaje necesita la librería 'routes' de Google
 // Maps, que a su vez necesita un <APIProvider> ancestro — de ahí este

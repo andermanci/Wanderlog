@@ -36,7 +36,7 @@ import { PlaceIcon } from '@/components/places/PlaceIcon'
 import type { FavoritePlace } from '@/types/database'
 import { toast } from 'sonner'
 
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
+const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ?? ''
 
 // Dibuja la ruta del itinerario sobre el mapa de la app. Las paradas llegan ya
 // con coordenadas (useBackfillRoutePoints las geocodifica y las guarda una vez).
@@ -335,7 +335,7 @@ export function MapViewPage() {
     // Oculta el teclado del móvil al lanzar la búsqueda.
     searchRef.current?.blur()
     if (!q) return
-    if (typeof google === 'undefined' || !google.maps?.places) {
+    if (typeof google === 'undefined' || !google.maps?.places?.Place) {
       toast.error('El mapa todavía se está cargando. Inténtalo en un momento.')
       return
     }
@@ -369,47 +369,21 @@ export function MapViewPage() {
       }
     }
 
-    // 1) Places API (New)
     try {
-      if (google.maps.places.Place?.searchByText) {
-        const { places } = await google.maps.places.Place.searchByText({
-          textQuery: q,
-          fields: ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'types', 'websiteURI', 'googleMapsURI'],
-          maxResultCount: 12,
-          ...(center ? { locationBias: center } : {}),
-        })
-        if (places?.length) {
-          applyResults(places.filter(p => p.location).map(fromNew))
-          setSearching(false)
-          return
-        }
-      }
+      const { places } = await google.maps.places.Place.searchByText({
+        textQuery: q,
+        fields: ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'types', 'websiteURI', 'googleMapsURI'],
+        maxResultCount: 12,
+        ...(center ? { locationBias: center } : {}),
+      })
+      const hits = (places ?? []).filter(p => p.location).map(fromNew)
+      applyResults(hits)
+      if (hits.length === 0) toast.info('Sin resultados para esa búsqueda')
     } catch (e) {
-      console.warn('[map] Place.searchByText no disponible, pruebo legacy:', e)
-    }
-
-    // 2) Fallback: PlacesService.textSearch (API legacy)
-    try {
-      const service = new google.maps.places.PlacesService(mapInstance ?? document.createElement('div'))
-      service.textSearch(
-        { query: q, ...(center ? { location: center, radius: 50000 } : {}) },
-        (results, status) => {
-          setSearching(false)
-          const S = google.maps.places.PlacesServiceStatus
-          if (status === S.OK && results?.length) {
-            applyResults(results as unknown as PlaceResult[])
-          } else if (status === S.ZERO_RESULTS) {
-            setSearchResults([])
-            toast.info('Sin resultados para esa búsqueda')
-          } else {
-            setSearchResults([])
-            toast.error(`No se pudo buscar (${status}). Revisa que la "Places API" esté activada en Google Cloud.`)
-          }
-        }
-      )
-    } catch (e) {
-      console.error('[map] textSearch error:', e)
+      console.error('[map] Place.searchByText error:', e)
+      setSearchResults([])
       toast.error('No se pudo buscar lugares')
+    } finally {
       setSearching(false)
     }
   }, [searchInput, mapInstance])
@@ -665,7 +639,7 @@ export function MapViewPage() {
           <MapPin size={48} className="mx-auto mb-4" style={{ color: 'var(--primary)' }} />
           <h2 className="font-serif text-2xl mb-2">API Key de Google Maps no configurada</h2>
           <p className="text-muted-foreground text-sm">
-            Añade <code className="bg-surface-2 px-1 rounded">VITE_GOOGLE_MAPS_API_KEY</code> a tu archivo <code>.env</code>
+            Añade <code className="bg-surface-2 px-1 rounded">VITE_GOOGLE_MAPS_BROWSER_KEY</code> a tu archivo <code>.env</code>
           </p>
         </div>
       </div>

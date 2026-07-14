@@ -58,8 +58,13 @@ Edita `.env` con tus valores reales:
 ```env
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
-VITE_GOOGLE_MAPS_API_KEY=AIzaSy...
+VITE_GOOGLE_MAPS_BROWSER_KEY=AIzaSy...
 ```
+
+La clave del navegador va restringida por referrer (tu dominio + `localhost:5173`)
+y solo con Maps JavaScript, Places API (New), Geocoding y Directions. La clave del
+servidor (`GOOGLE_MAPS_SERVER_KEY`, para las Edge Functions) no se pone aquí: se
+sube como secreto de Supabase.
 
 ### 5. Ejecutar migraciones SQL
 

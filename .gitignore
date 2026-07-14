@@ -32,3 +32,6 @@ supabase/.temp/
 
 # Configuración local de Claude Code (contiene comandos con claves)
 .claude/
+
+# Local Netlify folder
+.netlify

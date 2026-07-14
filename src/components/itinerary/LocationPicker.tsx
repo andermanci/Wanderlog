@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
+const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ?? ''
 
 export interface LatLng { lat: number; lng: number }
 
@@ -100,48 +100,30 @@ function Inner({ initial, center, onPick, onCancel }: {
 
   const search = useCallback(async () => {
     const q = query.trim()
-    if (!q || typeof google === 'undefined' || !google.maps?.places) return
+    if (!q || typeof google === 'undefined' || !google.maps?.places?.Place) return
     const bias = mapInstance?.getCenter() ?? undefined
     try {
-      if (google.maps.places.Place?.searchByText) {
-        const { places } = await google.maps.places.Place.searchByText({
-          textQuery: q,
-          fields: ['displayName', 'formattedAddress', 'location', 'photos'],
-          maxResultCount: 8,
-          ...(bias ? { locationBias: bias } : {}),
-        })
-        if (places?.length) {
-          setResults(places.filter(p => p.location).map(p => {
-            let photoUrl: string | null = null
-            // API nueva: getURI({maxWidthPx}); los tipos instalados aún no lo recogen.
-            try { photoUrl = (p.photos?.[0] as unknown as { getURI?: (o: { maxWidthPx: number }) => string })?.getURI?.({ maxWidthPx: 800 }) ?? null } catch { /* sin foto */ }
-            return {
-              name: p.displayName ?? '',
-              address: p.formattedAddress ?? p.displayName ?? '',
-              lat: p.location!.lat(),
-              lng: p.location!.lng(),
-              photoUrl,
-            }
-          }))
-          return
-        }
-      }
-    } catch { /* cae a legacy */ }
-    try {
-      const svc = new google.maps.places.PlacesService(mapInstance ?? document.createElement('div'))
-      svc.textSearch({ query: q, ...(bias ? { location: bias, radius: 50000 } : {}) }, (res, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && res) {
-          setResults(res.filter(r => r.geometry?.location).map(r => ({
-            name: r.name ?? '',
-            address: r.formatted_address ?? r.name ?? '',
-            lat: r.geometry!.location!.lat(),
-            lng: r.geometry!.location!.lng(),
-          })))
-        } else {
-          setResults([])
-        }
+      const { places } = await google.maps.places.Place.searchByText({
+        textQuery: q,
+        fields: ['displayName', 'formattedAddress', 'location', 'photos'],
+        maxResultCount: 8,
+        ...(bias ? { locationBias: bias } : {}),
       })
-    } catch { setResults([]) }
+      setResults((places ?? []).filter(p => p.location).map(p => {
+        let photoUrl: string | null = null
+        // API nueva: getURI({maxWidthPx}); los tipos instalados aún no lo recogen.
+        try { photoUrl = (p.photos?.[0] as unknown as { getURI?: (o: { maxWidthPx: number }) => string })?.getURI?.({ maxWidthPx: 800 }) ?? null } catch { /* sin foto */ }
+        return {
+          name: p.displayName ?? '',
+          address: p.formattedAddress ?? p.displayName ?? '',
+          lat: p.location!.lat(),
+          lng: p.location!.lng(),
+          photoUrl,
+        }
+      }))
+    } catch {
+      setResults([])
+    }
   }, [query, mapInstance])
 
   function choose(hit: SearchHit) {
