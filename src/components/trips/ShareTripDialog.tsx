@@ -6,6 +6,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCollaborators, useShareTrip, useRemoveCollaborator } from '@/lib/queries/sharing'
+import { useTrip } from '@/lib/queries/trips'
+import { useAuthStore } from '@/store/authStore'
+import type { TripCollaborator } from '@/types/database'
 
 interface ShareTripDialogProps {
   open: boolean
@@ -15,9 +18,17 @@ interface ShareTripDialogProps {
 
 export function ShareTripDialog({ open, onClose, tripId }: ShareTripDialogProps) {
   const { data: collaborators, isLoading } = useCollaborators(tripId)
+  const { data: trip } = useTrip(tripId)
+  const { user } = useAuthStore()
   const share = useShareTrip(tripId)
   const remove = useRemoveCollaborator(tripId)
   const [email, setEmail] = useState('')
+
+  // Mismas reglas que la RLS: el dueño quita a cualquiera; un colaborador
+  // solo las invitaciones que hizo él, y a sí mismo (salir del viaje).
+  const isOwner = !!trip && trip.user_id === user?.id
+  const canRemove = (c: TripCollaborator) =>
+    isOwner || c.invited_by === user?.id || c.user_id === user?.id
 
   function handleShare(e: React.FormEvent) {
     e.preventDefault()
@@ -79,15 +90,19 @@ export function ShareTripDialog({ open, onClose, tripId }: ShareTripDialogProps)
                       </span>
                     )}
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="w-7 h-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => remove.mutate(c.id)}
-                    disabled={remove.isPending}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
+                  {canRemove(c) && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="w-7 h-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => remove.mutate(c.id)}
+                      disabled={remove.isPending}
+                      aria-label={c.user_id === user?.id ? 'Salir del viaje' : `Quitar acceso a ${c.email}`}
+                      title={c.user_id === user?.id ? 'Salir del viaje' : 'Quitar acceso'}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>
