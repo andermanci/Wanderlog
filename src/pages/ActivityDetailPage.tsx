@@ -20,7 +20,9 @@ import { useCreateReminder } from '@/lib/queries/reminders'
 import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useAuthStore } from '@/store/authStore'
 import { ACTIVITY_COLORS, ACTIVITY_LABELS, formatDate } from '@/lib/utils'
+import { isMove } from '@/lib/travelTime'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
+import { FlightTimes } from '@/components/itinerary/FlightTimes'
 import { AudioguideEntryCard } from '@/components/itinerary/AudioguideEntryCard'
 import { toast } from 'sonner'
 
@@ -95,7 +97,7 @@ export function ActivityDetailPage() {
   }
 
   const color = ACTIVITY_COLORS[activity.type]
-  const isTransport = activity.type === 'transport' && (activity.origin || activity.destination)
+  const isTransport = isMove(activity) && (activity.origin || activity.destination)
   const mapsQuery = activity.address ? encodeURIComponent(activity.address) : null
 
   // Navegación secuencial por el itinerario (fecha del día + order_index).
@@ -176,6 +178,15 @@ export function ActivityDetailPage() {
             alt={activity.title}
             className="w-full h-48 object-cover rounded-xl border border-border"
             loading="lazy"
+          />
+        )}
+
+        {/* Horas del billete, con la duración REAL si cruza husos horarios */}
+        {isMove(activity) && (
+          <FlightTimes
+            activity={activity}
+            startDate={day?.date ?? ''}
+            endDate={activity.end_day_id ? dayDate.get(activity.end_day_id) : null}
           />
         )}
 

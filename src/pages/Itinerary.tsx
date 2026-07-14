@@ -33,7 +33,10 @@ import {
 } from '@/lib/queries/itinerary'
 import { useTripRole, canEditRole } from '@/lib/queries/sharing'
 import { useTripTravelTimes } from '@/lib/queries/travelTime'
-import { pairKey, formatDayTotal } from '@/lib/travelTime'
+import { pairKey, formatDayTotal, isMove } from '@/lib/travelTime'
+import { useBackfillTimezones } from '@/lib/queries/timezones'
+import { detectTripConflicts } from '@/lib/conflicts'
+import { DayConflicts, ConflictBadge } from '@/components/itinerary/DayConflicts'
 import { useItineraryModeStore, resolveEditMode } from '@/store/itineraryModeStore'
 import { useDayAlerts } from '@/lib/queries/dayAlerts'
 import { useDestinationGuides } from '@/lib/queries/guide'
@@ -139,8 +142,7 @@ function ItineraryPageInner() {
   const arrivalsByDay = useMemo(() => {
     const map = new Map<string, Activity[]>()
     activities?.forEach(a => {
-      const isMove = a.type === 'flight' || a.type === 'transport'
-      if (isMove && a.end_day_id && a.end_day_id !== a.day_id) {
+      if (isMove(a) && a.end_day_id && a.end_day_id !== a.day_id) {
         map.set(a.end_day_id, [...(map.get(a.end_day_id) ?? []), a])
       }
     })
@@ -190,6 +192,25 @@ function ItineraryPageInner() {
   // día, para el conector que se pinta entre tarjetas de actividad.
   const routesLib = useMapsLibrary('routes')
   const travelTimes = useTripTravelTimes({ days, combinedItemsFor, collapsedDays, routesLib })
+
+  // Husos horarios: resuelve los que falten (en segundo plano) y deduce en qué
+  // zona está cada día. Sin esto, un vuelo Madrid–Tokio da una duración absurda
+  // y los conflictos entre husos distintos no se pueden calcular.
+  const zones = useBackfillTimezones(tripId, activities, days, canEdit)
+
+  // Conflictos del itinerario: cruza las horas con los tiempos de trayecto que
+  // ya se estaban calculando. Se derivan de `activities`, que el drag & drop ya
+  // actualiza de forma optimista, así que el aviso aparece o desaparece al
+  // soltar, sin trabajo extra durante el gesto.
+  const { byDay: conflictsByDay, legSeverity } = useMemo(() => detectTripConflicts({
+    days: days ?? [],
+    itemsFor: combinedItemsFor,
+    arrivalsFor: (dayId: string) => arrivalsByDay.get(dayId) ?? [],
+    dateByDayId: new Map((days ?? []).map(d => [d.id, d.date])),
+    zones,
+    legs: travelTimes,
+    today: format(new Date(), 'yyyy-MM-dd'),
+  }), [days, activities, arrivalsByDay, zones, travelTimes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -337,6 +358,7 @@ function ItineraryPageInner() {
                 const dayActs = (activitiesByDay.get(day.id) ?? []).filter(a => a.type !== 'hotel')
                 const dayArrivals = arrivalsByDay.get(day.id) ?? []
                 const dayLodging = lodgingByDay.get(day.id) ?? []
+                const dayConflicts = conflictsByDay.get(day.id) ?? []
                 const dayItems = [
                   ...dayActs.map(a => ({ id: a.id, order: a.order_index, act: a, lodge: null as Lodging | null })),
                   ...dayLodging.map(l => ({ id: l.activity.id, order: dayOrderOf(l.activity, day.id), act: null as Activity | null, lodge: l })),
@@ -399,6 +421,8 @@ function ItineraryPageInner() {
                               Hoy
                             </span>
                           )}
+                          {/* Se ve el problema sin desplegar el día */}
+                          <ConflictBadge conflicts={dayConflicts} />
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Día {dayIdx + 1} · {dayActs.length} {dayActs.length === 1 ? 'actividad' : 'actividades'}
@@ -523,6 +547,7 @@ function ItineraryPageInner() {
                           className="overflow-hidden"
                         >
                           {/* Alertas destacadas del día */}
+                          <DayConflicts conflicts={dayConflicts} />
                           <DayAlerts tripId={tripId!} day={day} alerts={alertsByDay.get(day.id) ?? []} editMode={editMode} />
 
                           {/* Llegadas del día anterior (continuación, no se repiten enteras) */}
@@ -588,8 +613,14 @@ function ItineraryPageInner() {
                                   )
                                   const next = dayItems[i + 1]
                                   if (!next) return [card]
-                                  const leg = travelTimes.get(pairKey(it.id, next.id))
-                                  return [card, <TravelConnector key={`conn-${it.id}-${next.id}`} leg={leg} />]
+                                  const key = pairKey(it.id, next.id)
+                                  return [card, (
+                                    <TravelConnector
+                                      key={`conn-${it.id}-${next.id}`}
+                                      leg={travelTimes.get(key)}
+                                      severity={legSeverity.get(key)}
+                                    />
+                                  )]
                                 })
                               )}
                             </SortableContext>

@@ -35,9 +35,18 @@ export function chooseMode(straightLineKm: number): TravelMode | null {
   return straightLineKm > WALK_THRESHOLD_KM ? 'DRIVING' : 'WALKING'
 }
 
+// Movimiento A→B: guarda las coordenadas en origin_*/destination_* y deja
+// lat/lng a null. Lo decide ActivityFormPage al guardar, e incluye los VUELOS
+// además de los transportes — comprobar solo 'transport' aquí dejaba a los
+// vuelos sin punto de entrada ni de salida, así que no se calculaba ningún
+// tramo hacia o desde un vuelo y tampoco salían en el recorrido del mapa.
+export function isMove(a: Activity): boolean {
+  return a.type === 'transport' || a.type === 'flight'
+}
+
 // Punto de salida de una actividad (para medir el tramo hacia la siguiente).
 export function exitPoint(a: Activity): GeoPoint | null {
-  if (a.type === 'transport') {
+  if (isMove(a)) {
     return a.destination_lat != null && a.destination_lng != null
       ? { lat: a.destination_lat, lng: a.destination_lng } : null
   }
@@ -46,7 +55,7 @@ export function exitPoint(a: Activity): GeoPoint | null {
 
 // Punto de entrada de una actividad (para medir el tramo desde la anterior).
 export function entryPoint(a: Activity): GeoPoint | null {
-  if (a.type === 'transport') {
+  if (isMove(a)) {
     return a.origin_lat != null && a.origin_lng != null
       ? { lat: a.origin_lat, lng: a.origin_lng } : null
   }
