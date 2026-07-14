@@ -17,7 +17,8 @@ import { LocationPicker, type LatLng } from '@/components/itinerary/LocationPick
 import { TripHeader } from '@/components/trips/TripHeader'
 import { useCreateActivity, useUpdateActivity, useItineraryDays, useActivities, uploadActivityCover, rehostPlacePhoto } from '@/lib/queries/itinerary'
 import { useAuthStore } from '@/store/authStore'
-import { ACTIVITY_LABELS } from '@/lib/utils'
+import { ACTIVITY_LABELS, currencySymbol } from '@/lib/utils'
+import { useTrip } from '@/lib/queries/trips'
 import { toast } from 'sonner'
 import type { Activity, ItineraryDay } from '@/types/database'
 
@@ -94,6 +95,7 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
 }) {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { data: trip } = useTrip(tripId)
   const createActivity = useCreateActivity()
   const updateActivity = useUpdateActivity()
 
@@ -350,7 +352,7 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Precio (€)</Label>
+          <Label>Precio ({currencySymbol(trip?.default_currency ?? undefined)})</Label>
           <Input type="number" step="0.01" {...register('price')} placeholder="0.00" />
         </div>
         <div className="space-y-1.5">

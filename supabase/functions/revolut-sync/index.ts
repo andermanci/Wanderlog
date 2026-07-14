@@ -90,9 +90,13 @@ Deno.serve(async (req) => {
     const windowEnd = trip.end_date
 
     // Recoge todos los débitos de la ventana de todas las cuentas.
+    // Acotamos por fecha en la propia API: pedir el histórico completo y filtrar
+    // aquí después gastaba el cupo de GoCardless (4 peticiones por día y cuenta)
+    // trayendo años de movimientos que íbamos a descartar igualmente.
+    const range = `?date_from=${windowStart}&date_to=${windowEnd}`
     const txs: GcTx[] = []
     for (const accountId of accounts) {
-      const resp = await gcFetch(token, `/accounts/${accountId}/transactions/`)
+      const resp = await gcFetch(token, `/accounts/${accountId}/transactions/${range}`)
       txs.push(...(resp.transactions?.booked ?? []))
     }
 

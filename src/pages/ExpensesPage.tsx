@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -28,7 +28,9 @@ import { CurrencySelect } from '@/components/CurrencySelect'
 import { CurrencyConverter } from '@/components/CurrencyConverter'
 import { useAuthStore } from '@/store/authStore'
 import { computeBalances, settleBalances } from '@/lib/split'
-import { EXPENSE_CATEGORIES, formatCurrency, formatDate, sumByCurrency } from '@/lib/utils'
+import { EXPENSE_CATEGORIES, formatCurrency, formatCurrencyShort, formatDate, sumByCurrency } from '@/lib/utils'
+import { useRevolutConnection, useConnectRevolut } from '@/lib/queries/revolut'
+import { RevolutImportDialog } from '@/components/trips/RevolutImportDialog'
 
 const CHART_COLORS = [
   'var(--primary)', '#6366f1', '#22c55e', '#f97316',
@@ -76,6 +78,19 @@ export function ExpensesPage() {
     }
   }, [formOpen, travelers, editing])
 
+  // Reparto por defecto: paga "yo" y se divide entre todos. El formulario
+  // completo ya lo aplicaba, pero el gasto rápido y los precios del itinerario
+  // creaban gastos sin paid_by ni split_between — y computeBalances solo cuenta
+  // los que tienen split_between, así que los dos flujos más usados durante el
+  // viaje desaparecían de los balances sin avisar.
+  function defaultSplit(): { paid_by?: string; split_between?: string[] } {
+    if (!travelers || travelers.length < 2) return {}
+    return {
+      paid_by: travelers.find(t => t.is_self)?.id ?? travelers[0].id,
+      split_between: travelers.map(t => t.id),
+    }
+  }
+
   // Actividades del itinerario con precio que aún NO se han registrado como
   // gasto (se ofrecen para añadir; el enlace activity_id evita duplicar).
   const dayDateById = new Map((days ?? []).map(d => [d.id, d.date]))
@@ -97,8 +112,23 @@ export function ExpensesPage() {
       amount: a.price!,
       currency: tripCurrency,
       date: dayDateById.get(a.day_id) ?? new Date().toISOString().slice(0, 10),
+      ...defaultSplit(),
     })
   }
+
+  // Importación bancaria (Revolut vía GoCardless). El callback del consentimiento
+  // vuelve a esta pantalla con ?import=revolut y abrimos el selector directamente.
+  const { data: connection } = useRevolutConnection(tripId!)
+  const connectRevolut = useConnectRevolut(tripId!)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [importOpen, setImportOpen] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('import') !== 'revolut') return
+    setImportOpen(true)
+    searchParams.delete('import')
+    setSearchParams(searchParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   // Gasto rápido: importe + categoría, fecha de hoy, divisa principal.
   const [quickAmount, setQuickAmount] = useState('')
@@ -116,6 +146,7 @@ export function ExpensesPage() {
       amount,
       currency: tripCurrency,
       date: new Date().toISOString().slice(0, 10),
+      ...defaultSplit(),
     })
     setQuickAmount('')
     setQuickDesc('')
@@ -218,14 +249,26 @@ export function ExpensesPage() {
           <h1 className="font-serif text-2xl font-medium">Gastos</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Control del presupuesto</p>
         </div>
-        <Button
-          onClick={() => setFormOpen(true)}
-          variant="brand"
-          className="gap-2"
-        >
-          <Plus size={16} />
-          Añadir gasto
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            disabled={connectRevolut.isPending}
+            onClick={() => connection ? setImportOpen(true) : connectRevolut.mutate()}
+            title={connection ? 'Importar movimientos de Revolut' : 'Conectar tu cuenta de Revolut'}
+          >
+            {connectRevolut.isPending ? <Loader2 size={16} className="animate-spin" /> : <Landmark size={16} />}
+            <span className="hidden sm:inline">{connection ? 'Importar del banco' : 'Conectar banco'}</span>
+          </Button>
+          <Button
+            onClick={() => setFormOpen(true)}
+            variant="brand"
+            className="gap-2"
+          >
+            <Plus size={16} />
+            Añadir gasto
+          </Button>
+        </div>
       </div>
 
       {/* Actividades del itinerario con precio sin registrar como gasto */}
@@ -435,11 +478,11 @@ export function ExpensesPage() {
                 tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={(v) => `${v}€`}
+                tickFormatter={(v) => formatCurrencyShort(Number(v), mainCurrency)}
               />
               <Tooltip
                 contentStyle={{ background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--foreground)' }}
-                formatter={(value: unknown) => [formatCurrency(Number(value)), 'Gasto']}
+                formatter={(value: unknown) => [formatCurrency(Number(value), mainCurrency), 'Gasto']}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {chartData.map((_, i) => (
@@ -462,10 +505,10 @@ export function ExpensesPage() {
             <BarChart data={dayChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="name" tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}€`} />
+              <YAxis tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrencyShort(Number(v), mainCurrency)} />
               <Tooltip
                 contentStyle={{ background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--foreground)' }}
-                formatter={(value: unknown) => [formatCurrency(Number(value)), 'Gasto']}
+                formatter={(value: unknown) => [formatCurrency(Number(value), mainCurrency), 'Gasto']}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]} fill="var(--primary)" />
             </BarChart>
@@ -637,6 +680,12 @@ export function ExpensesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <RevolutImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        tripId={tripId!}
+      />
     </div>
   )
 }

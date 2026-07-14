@@ -29,6 +29,20 @@ export function formatCurrency(amount: number, currency = 'EUR'): string {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(amount)
 }
 
+// Versión sin decimales, para los ejes de las gráficas (donde no cabe "1.234,00 €").
+export function formatCurrencyShort(amount: number, currency = 'EUR'): string {
+  return new Intl.NumberFormat('es-ES', {
+    style: 'currency', currency, maximumFractionDigits: 0,
+  }).format(amount)
+}
+
+// Símbolo de la divisa (€, ¥, $…), para etiquetas cortas como "Precio (¥)".
+export function currencySymbol(currency = 'EUR'): string {
+  return new Intl.NumberFormat('es-ES', { style: 'currency', currency, maximumFractionDigits: 0 })
+    .formatToParts(0)
+    .find(p => p.type === 'currency')?.value ?? currency
+}
+
 // Suma importes agrupados por divisa (no se pueden sumar EUR + JPY a pelo).
 export function sumByCurrency(items: Array<{ amount: number; currency: string }>): Record<string, number> {
   return items.reduce<Record<string, number>>((acc, it) => {

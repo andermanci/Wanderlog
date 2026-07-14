@@ -16,6 +16,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { useCreateTrip, useUpdateTrip } from '@/lib/queries/trips'
+import { currencySymbol } from '@/lib/utils'
 import type { Trip } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -38,7 +39,7 @@ interface TripFormDialogProps {
 }
 
 export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
-  const { user } = useAuthStore()
+  const { user, profile } = useAuthStore()
   const createTrip = useCreateTrip()
   const updateTrip = useUpdateTrip()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -237,7 +238,7 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
 
           {/* Presupuesto */}
           <div className="space-y-1.5">
-            <Label>Presupuesto total (€)</Label>
+            <Label>Presupuesto total ({currencySymbol(trip?.default_currency ?? profile?.default_currency ?? undefined)})</Label>
             <Input type="number" step="0.01" {...register('budget_total')} placeholder="0.00" />
           </div>
 
