@@ -10,6 +10,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const GOOGLE_TTS_API_KEY = Deno.env.get('GOOGLE_TTS_API_KEY')
+// Tope de caracteres por petición: el guion más largo que genera la app
+// (nivel "exhaustiva", 450 palabras) no llega a 3.000.
+const MAX_TTS_CHARS = 5000
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -116,6 +119,12 @@ Deno.serve(async (req) => {
     const { stopId, text, path } = await req.json().catch(() => ({}))
     if (!stopId || !text || !path) return json({ error: 'Faltan stopId, text o path' }, 400)
     if (!path.startsWith(`${user.id}/`)) return json({ error: 'Ruta no autorizada' }, 403)
+    // Google Cloud TTS se factura por carácter sintetizado. Sin este tope,
+    // cualquiera con la anon key (que va en el bundle) podría sintetizar texto
+    // ilimitado contra nuestra cuenta. Una parada larga ronda los 3.000.
+    if (typeof text !== 'string' || text.length > MAX_TTS_CHARS) {
+      return json({ error: `El texto supera el máximo de ${MAX_TTS_CHARS} caracteres` }, 400)
+    }
 
     const ttsRes = await fetch(
       `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
