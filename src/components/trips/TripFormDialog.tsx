@@ -2,10 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { useForm, Controller, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { Upload, X, Loader2 } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -47,11 +52,19 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
+  // Cambio de fechas pendiente de decidir: qué hacer con las actividades ya
+  // planificadas (adaptarlas al nuevo rango o dejarlas donde están).
+  const [dateShift, setDateShift] = useState<{ values: FormValues; days: number; activities: number } | null>(null)
 
   const { register, handleSubmit, reset, setValue, control, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
     defaultValues: { status: 'planning' },
   })
+
+  function handleClose() {
+    setDateShift(null)
+    onClose()
+  }
 
   useEffect(() => {
     if (trip) {
@@ -113,7 +126,22 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
     }
   }
 
+  // Mover el inicio del viaje arrastra el itinerario entero, así que cuando hay
+  // actividades planificadas no se decide por el usuario: se le pregunta.
   async function onSubmit(values: FormValues) {
+    if (trip && values.start_date !== trip.start_date) {
+      const days = differenceInCalendarDays(parseISO(values.start_date), parseISO(trip.start_date))
+      const { count } = await supabase
+        .from('activities').select('id', { count: 'exact', head: true }).eq('trip_id', trip.id)
+      if (days !== 0 && (count ?? 0) > 0) {
+        setDateShift({ values, days, activities: count ?? 0 })
+        return
+      }
+    }
+    await save(values, true)
+  }
+
+  async function save(values: FormValues, shiftItinerary: boolean) {
     const payload = {
       ...values,
       description: values.description ?? null,
@@ -121,16 +149,25 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
       tags,
       cover_image_url: coverUrl,
     }
-    if (trip) {
-      await updateTrip.mutateAsync({ id: trip.id, ...payload })
-    } else {
-      await createTrip.mutateAsync(payload as Parameters<typeof createTrip.mutateAsync>[0])
+    try {
+      if (trip) {
+        await updateTrip.mutateAsync({ id: trip.id, ...payload, shiftItinerary })
+      } else {
+        await createTrip.mutateAsync(payload as Parameters<typeof createTrip.mutateAsync>[0])
+      }
+    } catch {
+      // Del error ya avisa la mutación con un toast: se deja el formulario
+      // abierto para no perder lo escrito.
+      return
     }
-    onClose()
+    handleClose()
   }
 
+  const pending = isSubmitting || updateTrip.isPending
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
         <DialogHeader>
           <DialogTitle className="font-serif text-2xl">{trip ? 'Editar viaje' : 'Nuevo viaje'}</DialogTitle>
@@ -266,15 +303,51 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
           </div>
 
           <DialogFooter className="gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting || uploading}
+            <Button type="button" variant="ghost" onClick={handleClose}>Cancelar</Button>
+            <Button type="submit" disabled={pending || uploading}
               variant="brand">
-              {isSubmitting ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+              {pending ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
               {trip ? 'Guardar cambios' : 'Crear viaje'}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={!!dateShift} onOpenChange={(o) => { if (!o) setDateShift(null) }}>
+      <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="font-serif text-xl">¿Adapto las actividades a las nuevas fechas?</AlertDialogTitle>
+          <AlertDialogDescription>
+            El viaje se {(dateShift?.days ?? 0) > 0 ? 'retrasa' : 'adelanta'}{' '}
+            {Math.abs(dateShift?.days ?? 0)} día{Math.abs(dateShift?.days ?? 0) === 1 ? '' : 's'} y tienes{' '}
+            {dateShift?.activities} actividad{dateShift?.activities === 1 ? '' : 'es'} planificada{dateShift?.activities === 1 ? '' : 's'}.
+            Puedes moverlas contigo, conservando el orden y el reparto por días, o dejarlas en las fechas
+            que ya tienen (las que se queden fuera del viaje se conservan igual).
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="gap-2">
+          <Button type="button" variant="ghost" onClick={() => setDateShift(null)}>Cancelar</Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => dateShift && save(dateShift.values, false)}
+          >
+            Dejarlas como están
+          </Button>
+          <Button
+            type="button"
+            variant="brand"
+            disabled={pending}
+            onClick={() => dateShift && save(dateShift.values, true)}
+          >
+            {pending ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+            Adaptar actividades
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   )
 }

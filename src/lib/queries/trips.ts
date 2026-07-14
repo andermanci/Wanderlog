@@ -7,17 +7,27 @@ import type { Trip } from '@/types/database'
 import { toast } from 'sonner'
 
 // Sincroniza los días del itinerario con el nuevo rango de fechas del viaje.
-// Si cambia la fecha de inicio, primero DESPLAZA en bloque todos los días
-// existentes ese mismo número de días (mismo id de día, solo cambia `date`):
-// como las actividades referencian el id del día (no la fecha), todo el
-// itinerario "viaja" junto automáticamente sin tocar una sola actividad.
-// Después, como antes: añade los días que falten al final del nuevo rango y
-// borra los que sobren SIN actividades (los que tienen se conservan, avisando).
-async function reconcileItineraryDays(tripId: string, oldStartDate: string, newStartDate: string, newEndDate: string) {
+// Si cambia la fecha de inicio y `shiftItinerary`, primero DESPLAZA en bloque
+// todos los días existentes ese mismo número de días (mismo id de día, solo
+// cambia `date`): como las actividades referencian el id del día (no la fecha),
+// todo el itinerario "viaja" junto automáticamente sin tocar una sola actividad.
+// Sin `shiftItinerary`, los días se quedan en su fecha absoluta y las
+// actividades no se mueven: es el usuario quien elige (ver TripFormDialog).
+// Después, en ambos casos: añade los días que falten al nuevo rango y borra los
+// que sobren SIN actividades (los que tienen se conservan, avisando).
+async function reconcileItineraryDays(
+  tripId: string,
+  oldStartDate: string,
+  newStartDate: string,
+  newEndDate: string,
+  shiftItinerary: boolean,
+) {
   const { data: existing } = await supabase
     .from('itinerary_days').select('id, date').eq('trip_id', tripId)
 
-  const deltaDays = differenceInCalendarDays(parseISO(newStartDate), parseISO(oldStartDate))
+  const deltaDays = shiftItinerary
+    ? differenceInCalendarDays(parseISO(newStartDate), parseISO(oldStartDate))
+    : 0
   if (deltaDays !== 0 && existing?.length) {
     // Se actualiza uno a uno, en el orden que evita chocar con la restricción
     // unique(trip_id, date): si el viaje se retrasa, primero el día más
@@ -140,7 +150,10 @@ export function useCreateTrip() {
 export function useUpdateTrip() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...values }: Partial<Trip> & { id: string }) => {
+    // `shiftItinerary` decide qué pasa con las actividades cuando se mueven las
+    // fechas: true (por defecto) las adapta desplazando los días en bloque;
+    // false las deja en su fecha actual.
+    mutationFn: async ({ id, shiftItinerary = true, ...values }: Partial<Trip> & { id: string, shiftItinerary?: boolean }) => {
       // Si cambian las fechas, hace falta el start_date ANTERIOR para poder
       // desplazar el itinerario en bloque: se pide antes de aplicar el cambio.
       let prevStartDate: string | null = null
@@ -158,7 +171,9 @@ export function useUpdateTrip() {
       if (error) throw error
       // Si cambian las fechas, reconciliar (y desplazar) los días del itinerario.
       if (values.start_date && values.end_date) {
-        await reconcileItineraryDays(id, prevStartDate ?? values.start_date, values.start_date, values.end_date)
+        await reconcileItineraryDays(
+          id, prevStartDate ?? values.start_date, values.start_date, values.end_date, shiftItinerary,
+        )
       }
       return data
     },
@@ -166,6 +181,7 @@ export function useUpdateTrip() {
       qc.invalidateQueries({ queryKey: tripKeys.lists() })
       qc.invalidateQueries({ queryKey: tripKeys.detail(data.id) })
       qc.invalidateQueries({ queryKey: itineraryKeys.days(data.id) })
+      qc.invalidateQueries({ queryKey: itineraryKeys.activities(data.id) })
       // El clima está cacheado por día: si las fechas se movieron, refrescar.
       qc.invalidateQueries({ queryKey: ['weather', data.id] })
       qc.invalidateQueries({ queryKey: ['weather-hourly', data.id] })
