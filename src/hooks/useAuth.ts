@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { tripKeys } from '@/lib/queries/trips'
 import { reminderKeys } from '@/lib/queries/reminders'
+import { clearDocCache } from '@/lib/docCache'
 
 export function useAuthListener() {
   const { setSession, setProfile, setLoading } = useAuthStore()
@@ -152,6 +153,9 @@ export function useSignOut() {
     setSession(null)
     setProfile(null)
     qc.clear()
+    // Los documentos descargados para verlos sin conexión (DNIs, pasaportes) no
+    // pueden quedarse en el dispositivo después de cerrar sesión.
+    clearDocCache().catch(() => {})
     navigate('/login')
   }
 }

@@ -3,12 +3,14 @@ import { motion } from 'framer-motion'
 import { RotateCw, IdCard } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { DocImage } from '@/components/documents/DocImage'
 
 interface IdCardViewerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
   subtitle?: string | null
+  /** Paths del bucket privado `documents`. */
   front: string | null
   back: string | null
 }
@@ -41,16 +43,18 @@ export function IdCardViewer({ open, onOpenChange, title, subtitle, front, back 
             {/* Anverso */}
             <div className="absolute inset-0 rounded-xl overflow-hidden border border-border"
               style={{ backfaceVisibility: 'hidden', background: 'var(--secondary)' }}>
-              {front
-                ? <img src={front} alt="Anverso" className="w-full h-full object-contain" />
-                : <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">Sin anverso</div>}
+              <DocImage
+                src={front} alt="Anverso" className="w-full h-full object-contain"
+                fallback={<div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">Sin anverso</div>}
+              />
             </div>
             {/* Reverso */}
             <div className="absolute inset-0 rounded-xl overflow-hidden border border-border"
               style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', background: 'var(--secondary)' }}>
-              {back
-                ? <img src={back} alt="Reverso" className="w-full h-full object-contain" />
-                : <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">Sin reverso</div>}
+              <DocImage
+                src={back} alt="Reverso" className="w-full h-full object-contain"
+                fallback={<div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">Sin reverso</div>}
+              />
             </div>
           </motion.div>
         </div>

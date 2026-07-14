@@ -3,15 +3,17 @@ import { Camera, Loader2, Check, X, ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { uploadDocumentFile } from '@/lib/queries/documents'
+import { DocImage } from '@/components/documents/DocImage'
 import { cropDocument } from '@/lib/idScan'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
 
 interface IdPhotoInputProps {
   label: string
+  /** Path del fichero ya subido al bucket privado `documents`. */
   value: string | null
   tripId: string
-  onChange: (url: string | null) => void
+  onChange: (path: string | null) => void
 }
 
 // Captura de la foto de un documento (anverso/reverso): la pasa por el recorte
@@ -46,8 +48,7 @@ export function IdPhotoInput({ label, value, tripId, onChange }: IdPhotoInputPro
     try {
       const blob = useCrop && pending.cropped ? pending.cropped : pending.original
       const file = blob instanceof File ? blob : new File([blob], `doc-${Date.now()}.jpg`, { type: 'image/jpeg' })
-      const url = await uploadDocumentFile(file, user.id, tripId)
-      onChange(url)
+      onChange(await uploadDocumentFile(file, user.id, tripId))
       closePending()
     } catch {
       toast.error('No se pudo subir la imagen')
@@ -78,7 +79,10 @@ export function IdPhotoInput({ label, value, tripId, onChange }: IdPhotoInputPro
 
       {value ? (
         <div className="relative rounded-lg overflow-hidden border border-border">
-          <img src={value} alt={label} className="w-full h-32 object-cover" />
+          <DocImage
+            src={value} alt={label} className="w-full h-32 object-cover"
+            fallback={<div className="w-full h-32 animate-pulse" style={{ background: 'var(--secondary)' }} />}
+          />
           <div className="absolute top-1.5 right-1.5 flex gap-1.5">
             <Button type="button" size="sm" variant="secondary" className="h-7 text-xs" onClick={() => fileRef.current?.click()}>
               Cambiar

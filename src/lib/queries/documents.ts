@@ -80,6 +80,10 @@ export function useDeleteDocument() {
   })
 }
 
+// Devuelve el PATH dentro del bucket (privado), no una URL pública: se guarda
+// así en la BD y se resuelve al pintarlo con `useDocUrl`. El segundo segmento
+// del path es el viaje, y la política de RLS del bucket lo usa para dar acceso
+// a los colaboradores.
 export async function uploadDocumentFile(
   file: File,
   userId: string,
@@ -89,6 +93,5 @@ export async function uploadDocumentFile(
   const path = `${userId}/${tripId}/${Date.now()}.${ext}`
   const { error } = await supabase.storage.from('documents').upload(path, file)
   if (error) throw error
-  const { data } = supabase.storage.from('documents').getPublicUrl(path)
-  return data.publicUrl
+  return path
 }

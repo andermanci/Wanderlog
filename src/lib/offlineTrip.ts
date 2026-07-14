@@ -11,6 +11,7 @@ import { placeKeys } from '@/lib/queries/places'
 import { journalKeys } from '@/lib/queries/journal'
 import { attachmentKeys } from '@/lib/queries/attachments'
 import { guideKeys } from '@/lib/queries/guide'
+import { cacheDoc } from '@/lib/docCache'
 
 // Prefetchea TODOS los datos de un viaje (con las mismas query keys que usan los
 // hooks) y calienta la caché de imágenes del service worker, para poder usar el
@@ -69,11 +70,19 @@ export async function prefetchTripOffline(
   const add = (u?: string | null) => { if (u && /^https?:\/\//.test(u)) urls.add(u) }
   const [trip, , , documents, , , , , places, journal, attachments, guides] = results
   add(trip?.cover_image_url)
-  ;(documents ?? []).forEach((d: any) => { add(d.file_url); add(d.back_url) }) // eslint-disable-line @typescript-eslint/no-explicit-any
   ;(places ?? []).forEach(() => {})
   ;(journal ?? []).forEach((j: any) => add(j.file_url)) // eslint-disable-line @typescript-eslint/no-explicit-any
   ;(attachments ?? []).forEach((a: any) => add(a.file_url)) // eslint-disable-line @typescript-eslint/no-explicit-any
   ;(guides ?? []).forEach((g: any) => add(g.cover_image_url)) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  // Los documentos (bucket privado) no pasan por el service worker: se leen con
+  // URLs firmadas, que cambian en cada petición y nunca acertarían en su caché.
+  // Los descargamos como blobs a nuestra propia caché, indexados por path.
+  const docPaths = new Set<string>()
+  ;(documents ?? []).forEach((d: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (d.file_url) docPaths.add(d.file_url)
+    if (d.back_url) docPaths.add(d.back_url)
+  })
 
   // Tipos de cambio en la divisa del viaje: el conversor funciona offline.
   if (trip?.default_currency) {
@@ -88,6 +97,9 @@ export async function prefetchTripOffline(
     }).catch(() => null)
   }
 
-  await Promise.all([...urls].map((u) => fetch(u).catch(() => {})))
+  await Promise.all([
+    ...[...urls].map((u) => fetch(u).catch(() => {})),
+    ...[...docPaths].map((p) => cacheDoc(p).catch(() => {})),
+  ])
   onProgress?.(total, total)
 }

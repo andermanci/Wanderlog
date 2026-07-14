@@ -31,7 +31,10 @@ const cacheFirst = (cacheName: string, maxEntries: number, days: number) =>
     ],
   })
 
-// Adjuntos, portadas, DNIs y QRs de Supabase Storage (offline 60 días).
+// Adjuntos, portadas y QRs de Supabase Storage (offline 60 días).
+// Los documentos personales (DNI, pasaporte) NO pasan por aquí: su bucket es
+// privado y se lee con URLs firmadas, cuya firma cambia en cada petición y por
+// tanto nunca acertaría en esta caché. Los gestiona la app en src/lib/docCache.ts.
 // Los audios (destination === 'audio', ej. audioguías) se excluyen a
 // propósito: la interceptación de peticiones Range de audio/vídeo por un
 // Service Worker es poco fiable en Safari/WebKit (tanto Mac como iOS) pase
@@ -47,9 +50,9 @@ registerRoute(
     /\.supabase\.co\/storage\/v1\/object\/public\//.test(url.href),
   cacheFirst('supabase-storage-v2', 500, 60),
 )
-// OpenCV + jscanify (recorte de documentos).
+// OpenCV + jscanify (recorte de documentos), ambos del paquete jscanify.
 registerRoute(
-  ({ url }) => url.hostname === 'docs.opencv.org' || (url.hostname === 'cdn.jsdelivr.net' && url.pathname.startsWith('/npm/jscanify')),
+  ({ url }) => url.hostname === 'cdn.jsdelivr.net' && url.pathname.startsWith('/npm/jscanify'),
   cacheFirst('doc-scan-libs', 8, 365),
 )
 // Fuentes de Google.

@@ -30,6 +30,7 @@ import { DocIcon } from '@/components/icons/DocIcon'
 import { IdPhotoInput } from '@/components/documents/IdPhotoInput'
 import { IdCardViewer } from '@/components/documents/IdCardViewer'
 import { DocLightbox } from '@/components/documents/DocLightbox'
+import { DocImage } from '@/components/documents/DocImage'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate, DOCUMENT_LABELS, PERSONAL_DOC_CATEGORIES } from '@/lib/utils'
 import type { Document, ActivityAttachment, Traveler } from '@/types/database'
@@ -694,9 +695,10 @@ function PersonalDocCard({ doc, travelerName, onView, onEdit, onDelete }: {
       <button type="button" className="w-full flex items-stretch gap-3 text-left"
         onClick={() => onView({ front: doc.file_url, back: doc.back_url, title: `${DOCUMENT_LABELS[doc.category]}${travelerName ? ` · ${travelerName}` : ''}`, subtitle: doc.confirmation_number })}>
         <div className="w-16 flex-shrink-0 bg-black/5 flex items-center justify-center">
-          {doc.file_url
-            ? <img src={doc.file_url} alt="" className="w-full h-full object-cover" />
-            : <DocIcon category={doc.category} size={22} style={{ color: 'var(--primary)' }} />}
+          <DocImage
+            src={doc.file_url} alt="" className="w-full h-full object-cover"
+            fallback={<DocIcon category={doc.category} size={22} style={{ color: 'var(--primary)' }} />}
+          />
         </div>
         <div className="flex-1 min-w-0 py-2 pr-1">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -790,7 +792,11 @@ function DocDetailDialog({ doc, onClose, onEdit, onDelete, onOpenFile }: {
             <div className="mt-3">
               {isImg ? (
                 <button type="button" onClick={() => onOpenFile(doc.file_url!, doc.title)} className="block w-full">
-                  <img src={doc.file_url} alt={doc.title} className="w-full max-h-56 object-cover rounded-lg border border-border" />
+                  <DocImage
+                    src={doc.file_url} alt={doc.title}
+                    className="w-full max-h-56 object-cover rounded-lg border border-border"
+                    fallback={<div className="w-full h-40 rounded-lg border border-border animate-pulse" style={{ background: 'var(--secondary)' }} />}
+                  />
                 </button>
               ) : (
                 <Button variant="outline" className="w-full gap-2" onClick={() => onOpenFile(doc.file_url!, doc.title)}>
