@@ -16,8 +16,9 @@ export default defineConfig({
       injectRegister: 'auto',
       injectManifest: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-        // Incluye .webp para precachear las portadas fallback empaquetadas.
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
+        // Incluye .webp para precachear las portadas fallback empaquetadas y
+        // .mjs para el worker de pdf.js (detección de códigos del wallet offline).
+        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,webp}'],
       },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -70,6 +71,8 @@ export default defineConfig({
           if (id.includes('@fullcalendar') || id.includes('ical.js')) return 'fullcalendar'
           if (id.includes('recharts') || id.includes('d3-')) return 'charts'
           if (id.includes('@vis.gl/react-google-maps')) return 'maps'
+          // pdf.js + ZXing solo los usa el Wallet (detección de QR/códigos).
+          if (id.includes('pdfjs-dist') || id.includes('@zxing')) return 'wallet-codes'
           if (/react-markdown|remark-|micromark|mdast|hast|turndown/.test(id)) return 'markdown'
         },
       },

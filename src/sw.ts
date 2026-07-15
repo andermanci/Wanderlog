@@ -16,9 +16,12 @@ clientsClaim()
 // Precache de la app (JS/CSS/HTML generados en el build).
 precacheAndRoute(self.__WB_MANIFEST)
 
-// SPA: servir index.html para navegaciones (salvo auth/supabase).
+// SPA: servir index.html para navegaciones (salvo auth/supabase y el archivo
+// del Atajo de iOS). Sin excluir el .shortcut, al tocar "Descargar el Atajo" el
+// SW respondía index.html a la navegación y la app te devolvía al inicio en vez
+// de descargar el archivo.
 registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html'), {
-  denylist: [/^\/auth\//, /supabase/],
+  denylist: [/^\/auth\//, /supabase/, /\.shortcut$/],
 }))
 
 // ---- Cachés en tiempo de ejecución (réplica de la config anterior) ----

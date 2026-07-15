@@ -32,6 +32,7 @@ const MapViewPage = lazy(() => import('@/pages/MapView').then(m => ({ default: m
 const SavedPlacesPage = lazy(() => import('@/pages/SavedPlacesPage').then(m => ({ default: m.SavedPlacesPage })))
 const ImportSharedPage = lazy(() => import('@/pages/ImportSharedPage').then(m => ({ default: m.ImportSharedPage })))
 const DocumentsPage = lazy(() => import('@/pages/Documents').then(m => ({ default: m.DocumentsPage })))
+const WalletPage = lazy(() => import('@/pages/WalletPage').then(m => ({ default: m.WalletPage })))
 const CalendarPage = lazy(() => import('@/pages/CalendarPage').then(m => ({ default: m.CalendarPage })))
 const RemindersPage = lazy(() => import('@/pages/RemindersPage').then(m => ({ default: m.RemindersPage })))
 const PackingPage = lazy(() => import('@/pages/PackingPage').then(m => ({ default: m.PackingPage })))
@@ -135,6 +136,7 @@ export default function App() {
               <Route path="/trips/:tripId/map" element={<MapViewPage />} />
               <Route path="/trips/:tripId/places" element={<SavedPlacesPage />} />
               <Route path="/trips/:tripId/documents" element={<DocumentsPage />} />
+              <Route path="/trips/:tripId/wallet" element={<WalletPage />} />
               <Route path="/trips/:tripId/reminders" element={<RemindersPage />} />
               <Route path="/trips/:tripId/packing" element={<PackingPage />} />
               <Route path="/trips/:tripId/expenses" element={<ExpensesPage />} />

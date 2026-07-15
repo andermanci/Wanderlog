@@ -36,6 +36,7 @@ const SECTIONS = [
   { label: 'Lugares', icon: Bookmark, path: 'places' },
   { label: 'Guía', icon: BookOpen, path: 'guide' },
   { label: 'Documentos', icon: FileText, path: 'documents' },
+  { label: 'Wallet', icon: Wallet, path: 'wallet' },
   { label: 'Equipaje', icon: Package, path: 'packing' },
   { label: 'Gastos', icon: Receipt, path: 'expenses' },
   { label: 'Avisos', icon: Bell, path: 'reminders' },

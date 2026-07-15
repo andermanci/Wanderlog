@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Calendar, Settings, Map, Receipt, FileText, Home,
-  MoreHorizontal, Bookmark, BookOpen, Package, Bell, Heart, type LucideIcon,
+  MoreHorizontal, Bookmark, BookOpen, Package, Bell, Heart, Wallet, type LucideIcon,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -15,6 +15,7 @@ interface BottomNavProps {
 // barra). Así ninguna sección obliga a pasar por el Resumen en móvil.
 const MORE_SECTIONS: { path: string; icon: LucideIcon; label: string }[] = [
   { path: 'documents', icon: FileText, label: 'Documentos' },
+  { path: 'wallet', icon: Wallet, label: 'Wallet' },
   { path: 'places', icon: Bookmark, label: 'Lugares' },
   { path: 'guide', icon: BookOpen, label: 'Guía' },
   { path: 'packing', icon: Package, label: 'Equipaje' },
