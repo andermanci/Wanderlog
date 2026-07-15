@@ -28,7 +28,9 @@ export function useSaveFavoritePlace() {
   const qc = useQueryClient()
   const { user } = useAuthStore()
   return useMutation({
-    mutationFn: async (values: Omit<FavoritePlace, 'id' | 'user_id' | 'created_at' | 'guide_id'>) => {
+    // guide_id es opcional: la búsqueda en el mapa no lo pasa, pero la
+    // importación desde un enlace sí (asocia el sitio a la ciudad/guía).
+    mutationFn: async (values: Omit<FavoritePlace, 'id' | 'user_id' | 'created_at' | 'guide_id'> & { guide_id?: string | null }) => {
       const { data, error } = await supabase
         .from('favorite_places')
         .insert({ ...values, user_id: user!.id })

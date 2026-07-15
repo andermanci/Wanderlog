@@ -30,6 +30,7 @@ const AudioguidePage = lazy(() => import('@/pages/AudioguidePage').then(m => ({ 
 const TripMemoryPage = lazy(() => import('@/pages/TripMemoryPage').then(m => ({ default: m.TripMemoryPage })))
 const MapViewPage = lazy(() => import('@/pages/MapView').then(m => ({ default: m.MapViewPage })))
 const SavedPlacesPage = lazy(() => import('@/pages/SavedPlacesPage').then(m => ({ default: m.SavedPlacesPage })))
+const ImportSharedPage = lazy(() => import('@/pages/ImportSharedPage').then(m => ({ default: m.ImportSharedPage })))
 const DocumentsPage = lazy(() => import('@/pages/Documents').then(m => ({ default: m.DocumentsPage })))
 const CalendarPage = lazy(() => import('@/pages/CalendarPage').then(m => ({ default: m.CalendarPage })))
 const RemindersPage = lazy(() => import('@/pages/RemindersPage').then(m => ({ default: m.RemindersPage })))
@@ -121,6 +122,8 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              {/* Destino del "Compartir" de TikTok/Instagram y del pegar-enlace. */}
+              <Route path="/import/shared" element={<ImportSharedPage />} />
 
               <Route path="/trips/:tripId" element={<TripDetail />} />
               <Route path="/trips/:tripId/itinerary" element={<ItineraryPage />} />

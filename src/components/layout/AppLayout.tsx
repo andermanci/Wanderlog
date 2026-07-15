@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Outlet, useParams, useLocation } from 'react-router-dom'
+import { Outlet, useParams, useLocation, useSearchParams } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { OfflineBanner } from '@/components/OfflineBanner'
@@ -7,7 +7,11 @@ import { TripSearchCommand } from '@/components/trips/TripSearchCommand'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 export function AppLayout() {
-  const { tripId } = useParams<{ tripId: string }>()
+  const { tripId: pathTripId } = useParams<{ tripId: string }>()
+  const [searchParams] = useSearchParams()
+  // Rutas fuera de /trips/:tripId (p. ej. /import/shared?trip=…) igualan el
+  // contexto del viaje por query, para conservar el sidebar y la barra del viaje.
+  const tripId = pathTripId ?? searchParams.get('trip') ?? undefined
   const location = useLocation()
   const mainRef = useRef<HTMLElement>(null)
 

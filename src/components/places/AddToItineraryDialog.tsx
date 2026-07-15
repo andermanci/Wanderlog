@@ -1,13 +1,17 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { parseISO } from 'date-fns'
-import { Calendar } from 'lucide-react'
+import { Calendar, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DatePicker } from '@/components/ui/date-picker'
 import { useCreateActivity, useItineraryDays } from '@/lib/queries/itinerary'
+import { useDestinationGuides } from '@/lib/queries/guide'
 import { useTrip } from '@/lib/queries/trips'
+import { placeCategoryToActivityType } from '@/lib/maps'
+import { formatDate } from '@/lib/utils'
+import type { PlaceCategory } from '@/types/database'
 import { toast } from 'sonner'
 
 export interface PendingPlace {
@@ -17,6 +21,7 @@ export interface PendingPlace {
   place_id: string | null
   lat: number | null
   lng: number | null
+  category?: PlaceCategory | null
 }
 
 interface Props {
@@ -31,9 +36,33 @@ interface Props {
 export function AddToItineraryDialog({ open, onOpenChange, tripId, place }: Props) {
   const { data: trip } = useTrip(tripId)
   const { data: days } = useItineraryDays(tripId)
+  const { data: guides } = useDestinationGuides(tripId)
   const createActivity = useCreateActivity()
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
+
+  // Pista: ¿en qué ciudad está el sitio y qué días del viaje son de esa ciudad?
+  // Se cruza la ciudad de cada día (itinerary_days.city o su guía) con lo que
+  // aparece en el nombre/dirección del lugar. Es orientativo, no bloquea nada.
+  const hint = useMemo(() => {
+    if (!place || !days?.length) return null
+    const guideName = new Map((guides ?? []).map(g => [g.id, g.name]))
+    const cityOf = (d: { city: string | null; guide_id: string | null }) =>
+      (d.city?.trim() || (d.guide_id ? guideName.get(d.guide_id) : '') || '').trim()
+    const haystack = `${place.name} ${place.address ?? ''}`.toLowerCase()
+
+    const cities = Array.from(new Set(days.map(cityOf).filter(Boolean)))
+    let city = cities.find(c => haystack.includes(c.toLowerCase())) ?? null
+    let matchedDays = city ? days.filter(d => cityOf(d).toLowerCase() === city!.toLowerCase()) : []
+
+    // Sin ciudad por día: probar con el destino del viaje (ej. "Roma, Italia").
+    if (!city && trip?.destination) {
+      const destCity = trip.destination.split(',')[0].trim()
+      if (destCity && haystack.includes(destCity.toLowerCase())) { city = destCity; matchedDays = days }
+    }
+    if (!city || matchedDays.length === 0) return null
+    return { city, days: matchedDays }
+  }, [place, days, guides, trip])
 
   async function add() {
     if (!place || !date) return
@@ -43,7 +72,8 @@ export function AddToItineraryDialog({ open, onOpenChange, tripId, place }: Prop
       trip_id: tripId,
       day_id: dayId,
       end_day_id: null,
-      type: 'place',
+      // Restaurante/hotel/etc. según la categoría del sitio (antes: siempre 'place').
+      type: place.category ? placeCategoryToActivityType(place.category) : 'place',
       title: place.name,
       address: place.address ?? null,
       start_time: time || null,
@@ -53,7 +83,10 @@ export function AddToItineraryDialog({ open, onOpenChange, tripId, place }: Prop
       external_link: place.link ?? null,
       notes: null,
       order_index: 0,
-      place_id: place.place_id,
+      // activities.place_id es un uuid (FK a la tabla interna 'places'), NO el
+      // Google Place ID. El id de Google es texto y provocaba 22P02; la
+      // actividad ya guarda título, dirección y coords, así que va a null.
+      place_id: null,
       cover_image_url: null,
       origin: null,
       destination: null,
@@ -77,6 +110,39 @@ export function AddToItineraryDialog({ open, onOpenChange, tripId, place }: Prop
         </DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">{place?.name}</p>
+
+          {hint && (
+            <div className="rounded-lg px-3 py-2.5 text-sm" style={{ background: 'var(--secondary)' }}>
+              <p className="flex items-start gap-1.5">
+                <MapPin size={14} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                <span>
+                  Parece estar en <strong>{hint.city}</strong>. En tu viaje estás allí del{' '}
+                  {formatDate(hint.days[0].date, 'd MMM')} al {formatDate(hint.days[hint.days.length - 1].date, 'd MMM')}.
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {hint.days.map(d => {
+                  const active = date === d.date
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setDate(d.date)}
+                      className="text-xs px-2 py-1 rounded-full border transition-colors capitalize"
+                      style={{
+                        borderColor: active ? 'var(--primary)' : 'var(--border)',
+                        color: active ? 'var(--primary)' : 'var(--muted-foreground)',
+                        background: active ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'transparent',
+                      }}
+                    >
+                      {formatDate(d.date, 'EEE d')}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label>Día</Label>
             <DatePicker

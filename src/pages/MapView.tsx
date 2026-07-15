@@ -26,14 +26,14 @@ import { useBackfillRoutePoints } from '@/lib/queries/geocoding'
 import { useTripRole, canEditRole } from '@/lib/queries/sharing'
 import { geocodeQueryOptions } from '@/lib/geocode'
 import { useTrip } from '@/lib/queries/trips'
-import { placeTypeToCategory, getCategoryColor } from '@/lib/maps'
+import { placeTypeToCategory, getCategoryColor, placeCategoryToActivityType } from '@/lib/maps'
 import { buildRoutePoints, type RoutePoint } from '@/lib/route'
 import { DirectionsDialog } from '@/components/DirectionsDialog'
 import type { DirectionsTarget } from '@/lib/directions'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { cn, PLACE_CATEGORY_LABELS, PLACE_CATEGORY_COLORS } from '@/lib/utils'
 import { PlaceIcon } from '@/components/places/PlaceIcon'
-import type { FavoritePlace } from '@/types/database'
+import type { FavoritePlace, PlaceCategory } from '@/types/database'
 import { toast } from 'sonner'
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ?? ''
@@ -151,6 +151,7 @@ interface PendingPlace {
   place_id: string | null
   lat: number | null
   lng: number | null
+  category?: PlaceCategory | null
 }
 
 interface AddToItineraryState {
@@ -538,7 +539,8 @@ export function MapViewPage() {
       trip_id: tripId!,
       day_id: dayId,
       end_day_id: null,
-      type: 'place',
+      // Tipo según la categoría del sitio (antes: siempre 'place').
+      type: place.category ? placeCategoryToActivityType(place.category) : 'place',
       title: place.name,
       address: place.address ?? null,
       start_time: selectedTime || null,
@@ -548,7 +550,9 @@ export function MapViewPage() {
       external_link: place.link ?? null,
       notes: null,
       order_index: 0,
-      place_id: place.place_id,
+      // activities.place_id es un uuid interno, NO el Google Place ID (texto) ni
+      // el id del favorito: meterlo daba 22P02. Va a null.
+      place_id: null,
       cover_image_url: null,
       origin: null,
       destination: null,
@@ -1215,7 +1219,7 @@ export function MapViewPage() {
                         <Button size="sm" className="flex-1 gap-1.5 text-xs" variant="brand" onClick={() => handleSaveFavorite(p)} disabled={saveFavorite.isPending}>
                           <Bookmark size={12} /> Guardar
                         </Button>
-                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => setAddToItineraryState({ open: true, place: { name: p.name, address: p.formatted_address, link: p.url ?? null, place_id: null, lat, lng } })}>
+                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => setAddToItineraryState({ open: true, place: { name: p.name, address: p.formatted_address, link: p.url ?? null, place_id: null, lat, lng, category: placeTypeToCategory(p.types) } })}>
                           <Calendar size={12} /> Itinerario
                         </Button>
                       </div>
@@ -1253,7 +1257,7 @@ export function MapViewPage() {
                         <p className="text-sm mt-2 p-2 rounded-lg" style={{ background: 'var(--secondary)' }}>{f.notes}</p>
                       )}
                       <div className="flex gap-2 mt-3">
-                        <Button size="sm" className="flex-1 gap-1.5 text-xs" variant="brand" onClick={() => setAddToItineraryState({ open: true, place: { name: f.name, address: f.address, link: f.link, place_id: f.id, lat: f.lat, lng: f.lng } })}>
+                        <Button size="sm" className="flex-1 gap-1.5 text-xs" variant="brand" onClick={() => setAddToItineraryState({ open: true, place: { name: f.name, address: f.address, link: f.link, place_id: null, lat: f.lat, lng: f.lng, category: f.category } })}>
                           <Calendar size={12} /> Itinerario
                         </Button>
                         <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-xs" onClick={() => setDirectionsTo({ lat: f.lat, lng: f.lng, name: f.name })}>

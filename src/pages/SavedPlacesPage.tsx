@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  Bookmark, Star, MapPin, Plus, Pencil, Trash2, ExternalLink, Calendar, Search, FolderOpen, BookOpen,
+  Bookmark, Star, MapPin, Plus, Pencil, Trash2, ExternalLink, Calendar, Search, FolderOpen, BookOpen, Link2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -86,9 +86,14 @@ export function SavedPlacesPage() {
           <h1 className="font-serif text-2xl font-medium">Lugares guardados</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Tus opciones e ideas, organizadas en listas</p>
         </div>
-        <Button asChild className="gap-2 flex-shrink-0" variant="brand">
-          <Link to={`/trips/${tripId}/map`}><Search size={16} /> Buscar lugares</Link>
-        </Button>
+        <div className="flex gap-2 flex-shrink-0">
+          <Button asChild variant="outline" className="gap-2" title="Añadir un sitio desde un enlace de TikTok, Instagram o una web">
+            <Link to={`/import/shared?trip=${tripId}`}><Link2 size={16} /> <span className="hidden sm:inline">Desde enlace</span></Link>
+          </Button>
+          <Button asChild className="gap-2" variant="brand">
+            <Link to={`/trips/${tripId}/map`}><Search size={16} /> Buscar lugares</Link>
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -163,7 +168,7 @@ export function SavedPlacesPage() {
                         <Link to={`/trips/${tripId}/map?place=${p.id}`}><MapPin size={12} /> Mapa</Link>
                       </Button>
                       <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
-                        onClick={() => setAddItinerary({ name: p.name, address: p.address, link: p.link, place_id: p.google_place_id, lat: p.lat, lng: p.lng })}>
+                        onClick={() => setAddItinerary({ name: p.name, address: p.address, link: p.link, place_id: p.google_place_id, lat: p.lat, lng: p.lng, category: p.category })}>
                         <Calendar size={12} /> Itinerario
                       </Button>
                       {p.link && (

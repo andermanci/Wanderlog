@@ -34,6 +34,16 @@ export default defineConfig({
           { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
           { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // Compartir a Wanderlog desde TikTok/Instagram/navegador (Android): la
+        // app aparece en el menú "Compartir" y abre /import/shared con el enlace.
+        // GET => el SO navega a la URL con los parámetros; el NavigationRoute del
+        // service worker ya sirve index.html, no hace falta tocar sw.ts. (iOS no
+        // soporta share_target en PWA: allí se pega el enlace o se usa un Atajo.)
+        share_target: {
+          action: '/import/shared',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
       },
     }),
   ],

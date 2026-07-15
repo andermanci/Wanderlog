@@ -1,5 +1,24 @@
-import type { PlaceCategory } from '@/types/database'
+import type { Activity, PlaceCategory } from '@/types/database'
 import { PLACE_CATEGORY_COLORS } from '@/lib/utils'
+
+// Traduce la categoría de un lugar (favorito/mapa) al tipo de actividad del
+// itinerario, para que al añadirlo salga como "Restaurante"/"Hotel"/… y no
+// siempre como "Lugar". La taxonomía de actividades es más gruesa: comer/beber
+// caen todos en 'restaurant'; visitar en 'activity'; comprar/otros en 'place'.
+export function placeCategoryToActivityType(category: PlaceCategory): Activity['type'] {
+  switch (category) {
+    case 'restaurant':
+    case 'cafe':
+    case 'bar':
+      return 'restaurant'
+    case 'hotel':
+      return 'hotel'
+    case 'attraction':
+      return 'activity'
+    default:
+      return 'place'
+  }
+}
 
 export function placeTypeToCategory(types: string[]): PlaceCategory {
   if (types.some(t => ['restaurant', 'food', 'meal_takeaway', 'meal_delivery', 'bakery', 'cafe'].includes(t))) {
