@@ -10,6 +10,15 @@
   # esto, el escáner de secretos de Netlify las marca como filtración.
   SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_GOOGLE_MAPS_BROWSER_KEY"
 
+# El Atajo de iOS (firmado) se sirve tal cual: la regla SPA de abajo no lo
+# pisa porque el archivo existe en dist y el redirect no es `force`. El
+# Content-Type hace que Safari en iPhone lo entregue a la app Atajos.
+[[headers]]
+  for = "/wanderlog-importar.shortcut"
+  [headers.values]
+    Content-Type = "application/octet-stream"
+    Content-Disposition = "attachment; filename=\"Anadir a Wanderlog.shortcut\""
+
 # SPA fallback: cualquier ruta sirve index.html y React Router resuelve.
 # Sin esto, recargar /dashboard, /trips/:id/map o /auth/callback da 404.
 [[redirects]]

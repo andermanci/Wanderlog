@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps'
 import {
-  Loader2, Search, MapPin, Sparkles, Check, ExternalLink, Calendar, ArrowLeft, Link2,
+  Loader2, Search, MapPin, Sparkles, Check, ExternalLink, Calendar, ArrowLeft, Link2, Share, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +23,15 @@ import { toast } from 'sonner'
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ?? ''
 // Colección donde se agrupan todos los sitios importados desde vídeos/enlaces.
 const COLLECTION = 'Ideas de vídeos'
+
+// Apple no deja que una PWA aparezca en el menú "Compartir" (sí en Android vía
+// share_target). Para que en iPhone/iPad se pueda compartir desde TikTok/
+// Instagram sin copiar el enlace a mano, ofrecemos un Atajo firmado que recibe
+// lo compartido y abre /import/shared?url=… en la app.
+const isAppleTouch =
+  typeof navigator !== 'undefined' &&
+  (/iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
 
 interface Candidate {
   name: string
@@ -491,6 +500,39 @@ function PasteLink({ value, onChange, onSubmit, loading }: {
           Leer
         </Button>
       </div>
+
+      {isAppleTouch && <IOSShortcutCard />}
+    </div>
+  )
+}
+
+// En iPhone/iPad: tarjeta para instalar el Atajo que añade Wanderlog al menú
+// "Compartir" de TikTok/Instagram/Safari (lo que Android hace de serie).
+function IOSShortcutCard() {
+  return (
+    <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--secondary)' }}>
+      <div className="flex items-start gap-3">
+        <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)' }}>
+          <Share size={17} style={{ color: 'var(--primary)' }} />
+        </span>
+        <div className="space-y-0.5">
+          <p className="font-medium text-sm">¿En iPhone? Comparte sin copiar el enlace</p>
+          <p className="text-xs text-muted-foreground">
+            Instala el Atajo y aparecerá <span className="font-medium text-foreground">Añadir a Wanderlog</span> en
+            el menú «Compartir» de TikTok, Instagram y Safari. Toca compartir → Wanderlog y listo.
+          </p>
+        </div>
+      </div>
+      <Button variant="brand" asChild className="w-full gap-2">
+        <a href="/wanderlog-importar.shortcut">
+          <Download size={16} /> Descargar el Atajo
+        </a>
+      </Button>
+      <p className="text-[11px] text-muted-foreground leading-snug">
+        Se abrirá la app Atajos; pulsa <span className="font-medium text-foreground">Añadir atajo</span>. Luego,
+        desde un vídeo, usa Compartir → Añadir a Wanderlog.
+      </p>
     </div>
   )
 }
