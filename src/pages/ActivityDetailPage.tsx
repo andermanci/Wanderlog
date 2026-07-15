@@ -15,7 +15,7 @@ import {
 import { TripHeader } from '@/components/trips/TripHeader'
 import { DirectionsDialog } from '@/components/DirectionsDialog'
 import type { DirectionsTarget } from '@/lib/directions'
-import { useActivities, useItineraryDays, useDeleteActivity } from '@/lib/queries/itinerary'
+import { useActivities, useItineraryDays, useDeleteActivity, displayCover } from '@/lib/queries/itinerary'
 import { useCreateReminder } from '@/lib/queries/reminders'
 import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useAuthStore } from '@/store/authStore'
@@ -172,9 +172,9 @@ export function ActivityDetailPage() {
 
       <div className="space-y-5">
         {/* Foto de portada */}
-        {activity.cover_image_url && (
+        {displayCover(activity.cover_image_url) && (
           <img
-            src={activity.cover_image_url}
+            src={displayCover(activity.cover_image_url)!}
             alt={activity.title}
             className="w-full h-48 object-cover rounded-xl border border-border"
             loading="lazy"

@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { cn, ACTIVITY_COLORS, ACTIVITY_LABELS } from '@/lib/utils'
 import { isMove } from '@/lib/travelTime'
+import { displayCover } from '@/lib/queries/itinerary'
 import type { Activity, ActivityAttachment } from '@/types/database'
 
 interface ActivityBlockProps {
@@ -76,9 +77,9 @@ export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdi
           las filas tengan la misma estética y el texto quede alineado. Más
           grande que antes: le da a la tarjeta un aire más editorial (foto
           protagonista) en vez de una fila de texto con un icono pequeño. */}
-      {activity.cover_image_url ? (
+      {displayCover(activity.cover_image_url) ? (
         <img
-          src={activity.cover_image_url}
+          src={displayCover(activity.cover_image_url)!}
           alt=""
           className="flex-shrink-0 w-14 h-14 sm:w-20 sm:h-20 rounded-xl object-cover border border-border"
           loading="lazy"

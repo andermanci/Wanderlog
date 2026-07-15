@@ -21,6 +21,15 @@ export function isGooglePhotoUrl(url: string | null | undefined): url is string 
   return !!url && /^https:\/\/(places|maps)\.googleapis\.com\//.test(url)
 }
 
+// Portada que se puede pintar. Una URL de Google NUNCA se pinta: cada render es
+// una petición facturada contra la cuota diaria de Places Photo (y al agotarse,
+// Google responde un JSON de error que el navegador bloquea por ORB, así que se
+// veía el hueco en blanco igual). Se trata como "sin portada" —se pinta el icono
+// del tipo— hasta que `useRehostGoogleCovers` la copie a nuestro Storage.
+export function displayCover(url: string | null | undefined): string | null {
+  return !url || isGooglePhotoUrl(url) ? null : url
+}
+
 // Copia la foto a nuestro Storage (una única petición a Google) y devuelve la
 // URL definitiva. El navegador no puede leer esos bytes (CORS), de ahí la
 // edge function.
@@ -53,6 +62,7 @@ export function useRehostGoogleCovers(tripId: string | undefined, activities: Ac
     running.current = true
     ;(async () => {
       let changed = false
+      let allOk = true
       for (const a of pending) {
         try {
           const url = await rehostPlacePhoto(a.cover_image_url!, user.id, tripId)
@@ -60,11 +70,15 @@ export function useRehostGoogleCovers(tripId: string | undefined, activities: Ac
           if (error) throw error
           changed = true
         } catch {
-          // Colaborador sin permiso de escritura, o foto que ya no existe:
-          // se deja como estaba, sin molestar al usuario.
+          // Colaborador sin permiso de escritura, cuota diaria de Google agotada,
+          // o foto que ya no existe: se deja como estaba, sin molestar al usuario.
+          allOk = false
         }
       }
-      sessionStorage.setItem(flag, '1')
+      // Solo se da por hecho si se copiaron TODAS. Antes se marcaba pasara lo que
+      // pasara, así que un fallo (p. ej. el 429 de la cuota diaria) dejaba la
+      // portada apuntando a Google para siempre y no se reintentaba nunca.
+      if (allOk) sessionStorage.setItem(flag, '1')
       running.current = false
       if (changed) qc.invalidateQueries({ queryKey: itineraryKeys.activities(tripId) })
     })()

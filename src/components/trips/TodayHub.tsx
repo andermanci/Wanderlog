@@ -10,6 +10,7 @@ import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { DirectionsDialog } from '@/components/DirectionsDialog'
 import { UsefulInfoCard } from '@/components/trips/UsefulInfoCard'
 import { TodayDocsRow } from '@/components/trips/TodayDocsRow'
+import { displayCover } from '@/lib/queries/itinerary'
 import { useTripWeather, useTodayWeatherHourly, weatherIcon, destinationHourKey } from '@/lib/queries/weather'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { lodgingByDayMap } from '@/lib/lodging'
@@ -141,8 +142,8 @@ export function TodayHub({ trip, activities, days }: {
           className="flex items-center gap-3 p-3 rounded-xl mb-3 transition-colors hover:brightness-[1.02]"
           style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
         >
-          {featured.cover_image_url ? (
-            <img src={featured.cover_image_url} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+          {displayCover(featured.cover_image_url) ? (
+            <img src={displayCover(featured.cover_image_url)!} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
           ) : (
             <span className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
               style={{ background: `color-mix(in srgb, ${ACTIVITY_COLORS[featured.type]} 14%, transparent)` }}>

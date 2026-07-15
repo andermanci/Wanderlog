@@ -24,6 +24,8 @@ const corsHeaders = {
 }
 
 const ALLOWED_HOSTS = ['places.googleapis.com', 'maps.googleapis.com']
+// Ancho máximo al que se guarda la portada (la foto original puede venir a 4800px).
+const MAX_WIDTH_PX = 1600
 // Los mismos que acepta el bucket 'attachments' (migración 006).
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
@@ -63,6 +65,14 @@ Deno.serve(async (req) => {
     // La key que venía en la URL es la del navegador (restringida por referrer):
     // desde aquí daría 403, así que la cambiamos por la de servidor.
     url.searchParams.set('key', GOOGLE_API_KEY)
+    // Google sirve la foto al tamaño que se le pida, y el maxWidthPx que trae la
+    // URL es el del original (hasta 4800px): se guardaban portadas de 5 MB para
+    // pintarlas como miniatura de 80px. Se limita al ancho que de verdad se usa
+    // (la portada del detalle, a pantalla completa en móvil retina).
+    const maxWidth = Number(url.searchParams.get('maxWidthPx'))
+    if (!maxWidth || maxWidth > MAX_WIDTH_PX) {
+      url.searchParams.set('maxWidthPx', String(MAX_WIDTH_PX))
+    }
 
     const photoRes = await fetch(url.toString())
     if (!photoRes.ok) {
