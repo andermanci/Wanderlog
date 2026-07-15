@@ -54,9 +54,10 @@ interface WalletPassCardProps {
 }
 
 export function WalletPassCard({ pass, index, onOpenAttachment }: WalletPassCardProps) {
-  const dateLabel = pass.start
+  const rawDate = pass.start
     ? formatDate(pass.start, pass.start.length > 10 ? "EEE d MMM · HH:mm" : 'EEE d MMM')
     : null
+  const dateLabel = rawDate && rawDate !== '—' ? rawDate : null
 
   return (
     <motion.div

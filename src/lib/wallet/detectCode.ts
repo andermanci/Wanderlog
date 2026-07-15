@@ -80,18 +80,22 @@ async function imageToCanvas(src: string): Promise<HTMLCanvasElement> {
 }
 
 async function pdfPageToCanvas(src: string, pageNum: number): Promise<HTMLCanvasElement | null> {
-  const doc = await pdfjsLib.getDocument(src).promise
-  if (pageNum > doc.numPages) { void doc.destroy(); return null }
-  const page = await doc.getPage(pageNum)
-  const base = page.getViewport({ scale: 1 })
-  const scale = Math.min(2, MAX_SIDE / Math.max(base.width, base.height))
-  const viewport = page.getViewport({ scale })
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.ceil(viewport.width)
-  canvas.height = Math.ceil(viewport.height)
-  await page.render({ canvas, viewport }).promise
-  void doc.destroy()
-  return canvas
+  const loadingTask = pdfjsLib.getDocument({ url: src })
+  const doc = await loadingTask.promise
+  try {
+    if (pageNum > doc.numPages) return null
+    const page = await doc.getPage(pageNum)
+    const base = page.getViewport({ scale: 1 })
+    const scale = Math.min(2, MAX_SIDE / Math.max(base.width, base.height))
+    const viewport = page.getViewport({ scale })
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.ceil(viewport.width)
+    canvas.height = Math.ceil(viewport.height)
+    await page.render({ canvas, viewport }).promise
+    return canvas
+  } finally {
+    void loadingTask.destroy()
+  }
 }
 
 // Recorta la región del código a partir de sus puntos y la agranda sobre fondo

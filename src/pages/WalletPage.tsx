@@ -76,13 +76,15 @@ export function WalletPage() {
         code: null,
         codeLabel: null,
         link: null,
-        start: activity?.start_time ?? null,
-        end: activity?.end_time ?? null,
+        // activities.start_time es solo la hora (sin fecha), así que no vale como
+        // fecha del pase; los adjuntos van sin fecha, al final.
+        start: null,
+        end: null,
         origin: activity?.origin ?? null,
         destination: activity?.destination ?? null,
         seat: null,
         attachment: { value: att.file_url, isPdf: isPdfValue(att.file_url, att.mime), name: att.name },
-        sort: activity?.start_time || NO_DATE,
+        sort: NO_DATE,
       }
     })
 
