@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { motion } from 'framer-motion'
 import {
   Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, CalendarPlus, ShieldCheck,
-  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair, ChevronRight,
+  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair, ChevronRight, QrCode,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,8 +33,10 @@ import { DocLightbox } from '@/components/documents/DocLightbox'
 import { DocImage } from '@/components/documents/DocImage'
 import { IcsImportDialog } from '@/components/trips/IcsImportDialog'
 import { useAuthStore } from '@/store/authStore'
+import { useWalletPassStore } from '@/store/walletPassStore'
+import { buildDocPass, buildAttachmentPass } from '@/lib/wallet/pass'
 import { formatDate, DOCUMENT_LABELS, PERSONAL_DOC_CATEGORIES } from '@/lib/utils'
-import type { Document, ActivityAttachment, Traveler } from '@/types/database'
+import type { Document, ActivityAttachment, Traveler, Activity } from '@/types/database'
 import { parseISO, addMonths } from 'date-fns'
 import { toast } from 'sonner'
 
@@ -437,7 +439,8 @@ export function DocumentsPage() {
                         <DocRow key={item.id} doc={item.doc} i={i} onEdit={openEdit} onDelete={setDeleteTarget}
                           onOpenFile={(url, name) => setLightbox({ url, name })} onOpen={setDetailDoc} />
                       ) : (
-                        <AttachmentRow key={item.id} att={item.att} activityTitle={item.activityTitle} i={i}
+                        <AttachmentRow key={item.id} att={item.att} activity={activityById.get(item.att.activity_id)}
+                          activityTitle={item.activityTitle} i={i}
                           onOpenFile={(url, name) => setLightbox({ url, name })} onDelete={setDeleteAttTarget} />
                       ))}
                     </div>
@@ -763,13 +766,15 @@ function PersonalDocCard({ doc, travelerName, onView, onEdit, onDelete }: {
 }
 
 // Adjunto de una actividad del itinerario, listado junto a las reservas de su mismo tipo.
-function AttachmentRow({ att, activityTitle, i, onOpenFile, onDelete }: {
+function AttachmentRow({ att, activity, activityTitle, i, onOpenFile, onDelete }: {
   att: ActivityAttachment
+  activity?: Activity
   activityTitle: string
   i: number
   onOpenFile: (url: string, name: string) => void
   onDelete: (a: ActivityAttachment) => void
 }) {
+  const openPass = useWalletPassStore(s => s.openPass)
   const isImg = att.mime?.startsWith('image/') ?? /\.(png|jpe?g|webp)$/i.test(att.file_url)
   return (
     <motion.div
@@ -794,8 +799,13 @@ function AttachmentRow({ att, activityTitle, i, onOpenFile, onDelete }: {
           <MapPin size={11} className="flex-shrink-0" /> {activityTitle}
         </p>
       </div>
-      <div className="flex gap-1 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0">
-        <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive"
+      <div className="flex gap-1 flex-shrink-0">
+        <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs"
+          onClick={(e) => { e.stopPropagation(); openPass(buildAttachmentPass(att, activity)) }}
+          title="Mostrar el código a pantalla completa">
+          <QrCode size={14} /> <span className="hidden sm:inline">Mostrar código</span>
+        </Button>
+        <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive opacity-60 group-hover:opacity-100 transition-opacity"
           onClick={(e) => { e.stopPropagation(); onDelete(att) }} aria-label="Eliminar adjunto" title="Eliminar adjunto">
           <Trash2 size={12} />
         </Button>
@@ -815,6 +825,7 @@ function DocDetailDialog({ doc, onClose, onEdit, onDelete, onOpenFile }: {
 }) {
   if (!doc) return null
   const isImg = doc.file_url ? /\.(png|jpe?g|webp|gif)$/i.test(doc.file_url) : false
+  const pass = buildDocPass(doc)
   const Field = ({ icon: Icon, label, children }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; children: React.ReactNode }) => (
     <div className="flex items-start gap-3 py-2 border-b border-border last:border-0">
       <Icon size={15} className="text-muted-foreground mt-0.5 flex-shrink-0" />
@@ -889,6 +900,12 @@ function DocDetailDialog({ doc, onClose, onEdit, onDelete, onOpenFile }: {
           )}
         </div>
 
+        {pass && (
+          <Button variant="brand" className="w-full gap-2" onClick={() => { onClose(); useWalletPassStore.getState().openPass(pass) }}>
+            <QrCode size={16} /> Mostrar código
+          </Button>
+        )}
+
         <DialogFooter className="gap-2">
           <Button variant="ghost" className="gap-1.5 text-destructive hover:text-destructive mr-auto" onClick={() => onDelete(doc)}>
             <Trash2 size={14} /> Eliminar
@@ -911,6 +928,8 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile, onOpen }: {
   onOpen: (d: Document) => void
 }) {
   const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn() }
+  const openPass = useWalletPassStore(s => s.openPass)
+  const pass = buildDocPass(doc)
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
@@ -957,21 +976,27 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile, onOpen }: {
               </p>
             )}
           </div>
-          <div className="flex gap-1 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <div className="flex gap-1 flex-shrink-0">
+            {pass && (
+              <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={stop(() => openPass(pass))}
+                aria-label="Mostrar código" title="Mostrar el código a pantalla completa">
+                <QrCode size={13} /> <span className="hidden sm:inline">Mostrar código</span>
+              </Button>
+            )}
             {doc.file_url && (
-              <Button size="icon" variant="ghost" className="w-7 h-7" onClick={stop(() => onOpenFile(doc.file_url!, doc.title))} aria-label="Ver archivo" title="Ver archivo">
+              <Button size="icon" variant="ghost" className="w-7 h-7 opacity-60 group-hover:opacity-100 transition-opacity" onClick={stop(() => onOpenFile(doc.file_url!, doc.title))} aria-label="Ver archivo" title="Ver archivo">
                 <Eye size={13} />
               </Button>
             )}
             {doc.link && (
-              <Button size="icon" variant="ghost" className="w-7 h-7" asChild>
+              <Button size="icon" variant="ghost" className="w-7 h-7 opacity-60 group-hover:opacity-100 transition-opacity" asChild>
                 <a href={doc.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={12} /></a>
               </Button>
             )}
-            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={stop(() => onEdit(doc))}>
+            <Button size="icon" variant="ghost" className="w-7 h-7 opacity-60 group-hover:opacity-100 transition-opacity" onClick={stop(() => onEdit(doc))}>
               <Pencil size={12} />
             </Button>
-            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive" onClick={stop(() => onDelete(doc))}>
+            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive opacity-60 group-hover:opacity-100 transition-opacity" onClick={stop(() => onDelete(doc))}>
               <Trash2 size={12} />
             </Button>
           </div>

@@ -1,12 +1,14 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Pencil, Trash2, ExternalLink, Clock, MapPin, Euro, FileText, Headphones } from 'lucide-react'
+import { GripVertical, Pencil, Trash2, ExternalLink, Clock, MapPin, Euro, Headphones, QrCode } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { cn, ACTIVITY_COLORS, ACTIVITY_LABELS } from '@/lib/utils'
 import { isMove } from '@/lib/travelTime'
 import { displayCover } from '@/lib/queries/itinerary'
+import { useWalletPassStore } from '@/store/walletPassStore'
+import { buildAttachmentPass } from '@/lib/wallet/pass'
 import type { Activity, ActivityAttachment } from '@/types/database'
 
 interface ActivityBlockProps {
@@ -30,6 +32,7 @@ export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdi
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: sortableId ?? activity.id })
 
+  const openPass = useWalletPassStore(s => s.openPass)
   const color = ACTIVITY_COLORS[activity.type]
   const done = activity.done
 
@@ -157,29 +160,27 @@ export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdi
               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{activity.description}</p>
             )}
 
-            {/* Adjuntos (entradas, QRs) */}
+            {/* Adjuntos (entradas, QRs): abren el pase estilo cartera */}
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {attachments.map(att => {
                   const isImg = att.mime?.startsWith('image/') ?? /\.(png|jpe?g|webp)$/i.test(att.file_url)
                   return (
-                    <a
+                    <button
                       key={att.id}
-                      href={att.file_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={att.name}
-                      onClick={(e) => e.stopPropagation()}
+                      type="button"
+                      title={`Mostrar código · ${att.name}`}
+                      onClick={(e) => { e.stopPropagation(); openPass(buildAttachmentPass(att, activity)) }}
                       className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-md border border-border flex-shrink-0 hover:border-primary transition-colors"
                       style={{ background: 'var(--card)' }}
                     >
                       {isImg ? (
                         <img src={att.file_url} alt={att.name} className="w-5 h-5 rounded object-cover flex-shrink-0" />
                       ) : (
-                        <FileText size={13} style={{ color: 'var(--primary)' }} className="flex-shrink-0" />
+                        <QrCode size={13} style={{ color: 'var(--primary)' }} className="flex-shrink-0" />
                       )}
                       <span className="text-xs truncate max-w-[140px]">{att.name}</span>
-                    </a>
+                    </button>
                   )
                 })}
               </div>

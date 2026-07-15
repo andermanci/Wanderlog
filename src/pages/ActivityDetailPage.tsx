@@ -19,6 +19,8 @@ import { useActivities, useItineraryDays, useDeleteActivity, displayCover } from
 import { useCreateReminder } from '@/lib/queries/reminders'
 import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useAuthStore } from '@/store/authStore'
+import { useWalletPassStore } from '@/store/walletPassStore'
+import { buildAttachmentPass } from '@/lib/wallet/pass'
 import { ACTIVITY_COLORS, ACTIVITY_LABELS, formatDate } from '@/lib/utils'
 import { isMove } from '@/lib/travelTime'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
@@ -39,6 +41,7 @@ export function ActivityDetailPage() {
   const deleteAttachment = useDeleteAttachment(tripId!)
   const deleteActivity = useDeleteActivity()
   const createReminder = useCreateReminder()
+  const openPass = useWalletPassStore(s => s.openPass)
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -314,8 +317,9 @@ export function ActivityDetailPage() {
               const isImg = att.mime?.startsWith('image/') ?? /\.(png|jpe?g|webp)$/i.test(att.file_url)
               return (
                 <div key={att.id} className="relative">
-                  <a href={att.file_url} target="_blank" rel="noreferrer" title={att.name}
-                    className="block w-24 h-24 rounded-lg overflow-hidden border border-border">
+                  <button type="button" title={`Mostrar código · ${att.name}`}
+                    onClick={() => openPass(buildAttachmentPass(att, activity))}
+                    className="block w-24 h-24 rounded-lg overflow-hidden border border-border hover:border-primary transition-colors">
                     {isImg ? (
                       <img src={att.file_url} alt={att.name} className="w-full h-full object-cover" />
                     ) : (
@@ -324,7 +328,7 @@ export function ActivityDetailPage() {
                         <span className="text-[9px] text-muted-foreground line-clamp-2 text-center">{att.name}</span>
                       </div>
                     )}
-                  </a>
+                  </button>
                   <button
                     type="button"
                     onClick={() => deleteAttachment.mutate(att.id)}

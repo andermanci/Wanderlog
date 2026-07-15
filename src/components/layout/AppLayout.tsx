@@ -1,10 +1,15 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { Outlet, useParams, useLocation, useSearchParams } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { TripSearchCommand } from '@/components/trips/TripSearchCommand'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { useWalletPassStore } from '@/store/walletPassStore'
+
+// El modal "cartera" arrastra zxing + pdf.js (~880 KB): carga diferida, y solo
+// tras la primera apertura, para no engordar el bundle principal.
+const WalletPassModal = lazy(() => import('@/components/wallet/WalletPassModal'))
 
 export function AppLayout() {
   const { tripId: pathTripId } = useParams<{ tripId: string }>()
@@ -14,6 +19,10 @@ export function AppLayout() {
   const tripId = pathTripId ?? searchParams.get('trip') ?? undefined
   const location = useLocation()
   const mainRef = useRef<HTMLElement>(null)
+
+  const passOpen = useWalletPassStore(s => s.open)
+  const [mountPassModal, setMountPassModal] = useState(false)
+  useEffect(() => { if (passOpen) setMountPassModal(true) }, [passOpen])
 
   // El contenedor de scroll conserva la posición entre rutas: al navegar
   // (p. ej. dashboard scrolleado → viaje) la página nueva aparecía ya
@@ -60,6 +69,12 @@ export function AppLayout() {
         <BottomNav tripId={tripId} />
         {/* Búsqueda del viaje (Cmd+K); solo dentro de un viaje */}
         {tripId && <TripSearchCommand tripId={tripId} />}
+        {/* Modal "cartera" (QR/código de reservas), abrible desde cualquier pantalla */}
+        {mountPassModal && (
+          <Suspense fallback={null}>
+            <WalletPassModal />
+          </Suspense>
+        )}
       </div>
     </TooltipProvider>
   )

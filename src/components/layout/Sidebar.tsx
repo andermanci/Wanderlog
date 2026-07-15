@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Map, FileText, Calendar,
   Bell, Package, Receipt, Settings, LogOut,
-  Compass, ChevronLeft, ChevronRight, BookOpen, Bookmark, Wallet,
+  Compass, ChevronLeft, ChevronRight, BookOpen, Bookmark,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -44,7 +44,6 @@ function getTripNav(tripId: string): TripNavItem[] {
     { to: `/trips/${tripId}/places`, icon: <Bookmark size={18} />, label: 'Lugares' },
     { to: `/trips/${tripId}/guide`, icon: <BookOpen size={18} />, label: 'Guía del destino' },
     { to: `/trips/${tripId}/documents`, icon: <FileText size={18} />, label: 'Documentos' },
-    { to: `/trips/${tripId}/wallet`, icon: <Wallet size={18} />, label: 'Wallet' },
     { to: `/trips/${tripId}/reminders`, icon: <Bell size={18} />, label: 'Avisos' },
     { to: `/trips/${tripId}/packing`, icon: <Package size={18} />, label: 'Equipaje' },
     { to: `/trips/${tripId}/expenses`, icon: <Receipt size={18} />, label: 'Gastos' },

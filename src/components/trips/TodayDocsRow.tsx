@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ticket, FileText } from 'lucide-react'
 import { DocIcon } from '@/components/icons/DocIcon'
-import { DocLightbox } from '@/components/documents/DocLightbox'
 import { useTripAttachments } from '@/lib/queries/attachments'
 import { useDocuments } from '@/lib/queries/documents'
+import { useWalletPassStore } from '@/store/walletPassStore'
+import { buildDocPass, buildAttachmentPass } from '@/lib/wallet/pass'
 import type { Activity } from '@/types/database'
 
 interface TodayDocsRowProps {
@@ -21,9 +22,9 @@ interface TodayDocsRowProps {
 // documentos cuya fecha (o estancia, en hoteles) cae hoy.
 export function TodayDocsRow({ tripId, todayStr, todayActs, lodgingActivityId }: TodayDocsRowProps) {
   const navigate = useNavigate()
+  const openPass = useWalletPassStore(s => s.openPass)
   const { data: attachments } = useTripAttachments(tripId)
   const { data: documents } = useDocuments(tripId)
-  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
 
   const todayAttachments = useMemo(() => {
     const ids = new Set(todayActs.map(a => a.id))
@@ -57,8 +58,8 @@ export function TodayDocsRow({ tripId, todayStr, todayActs, lodgingActivityId }:
             key={`doc-${doc.id}`}
             type="button"
             onClick={() => {
-              if (doc.file_url) setLightbox({ url: doc.file_url, name: doc.title })
-              else if (doc.link) window.open(doc.link, '_blank', 'noreferrer')
+              const pass = buildDocPass(doc)
+              if (pass) openPass(pass)
               else navigate(`/trips/${tripId}/documents`)
             }}
             className="flex items-center gap-1.5 pl-1.5 pr-2.5 py-1.5 rounded-md border border-border flex-shrink-0 hover:border-primary transition-colors"
@@ -72,8 +73,8 @@ export function TodayDocsRow({ tripId, todayStr, todayActs, lodgingActivityId }:
           <button
             key={`att-${att.id}`}
             type="button"
-            title={att.name}
-            onClick={() => setLightbox({ url: att.file_url, name: att.name })}
+            title={`Mostrar código · ${att.name}`}
+            onClick={() => openPass(buildAttachmentPass(att, todayActs.find(a => a.id === att.activity_id)))}
             className="flex items-center gap-1.5 pl-1.5 pr-2.5 py-1.5 rounded-md border border-border flex-shrink-0 hover:border-primary transition-colors"
             style={{ background: 'var(--card)' }}
           >
@@ -86,13 +87,6 @@ export function TodayDocsRow({ tripId, todayStr, todayActs, lodgingActivityId }:
           </button>
         ))}
       </div>
-
-      <DocLightbox
-        open={!!lightbox}
-        onOpenChange={(o) => { if (!o) setLightbox(null) }}
-        url={lightbox?.url ?? null}
-        name={lightbox?.name ?? ''}
-      />
     </div>
   )
 }
