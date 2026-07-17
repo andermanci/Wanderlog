@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { itineraryKeys } from '@/lib/queries/itinerary'
 import type { Document } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -73,13 +74,20 @@ export function useUpdateDocument() {
 export function useDeleteDocument() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, tripId }: { id: string; tripId: string }) => {
+    // activityId: si la reserva estaba en el itinerario, se borra también su
+    // actividad espejo (quedan sincronizadas).
+    mutationFn: async ({ id, tripId, activityId }: { id: string; tripId: string; activityId?: string | null }) => {
       const { error } = await supabase.from('documents').delete().eq('id', id)
       if (error) throw error
-      return { tripId }
+      if (activityId) {
+        const { error: actError } = await supabase.from('activities').delete().eq('id', activityId)
+        if (actError) throw actError
+      }
+      return { tripId, hadActivity: !!activityId }
     },
-    onSuccess: ({ tripId }) => {
+    onSuccess: ({ tripId, hadActivity }) => {
       qc.invalidateQueries({ queryKey: docKeys.all(tripId) })
+      if (hadActivity) qc.invalidateQueries({ queryKey: itineraryKeys.activities(tripId) })
       toast.success('Documento eliminado')
     },
     onError: () => toast.error('Error al eliminar documento'),

@@ -1,9 +1,11 @@
-// Detección del código escaneable (QR, PDF417, Aztec, código de barras…) que va
-// DENTRO del billete adjunto de una reserva. El código real no se puede
+// Detección de los códigos escaneables (QR, PDF417, Aztec, código de barras…)
+// que van DENTRO del billete adjunto de una reserva. El código real no se puede
 // reconstruir desde el localizador: solo existe en la imagen/PDF del billete.
 // Aquí lo rasterizamos a un canvas, lo decodificamos con ZXing y recortamos su
-// región para poder enseñarlo grande y nítido en el wallet. Si no se detecta
-// nada, devolvemos null y la UI cae al billete completo (que sigue valiendo).
+// región para poder enseñarlo grande y nítido en el wallet. Un mismo billete
+// puede llevar VARIOS códigos (p. ej. un pase por viajero): tras leer uno,
+// tapamos su región de blanco y volvemos a decodificar para encontrar los demás.
+// Si no se detecta nada, devolvemos [] y la UI cae al billete completo.
 import {
   BarcodeFormat,
   BinaryBitmap,
@@ -141,49 +143,95 @@ function cropCode(
   return out.toDataURL('image/png')
 }
 
-function decodeCanvas(reader: MultiFormatReader, canvas: HTMLCanvasElement): DetectedCode | null {
+// Tras leer un código, pintamos de blanco su región (con margen) para que la
+// siguiente decodificación encuentre otro distinto y no el mismo en bucle.
+function maskRegion(
+  canvas: HTMLCanvasElement,
+  points: { getX(): number; getY(): number }[],
+  is1D: boolean,
+): void {
+  const xs = points.map(p => p.getX())
+  const ys = points.map(p => p.getY())
+  let minX = Math.min(...xs), maxX = Math.max(...xs)
+  let minY = Math.min(...ys), maxY = Math.max(...ys)
+  const padX = Math.max((maxX - minX) * 0.3, canvas.width * 0.03, 16)
+  const padY = Math.max((maxY - minY) * 0.3, canvas.height * 0.03, 16)
+  minX -= padX; maxX += padX; minY -= padY; maxY += padY
+  if (is1D && maxY - minY < canvas.height * 0.12) {
+    const cy = (minY + maxY) / 2, half = canvas.height * 0.14
+    minY = cy - half; maxY = cy + half
+  }
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(minX, minY, maxX - minX, maxY - minY)
+}
+
+// Decodifica UN código del canvas. Recorta su región para enseñarlo y, si tiene
+// puntos suficientes, la enmascara para la siguiente pasada. `masked` indica si
+// se pudo tapar (si no, no tiene sentido reintentar sobre el mismo canvas).
+function decodeCanvas(
+  reader: MultiFormatReader,
+  canvas: HTMLCanvasElement,
+): { code: DetectedCode; masked: boolean } | null {
   try {
     const source = new HTMLCanvasElementLuminanceSource(canvas)
     const bitmap = new BinaryBitmap(new HybridBinarizer(source))
     const result = reader.decode(bitmap)
     const format = result.getBarcodeFormat()
     const points = (result.getResultPoints() ?? []).filter(Boolean)
-    const cropDataUrl = points.length >= 2
-      ? cropCode(canvas, points, ONE_D.has(format))
-      : canvas.toDataURL('image/png')
-    return { label: formatLabel(format), cropDataUrl }
+    const is1D = ONE_D.has(format)
+    const hasRegion = points.length >= 2
+    const cropDataUrl = hasRegion ? cropCode(canvas, points, is1D) : canvas.toDataURL('image/png')
+    if (hasRegion) maskRegion(canvas, points, is1D)
+    return { code: { label: formatLabel(format), cropDataUrl }, masked: hasRegion }
   } catch {
-    // NotFoundException / ChecksumException / FormatException → no hay código.
+    // NotFoundException / ChecksumException / FormatException → no hay (más) código.
     return null
   } finally {
     reader.reset()
   }
 }
 
-async function run(src: string, isPdf: boolean): Promise<DetectedCode | null> {
+// Tope de códigos por billete: suficiente para grupos y evita bucles largos.
+const MAX_CODES = 8
+
+function decodeAll(reader: MultiFormatReader, canvas: HTMLCanvasElement): DetectedCode[] {
+  const out: DetectedCode[] = []
+  for (let i = 0; i < MAX_CODES; i++) {
+    const found = decodeCanvas(reader, canvas)
+    if (!found) break
+    out.push(found.code)
+    if (!found.masked) break
+  }
+  return out
+}
+
+async function run(src: string, isPdf: boolean): Promise<DetectedCode[]> {
   const reader = buildReader()
+  const all: DetectedCode[] = []
   if (isPdf) {
-    // El código suele ir en la 1ª página; probamos alguna más por si acaso.
-    for (let page = 1; page <= 3; page++) {
+    // Los pases pueden repartirse en varias páginas (uno por viajero).
+    for (let page = 1; page <= 5; page++) {
       const canvas = await pdfPageToCanvas(src, page).catch(() => null)
       if (!canvas) break
-      const found = decodeCanvas(reader, canvas)
-      if (found) return found
+      all.push(...decodeAll(reader, canvas))
+      if (all.length >= MAX_CODES) break
     }
-    return null
+    return all
   }
   const canvas = await imageToCanvas(src)
-  return decodeCanvas(reader, canvas)
+  all.push(...decodeAll(reader, canvas))
+  return all
 }
 
 // Caché por clave estable (el valor guardado en BD, no la URL firmada que cambia
 // en cada petición). Evita re-decodificar el mismo billete al re-renderizar.
-const cache = new Map<string, Promise<DetectedCode | null>>()
+const cache = new Map<string, Promise<DetectedCode[]>>()
 
-export function detectCode(cacheKey: string, src: string, isPdf: boolean): Promise<DetectedCode | null> {
+export function detectCode(cacheKey: string, src: string, isPdf: boolean): Promise<DetectedCode[]> {
   const hit = cache.get(cacheKey)
   if (hit) return hit
-  const promise = run(src, isPdf).catch(() => null)
+  const promise = run(src, isPdf).catch(() => [])
   cache.set(cacheKey, promise)
   return promise
 }

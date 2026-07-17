@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, X, ImageIcon } from 'lucide-react'
+import { Loader2, X, ImageIcon, Plane, ChevronDown, Upload, File } from 'lucide-react'
 import { parseISO } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/ui/back-button'
@@ -17,11 +17,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { LocationPicker, type LatLng } from '@/components/itinerary/LocationPicker'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { useCreateActivity, useUpdateActivity, useItineraryDays, useActivities, uploadActivityCover, rehostPlacePhoto } from '@/lib/queries/itinerary'
+import { useDocuments, useCreateDocument, useUpdateDocument, uploadDocumentFile } from '@/lib/queries/documents'
+import { activityToDocFields } from '@/lib/reservationLink'
 import { useAuthStore } from '@/store/authStore'
 import { ACTIVITY_LABELS, currencySymbol } from '@/lib/utils'
 import { useTrip } from '@/lib/queries/trips'
 import { toast } from 'sonner'
-import type { Activity, ItineraryDay } from '@/types/database'
+import type { Activity, Document, ItineraryDay } from '@/types/database'
 
 const schema = z.object({
   title: z.string().min(1, 'Título obligatorio'),
@@ -53,9 +55,12 @@ export function ActivityFormPage() {
 
   const { data: days, isLoading: loadingDays } = useItineraryDays(tripId!)
   const { data: activities, isLoading: loadingActs } = useActivities(tripId!)
+  const { data: documents, isLoading: loadingDocs } = useDocuments(tripId!)
   const isEdit = !!activityId
   const activity = activityId ? activities?.find(a => a.id === activityId) ?? null : null
-  const loading = loadingDays || loadingActs
+  // Reserva (documents) ya vinculada a esta actividad, para precargar sus datos.
+  const linkedDoc = activityId ? documents?.find(d => d.activity_id === activityId) ?? null : null
+  const loading = loadingDays || loadingActs || loadingDocs
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
@@ -80,6 +85,7 @@ export function ActivityFormPage() {
           tripId={tripId!}
           days={days ?? []}
           activity={activity}
+          linkedDoc={linkedDoc}
           isEdit={isEdit}
           defaultDayId={defaultDayId}
         />
@@ -88,10 +94,11 @@ export function ActivityFormPage() {
   )
 }
 
-function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
+function ActivityForm({ tripId, days, activity, linkedDoc, isEdit, defaultDayId }: {
   tripId: string
   days: ItineraryDay[]
   activity: Activity | null
+  linkedDoc: Document | null
   isEdit: boolean
   defaultDayId?: string
 }) {
@@ -100,6 +107,30 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
   const { data: trip } = useTrip(tripId)
   const createActivity = useCreateActivity()
   const updateActivity = useUpdateActivity()
+  const createDoc = useCreateDocument()
+  const updateDoc = useUpdateDocument()
+
+  // Datos de la reserva (documento) para vuelos. Se guardan aparte del formulario
+  // zod (no son columnas de activities) y se precargan del documento vinculado.
+  const [resv, setResv] = useState(() => ({
+    locator: linkedDoc?.locator ?? '',
+    provider: linkedDoc?.provider ?? '',
+    confirmation_number: linkedDoc?.confirmation_number ?? '',
+    seat: linkedDoc?.seat ?? '',
+    link: linkedDoc?.link ?? '',
+  }))
+  const [resvFileUrl, setResvFileUrl] = useState<string | null>(linkedDoc?.file_url ?? null)
+  const [resvUploading, setResvUploading] = useState(false)
+  const [resvOpen, setResvOpen] = useState(!!linkedDoc)
+  const resvFileRef = useRef<HTMLInputElement>(null)
+
+  async function uploadReservationFile(file: File) {
+    if (!user) return
+    setResvUploading(true)
+    try { setResvFileUrl(await uploadDocumentFile(file, user.id, tripId)) }
+    catch { toast.error('No se pudo subir el archivo') }
+    finally { setResvUploading(false) }
+  }
 
   // Foto de portada (subida por el usuario o tomada de Google al asociar un lugar).
   const [coverUrl, setCoverUrl] = useState<string | null>(activity?.cover_image_url ?? null)
@@ -194,13 +225,34 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
       destination_lat: isTransport && values.destination ? coords.destination?.lat ?? null : null,
       destination_lng: isTransport && values.destination ? coords.destination?.lng ?? null : null,
     }
+    let savedId: string
     if (activity) {
       await updateActivity.mutateAsync({ id: activity.id, ...payload })
-      navigate(`/trips/${tripId}/itinerary/${activity.id}`, { replace: true })
+      savedId = activity.id
     } else {
       const created = await createActivity.mutateAsync(payload)
-      navigate(`/trips/${tripId}/itinerary/${created.id}`, { replace: true })
+      savedId = created.id
     }
+
+    // Vuelo → mantener el documento vinculado (aparece en Documentos con el icono
+    // de avión y sus datos de reserva). El documento es la ficha rica; la
+    // actividad es su reflejo en el itinerario.
+    if (values.type === 'flight') {
+      const dayDateById = new Map(days.map(d => [d.id, d.date]))
+      const docFields = activityToDocFields(
+        { type: 'flight', title: payload.title, origin: payload.origin, destination: payload.destination,
+          day_id: payload.day_id, end_day_id: payload.end_day_id, start_time: payload.start_time, end_time: payload.end_time },
+        dayDateById,
+        { ...resv, file_url: resvFileUrl },
+      )
+      if (linkedDoc) {
+        await updateDoc.mutateAsync({ id: linkedDoc.id, ...docFields, activity_id: savedId })
+      } else {
+        await createDoc.mutateAsync({ trip_id: tripId, activity_id: savedId, traveler_id: null, phone: null, notes: null, ...docFields })
+      }
+    }
+
+    navigate(`/trips/${tripId}/itinerary/${savedId}`, { replace: true })
   }
 
   const t = watch('type')
@@ -337,6 +389,68 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
         </div>
       )}
 
+      {/* Datos de la reserva (documento) — solo vuelos. Al guardar se crea/actualiza
+          un documento de categoría 'flight' vinculado, que aparece en Documentos. */}
+      {t === 'flight' && (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <button type="button" onClick={() => setResvOpen(o => !o)}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-secondary">
+            <span className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
+              <Plane size={16} />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="text-sm font-medium block">Datos de la reserva</span>
+              <span className="text-xs text-muted-foreground">Localizador, aerolínea, asiento y billete (opcional)</span>
+            </span>
+            <ChevronDown size={16} className="text-muted-foreground transition-transform flex-shrink-0"
+              style={{ transform: resvOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
+          </button>
+          {resvOpen && (
+            <div className="p-3 pt-1 space-y-3 border-t border-border">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Localizador</Label>
+                  <Input value={resv.locator} onChange={(e) => setResv(r => ({ ...r, locator: e.target.value }))} placeholder="ABC123" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Aerolínea</Label>
+                  <Input value={resv.provider} onChange={(e) => setResv(r => ({ ...r, provider: e.target.value }))} placeholder="Iberia" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Nº de confirmación</Label>
+                  <Input value={resv.confirmation_number} onChange={(e) => setResv(r => ({ ...r, confirmation_number: e.target.value }))} placeholder="…" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Asiento</Label>
+                  <Input value={resv.seat} onChange={(e) => setResv(r => ({ ...r, seat: e.target.value }))} placeholder="12A" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Enlace de la reserva</Label>
+                <Input value={resv.link} onChange={(e) => setResv(r => ({ ...r, link: e.target.value }))} placeholder="https://..." />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Billete (PDF o imagen)</Label>
+                <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary transition-colors"
+                  onClick={() => resvFileRef.current?.click()}>
+                  {resvUploading ? <Loader2 size={16} className="animate-spin" /> : resvFileUrl ? <File size={16} style={{ color: 'var(--primary)' }} /> : <Upload size={16} className="text-muted-foreground" />}
+                  <span className="text-xs text-muted-foreground">{resvUploading ? 'Subiendo...' : resvFileUrl ? 'Billete subido ✓' : 'Subir billete'}</span>
+                  {resvFileUrl && !resvUploading && (
+                    <button type="button" className="ml-auto text-xs text-muted-foreground hover:text-destructive"
+                      onClick={(e) => { e.stopPropagation(); setResvFileUrl(null) }}>Quitar</button>
+                  )}
+                </div>
+                <input ref={resvFileRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadReservationFile(f); e.target.value = '' }} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Foto de portada (para visualizar la actividad en el itinerario) */}
       <div className="space-y-1.5">
         <Label>Foto</Label>
@@ -404,7 +518,7 @@ function ActivityForm({ tripId, days, activity, isEdit, defaultDayId }: {
         <Button type="button" variant="ghost" asChild>
           <Link to={`/trips/${tripId}/itinerary`}>Cancelar</Link>
         </Button>
-        <Button type="submit" disabled={isSubmitting}
+        <Button type="submit" disabled={isSubmitting || resvUploading}
           variant="brand">
           {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
           {isEdit ? 'Guardar' : 'Añadir'}

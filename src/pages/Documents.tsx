@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { motion } from 'framer-motion'
 import {
   Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, CalendarPlus, ShieldCheck,
-  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair, ChevronRight, QrCode,
+  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair, ChevronRight, QrCode, CalendarClock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,12 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument, uploadDocumentFile, type NewDocument } from '@/lib/queries/documents'
+import { useSyncReservation } from '@/lib/queries/reservationSync'
+import { canShowInItinerary } from '@/lib/reservationLink'
 import { useTravelers, useCreateTraveler, useDeleteTraveler } from '@/lib/queries/travelers'
 import { useTripAttachments, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useActivities } from '@/lib/queries/itinerary'
@@ -54,6 +57,7 @@ const schema = z.object({
   seat: z.string().optional(),
   phone: z.string().optional(),
   notes: z.string().optional(),
+  show_in_itinerary: z.boolean().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -129,6 +133,7 @@ export function DocumentsPage() {
   const createDoc = useCreateDocument()
   const updateDoc = useUpdateDocument()
   const deleteDoc = useDeleteDocument()
+  const syncReservation = useSyncReservation(tripId!)
   const createTraveler = useCreateTraveler()
   const deleteTraveler = useDeleteTraveler()
 
@@ -177,6 +182,10 @@ export function DocumentsPage() {
   const [deleteTravTarget, setDeleteTravTarget] = useState<Traveler | null>(null)
   const [uploading, setUploading] = useState(false)
   const [fileUrl, setFileUrl] = useState<string | null>(null)
+  // Segundo adjunto opcional (p. ej. póliza + condiciones de un seguro). Se
+  // guarda en back_url, que en las reservas no se usaba para otra cosa.
+  const [uploading2, setUploading2] = useState(false)
+  const [fileUrl2, setFileUrl2] = useState<string | null>(null)
   const [icsOpen, setIcsOpen] = useState(false)
   // Viajero nuevo
   const [travelerName, setTravelerName] = useState('')
@@ -195,7 +204,10 @@ export function DocumentsPage() {
 
   // ---- Reservas/billetes (formulario genérico) ----
   function openCreate(category: FormValues['category'] = 'other') {
-    reset({ category }); setFileUrl(null); setEditDoc(null); setFormOpen(true)
+    // Por defecto ON: el toggle solo se muestra en categorías con fecha; en las
+    // demás (seguros) se ignora al guardar.
+    reset({ category, show_in_itinerary: true })
+    setFileUrl(null); setFileUrl2(null); setEditDoc(null); setFormOpen(true)
   }
   function openEdit(doc: Document) {
     reset({
@@ -206,29 +218,45 @@ export function DocumentsPage() {
       datetime_end: doc.datetime_end ? doc.datetime_end.slice(0, 16) : '',
       origin: doc.origin ?? '', destination: doc.destination ?? '',
       seat: doc.seat ?? '', phone: doc.phone ?? '', notes: doc.notes ?? '',
+      // En edición el estado real es si ya tiene actividad espejo vinculada.
+      show_in_itinerary: !!doc.activity_id,
     })
-    setFileUrl(doc.file_url); setEditDoc(doc); setFormOpen(true)
+    setFileUrl(doc.file_url); setFileUrl2(doc.back_url); setEditDoc(doc); setFormOpen(true)
   }
-  async function handleFileUpload(file: File) {
+  async function handleFileUpload(
+    file: File,
+    setUrl: (u: string) => void,
+    setBusy: (b: boolean) => void,
+  ) {
     if (!user || !tripId) return
-    setUploading(true)
-    try { setFileUrl(await uploadDocumentFile(file, user.id, tripId)) }
+    setBusy(true)
+    try { setUrl(await uploadDocumentFile(file, user.id, tripId)) }
     catch { toast.error('Error al subir el archivo') }
-    finally { setUploading(false) }
+    finally { setBusy(false) }
   }
   async function onSubmit(values: FormValues) {
+    // show_in_itinerary NO es columna de documents: gobierna la actividad espejo
+    // y se resuelve aparte con useSyncReservation.
+    const { show_in_itinerary, ...docValues } = values
     const payload: NewDocument = {
-      trip_id: tripId!, ...values,
+      trip_id: tripId!, ...docValues,
       confirmation_number: values.confirmation_number || null,
       locator: values.locator || null, provider: values.provider || null,
       link: values.link || null,
       datetime_start: values.datetime_start || null, datetime_end: values.datetime_end || null,
       origin: values.origin || null, destination: values.destination || null,
       seat: values.seat || null, phone: values.phone || null, notes: values.notes || null,
-      file_url: fileUrl, back_url: null, traveler_id: null,
+      file_url: fileUrl, back_url: fileUrl2, traveler_id: null,
     }
-    if (editDoc) await updateDoc.mutateAsync({ id: editDoc.id, ...payload })
-    else await createDoc.mutateAsync(payload)
+    const saved = editDoc
+      ? await updateDoc.mutateAsync({ id: editDoc.id, ...payload })
+      : await createDoc.mutateAsync(payload)
+
+    // Solo las categorías con fecha se llevan al itinerario (nunca seguros).
+    const showItin = canShowInItinerary(values.category) && !!show_in_itinerary
+    if (showItin || saved.activity_id) {
+      await syncReservation.mutateAsync({ doc: saved, showInItinerary: showItin })
+    }
     setFormOpen(false)
   }
 
@@ -634,6 +662,31 @@ export function DocumentsPage() {
                 </div>
               </div>
             )}
+            {/* Mostrar en el itinerario: crea una actividad espejo en el día de la
+                reserva (solo categorías con fecha). */}
+            {canShowInItinerary(cat) && (
+              <div className="rounded-lg p-3 flex items-start gap-3" style={{ background: 'var(--secondary)' }}>
+                <span className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mt-0.5"
+                  style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
+                  <CalendarClock size={16} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Mostrar en el itinerario</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {watch('datetime_start')
+                      ? 'Aparecerá como una parada en el día de la reserva.'
+                      : 'Añade una fecha de inicio para colocarla en el itinerario.'}
+                  </p>
+                </div>
+                <Switch
+                  className="mt-0.5 flex-shrink-0"
+                  checked={watch('show_in_itinerary') ?? false}
+                  onCheckedChange={(v) => setValue('show_in_itinerary', v)}
+                  disabled={!watch('datetime_start')}
+                  aria-label="Mostrar en el itinerario"
+                />
+              </div>
+            )}
             {(isStay || isInsurance || isOther) && (
               <div className="space-y-1.5">
                 <Label>{isInsurance ? 'Teléfono de asistencia' : 'Teléfono'}</Label>
@@ -646,14 +699,28 @@ export function DocumentsPage() {
               {errors.link && <p className="text-xs text-destructive">{errors.link.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label>Adjunto (PDF o imagen)</Label>
+              <Label>{isInsurance ? 'Adjunto (póliza)' : 'Adjunto (PDF o imagen)'}</Label>
               <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary transition-colors"
                 onClick={() => document.getElementById('doc-file-input')?.click()}>
                 {uploading ? <Loader2 size={16} className="animate-spin" /> : fileUrl ? <File size={16} style={{ color: 'var(--primary)' }} /> : <Upload size={16} className="text-muted-foreground" />}
                 <span className="text-xs text-muted-foreground">{uploading ? 'Subiendo...' : fileUrl ? 'Archivo subido ✓' : 'Subir archivo'}</span>
               </div>
               <input id="doc-file-input" type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f) }} />
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f, setFileUrl, setUploading) }} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{isInsurance ? 'Segundo adjunto (condiciones, opcional)' : 'Segundo adjunto (opcional)'}</Label>
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary transition-colors"
+                onClick={() => document.getElementById('doc-file-input-2')?.click()}>
+                {uploading2 ? <Loader2 size={16} className="animate-spin" /> : fileUrl2 ? <File size={16} style={{ color: 'var(--primary)' }} /> : <Upload size={16} className="text-muted-foreground" />}
+                <span className="text-xs text-muted-foreground">{uploading2 ? 'Subiendo...' : fileUrl2 ? 'Archivo subido ✓' : 'Subir otro archivo'}</span>
+                {fileUrl2 && !uploading2 && (
+                  <button type="button" className="ml-auto text-xs text-muted-foreground hover:text-destructive"
+                    onClick={(e) => { e.stopPropagation(); setFileUrl2(null) }}>Quitar</button>
+                )}
+              </div>
+              <input id="doc-file-input-2" type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f, setFileUrl2, setUploading2) }} />
             </div>
             <div className="space-y-1.5">
               <Label>Notas</Label>
@@ -661,7 +728,7 @@ export function DocumentsPage() {
             </div>
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={isSubmitting || uploading}
+              <Button type="submit" disabled={isSubmitting || uploading || uploading2}
                 variant="brand">
                 {isSubmitting && <Loader2 size={14} className="animate-spin mr-2" />}
                 {editDoc ? 'Guardar' : 'Añadir'}
@@ -681,7 +748,7 @@ export function DocumentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive hover:bg-destructive/90"
-              onClick={() => { if (deleteTarget) deleteDoc.mutate({ id: deleteTarget.id, tripId: tripId! }); setDeleteTarget(null) }}>
+              onClick={() => { if (deleteTarget) deleteDoc.mutate({ id: deleteTarget.id, tripId: tripId!, activityId: deleteTarget.activity_id }); setDeleteTarget(null) }}>
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -896,6 +963,14 @@ function DocDetailDialog({ doc, onClose, onEdit, onDelete, onOpenFile }: {
                   <Eye size={15} /> Ver archivo adjunto
                 </Button>
               )}
+            </div>
+          )}
+
+          {doc.back_url && (
+            <div className="mt-2">
+              <Button variant="outline" className="w-full gap-2" onClick={() => onOpenFile(doc.back_url!, `${doc.title} (2)`)}>
+                <Eye size={15} /> Ver segundo adjunto
+              </Button>
             </div>
           )}
         </div>

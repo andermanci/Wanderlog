@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Clock, MapPin, Euro, ExternalLink, Pencil, FileText, Navigation,
   Upload, Loader2, X, Calendar, Trash2, Map as MapIcon, Bell,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, QrCode,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/ui/back-button'
@@ -20,7 +20,9 @@ import { useCreateReminder } from '@/lib/queries/reminders'
 import { useTripAttachments, uploadAttachmentFile, useAddAttachment, useDeleteAttachment } from '@/lib/queries/attachments'
 import { useAuthStore } from '@/store/authStore'
 import { useWalletPassStore } from '@/store/walletPassStore'
-import { buildAttachmentPass } from '@/lib/wallet/pass'
+import { buildAttachmentPass, buildDocPass } from '@/lib/wallet/pass'
+import { useDocuments } from '@/lib/queries/documents'
+import { DocIcon } from '@/components/icons/DocIcon'
 import { ACTIVITY_COLORS, ACTIVITY_LABELS, formatDate } from '@/lib/utils'
 import { isMove } from '@/lib/travelTime'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
@@ -37,6 +39,7 @@ export function ActivityDetailPage() {
   const { data: activities, isLoading } = useActivities(tripId!)
   const { data: days } = useItineraryDays(tripId!)
   const { data: tripAttachments } = useTripAttachments(tripId!)
+  const { data: documents } = useDocuments(tripId!)
   const addAttachment = useAddAttachment(tripId!, activityId!)
   const deleteAttachment = useDeleteAttachment(tripId!)
   const deleteActivity = useDeleteActivity()
@@ -51,6 +54,9 @@ export function ActivityDetailPage() {
   const day = days?.find(d => d.id === activity?.day_id)
   const endDay = activity?.end_day_id ? days?.find(d => d.id === activity.end_day_id) : null
   const attachments = (tripAttachments ?? []).filter(a => a.activity_id === activityId)
+  // Reserva (documents) vinculada a esta actividad, si la hay.
+  const linkedDoc = (documents ?? []).find(d => d.activity_id === activityId) ?? null
+  const linkedDocPass = linkedDoc ? buildDocPass(linkedDoc) : null
 
   // Crea un recordatorio relativo a la hora de la actividad (X antes).
   function remindBefore(hoursBefore: number, label: string) {
@@ -307,6 +313,38 @@ export function ActivityDetailPage() {
         {/* Audioguía generada con Claude + TTS: entrada a su propia página */}
         {(activity.type === 'place' || activity.type === 'activity') && (
           <AudioguideEntryCard activity={activity} tripId={tripId!} />
+        )}
+
+        {/* Reserva vinculada (documents.activity_id): datos ricos metidos desde
+            Documentos — localizador, proveedor, asiento, código y adjunto. */}
+        {linkedDoc && (
+          <div className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <DocIcon category={linkedDoc.category} size={15} style={{ color: 'var(--primary)' }} />
+              <p className="text-xs text-muted-foreground uppercase tracking-widest">Reserva vinculada</p>
+            </div>
+            {linkedDoc.provider && <p className="text-sm font-medium">{linkedDoc.provider}</p>}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+              {linkedDoc.locator && (
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded"
+                  style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
+                  {linkedDoc.locator}
+                </span>
+              )}
+              {linkedDoc.confirmation_number && <span className="text-xs text-muted-foreground">#{linkedDoc.confirmation_number}</span>}
+              {linkedDoc.seat && <span className="text-xs text-muted-foreground">Asiento {linkedDoc.seat}</span>}
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {linkedDocPass && (
+                <Button size="sm" variant="brand" className="gap-1.5" onClick={() => openPass(linkedDocPass)}>
+                  <QrCode size={14} /> Mostrar código
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="gap-1.5" asChild>
+                <Link to={`/trips/${tripId}/documents`}><FileText size={14} /> Ver en Documentos</Link>
+              </Button>
+            </div>
+          </div>
         )}
 
         {/* Wallet: entradas y documentos, con subida directa */}

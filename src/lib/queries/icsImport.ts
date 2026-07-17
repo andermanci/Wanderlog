@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { docKeys } from '@/lib/queries/documents'
 import { itineraryKeys } from '@/lib/queries/itinerary'
 import { activityTypeFor, type IcsBooking } from '@/lib/ics/parseIcs'
+import { timeOf, dateOf } from '@/lib/reservationLink'
 import type { ItineraryDay } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -11,15 +12,6 @@ import { toast } from 'sonner'
 // itinerario — enlazadas entre sí por documents.activity_id.
 //
 // Sin esto el usuario metía el vuelo dos veces y nada las unía.
-
-/** Hora local (HH:MM) del instante ISO, o null en los eventos de día completo. */
-function timeOf(iso: string, allDay: boolean): string | null {
-  if (allDay) return null
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-const dateOf = (iso: string) => new Date(iso).toISOString().slice(0, 10)
 
 export function useImportIcsBookings(tripId: string) {
   const qc = useQueryClient()

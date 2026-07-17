@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { Loader2, ScanLine, FileText, Maximize2 } from 'lucide-react'
+import { Loader2, ScanLine, FileText, Maximize2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useDocUrl } from '@/lib/docCache'
 import { detectCode, type DetectedCode } from '@/lib/wallet/detectCode'
 
@@ -22,20 +22,33 @@ interface WalletCodeProps {
   onOpenAttachment: (value: string, name: string) => void
 }
 
+// Botón de ancho completo para abrir el billete/documento adjunto entero.
+function OpenFullButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="mt-2.5 w-full inline-flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+      style={{ background: 'var(--secondary)' }}>
+      <FileText size={13} /> {label}
+    </button>
+  )
+}
+
 // Muestra el "código" de una reserva con esta prioridad:
-//  1. Billete adjunto → detectamos el QR/código dentro y lo enseñamos recortado.
+//  1. Billete adjunto → detectamos el/los QR dentro y los enseñamos recortados.
 //  2. Si no se detecta → miniatura del billete completo (sigue siendo escaneable).
 //  3. Sin adjunto pero con localizador → QR generado (referencia, no escaneable).
 export function WalletCode({ attachment, code, link, onOpenAttachment }: WalletCodeProps) {
   const resolvedUrl = useDocUrl(attachment?.value)
   const [detecting, setDetecting] = useState(false)
-  const [detected, setDetected] = useState<DetectedCode | null>(null)
+  const [detected, setDetected] = useState<DetectedCode[]>([])
+  const [idx, setIdx] = useState(0)
 
   useEffect(() => {
     if (!attachment || !resolvedUrl) return
     let cancelled = false
     setDetecting(true)
-    setDetected(null)
+    setDetected([])
+    setIdx(0)
     detectCode(attachment.value, resolvedUrl, attachment.isPdf)
       .then(res => { if (!cancelled) setDetected(res) })
       .finally(() => { if (!cancelled) setDetecting(false) })
@@ -56,23 +69,51 @@ export function WalletCode({ attachment, code, link, onOpenAttachment }: WalletC
       )
     }
 
-    if (detected) {
+    if (detected.length > 0) {
+      const multi = detected.length > 1
+      const cur = detected[Math.min(idx, detected.length - 1)]
       return (
-        <button type="button" onClick={open} className="w-full group text-left">
-          <div className="rounded-xl p-3 bg-white flex items-center justify-center">
-            <img src={detected.cropDataUrl} alt={`${detected.label} de ${attachment.name}`}
-              className="max-h-52 w-auto max-w-full object-contain" />
-          </div>
+        <div className="w-full">
+          <button type="button" onClick={open} className="w-full group text-left block">
+            <div className="rounded-xl p-3 bg-white flex items-center justify-center">
+              <img src={cur.cropDataUrl} alt={`${cur.label} de ${attachment.name}`}
+                className="max-h-52 w-auto max-w-full object-contain" />
+            </div>
+          </button>
+
+          {/* Paginador cuando el billete lleva varios códigos (uno por viajero) */}
+          {multi && (
+            <div className="flex items-center justify-center gap-3 mt-2.5">
+              <button type="button" aria-label="Código anterior"
+                onClick={() => setIdx(i => (i - 1 + detected.length) % detected.length)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                style={{ background: 'var(--secondary)' }}>
+                <ChevronLeft size={15} />
+              </button>
+              <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                {Math.min(idx, detected.length - 1) + 1} / {detected.length}
+              </span>
+              <button type="button" aria-label="Código siguiente"
+                onClick={() => setIdx(i => (i + 1) % detected.length)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                style={{ background: 'var(--secondary)' }}>
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-2 mt-2">
             <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full"
               style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
-              <ScanLine size={12} /> {detected.label}
+              <ScanLine size={12} /> {cur.label}{multi ? ` · ${detected.length} códigos` : ''}
             </span>
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-              <Maximize2 size={12} /> Ampliar
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Maximize2 size={12} /> Toca para ampliar
             </span>
           </div>
-        </button>
+
+          <OpenFullButton label="Ver documento completo" onClick={open} />
+        </div>
       )
     }
 
@@ -92,7 +133,7 @@ export function WalletCode({ attachment, code, link, onOpenAttachment }: WalletC
           </div>
         )}
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground group-hover:text-foreground transition-colors mt-2">
-          <Maximize2 size={12} /> Ver billete completo
+          <Maximize2 size={12} /> Ver documento completo
         </span>
       </button>
     )
