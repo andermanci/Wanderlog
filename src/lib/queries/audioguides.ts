@@ -144,6 +144,7 @@ export function useGenerateStopAudio(tripId: string, activityId: string) {
           status: 'ready',
           audio_url: data.audioUrl,
           audio_duration_seconds: data.durationSeconds ?? null,
+          sentence_timings: data.sentenceTimings ?? null,
         })
         .eq('id', stop.id)
     },

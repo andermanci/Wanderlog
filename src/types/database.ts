@@ -717,6 +717,7 @@ export type Database = {
           script_text: string
           audio_url: string | null
           audio_duration_seconds: number | null
+          sentence_timings: { text: string; start: number }[] | null
           status: 'pending' | 'generating' | 'ready' | 'error'
           error_message: string | null
           created_at: string
@@ -732,6 +733,7 @@ export type Database = {
           script_text: string
           audio_url?: string | null
           audio_duration_seconds?: number | null
+          sentence_timings?: { text: string; start: number }[] | null
           status?: 'pending' | 'generating' | 'ready' | 'error'
           error_message?: string | null
           created_at?: string
@@ -747,6 +749,7 @@ export type Database = {
           script_text?: string
           audio_url?: string | null
           audio_duration_seconds?: number | null
+          sentence_timings?: { text: string; start: number }[] | null
           status?: 'pending' | 'generating' | 'ready' | 'error'
           error_message?: string | null
           created_at?: string

@@ -34,6 +34,63 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes
 }
 
+// --- Frases y timepoints -----------------------------------------------
+// Para el resaltado sincronizado del guion, cortamos el texto en frases e
+// insertamos un <mark> SSML antes de cada una; Google TTS (v1beta1 con
+// enableTimePointing) devuelve el instante exacto en que arranca cada mark.
+// Mantener la segmentación en sync con src/lib/audioguide/sentences.ts.
+
+const SENTENCE_BREAK =
+  /(?<!\b(?:Sr|Sra|Srta|Dr|Dra|D|Dña|S|s|St|Sta|núm|nº|art|pág|aprox|etc)\.)(?<=[.!?…])\s+(?=[A-ZÁÉÍÓÚÜÑ¿¡«"(])/
+const MIN_SENTENCE_CHARS = 20
+
+function splitSentences(text: string): string[] {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  if (!normalized) return []
+  const parts = normalized.split(SENTENCE_BREAK)
+  const sentences: string[] = []
+  for (const part of parts) {
+    const prev = sentences[sentences.length - 1]
+    if (prev !== undefined && (part.length < MIN_SENTENCE_CHARS || prev.length < MIN_SENTENCE_CHARS)) {
+      sentences[sentences.length - 1] = `${prev} ${part}`
+    } else {
+      sentences.push(part)
+    }
+  }
+  return sentences
+}
+
+function escapeSsml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
+}
+
+function buildSsml(sentences: string[]): string {
+  const body = sentences.map((s, i) => `<mark name="s${i}"/>${escapeSsml(s)}`).join(' ')
+  return `<speak>${body}</speak>`
+}
+
+interface Timepoint { markName?: string; timeSeconds?: number }
+interface SentenceTiming { text: string; start: number }
+
+// Si falta el timepoint de alguna frase, devolvemos null: el cliente estima
+// los tiempos, que es mejor que guardar timings a medias como si fueran buenos.
+function buildTimings(sentences: string[], timepoints: Timepoint[] | undefined): SentenceTiming[] | null {
+  if (!timepoints?.length) return null
+  const byMark = new Map(timepoints.map((t) => [t.markName, t.timeSeconds]))
+  const timings: SentenceTiming[] = []
+  for (let i = 0; i < sentences.length; i++) {
+    const seconds = byMark.get(`s${i}`)
+    if (typeof seconds !== 'number') return null
+    timings.push({ text: sentences[i], start: Math.max(0, Math.round(seconds * 100) / 100) })
+  }
+  return timings
+}
+
 // El MP3 que devuelve Google Cloud TTS es un stream "pelado": ni ID3 ni
 // cabecera Xing/LAME con la duración. Chrome la calcula igualmente, pero
 // Safari/iOS es mucho más estricto y a veces ni siquiera reproduce el
@@ -126,23 +183,57 @@ Deno.serve(async (req) => {
       return json({ error: `El texto supera el máximo de ${MAX_TTS_CHARS} caracteres` }, 400)
     }
 
-    const ttsRes = await fetch(
-      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          input: { text },
-          voice: { languageCode: 'es-ES', name: 'es-ES-Neural2-B' },
-          audioConfig: { audioEncoding: 'MP3' },
-        }),
-      },
-    )
-    if (!ttsRes.ok) {
-      return json({ error: `Google TTS error: ${ttsRes.status} ${await ttsRes.text()}` }, 502)
+    const voiceAndConfig = {
+      voice: { languageCode: 'es-ES', name: 'es-ES-Neural2-B' },
+      audioConfig: { audioEncoding: 'MP3' },
     }
-    const { audioContent } = await ttsRes.json()
-    if (!audioContent) return json({ error: 'Google TTS no devolvió audio' }, 502)
+
+    // Intento con timepoints: SSML con un <mark> por frase contra v1beta1.
+    // El límite de 5000 de Google es en bytes UTF-8 e incluye las etiquetas,
+    // así que si el SSML no cabe (o v1beta1 falla) caemos a la petición v1
+    // de siempre con texto plano y sin timings.
+    const sentences = splitSentences(text)
+    const ssml = buildSsml(sentences)
+    let audioContent: string | undefined
+    let sentenceTimings: SentenceTiming[] | null = null
+
+    if (sentences.length > 0 && new TextEncoder().encode(ssml).length <= 5000) {
+      const betaRes = await fetch(
+        `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: { ssml },
+            ...voiceAndConfig,
+            enableTimePointing: ['SSML_MARK'],
+          }),
+        },
+      )
+      if (betaRes.ok) {
+        const body = await betaRes.json()
+        if (body.audioContent) {
+          audioContent = body.audioContent
+          sentenceTimings = buildTimings(sentences, body.timepoints)
+        }
+      }
+    }
+
+    if (!audioContent) {
+      const ttsRes = await fetch(
+        `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input: { text }, ...voiceAndConfig }),
+        },
+      )
+      if (!ttsRes.ok) {
+        return json({ error: `Google TTS error: ${ttsRes.status} ${await ttsRes.text()}` }, 502)
+      }
+      audioContent = (await ttsRes.json()).audioContent
+      if (!audioContent) return json({ error: 'Google TTS no devolvió audio' }, 502)
+    }
 
     const rawBytes = base64ToBytes(audioContent)
     const bytes = addMp3XingHeader(rawBytes)
@@ -158,7 +249,7 @@ Deno.serve(async (req) => {
     const wordCount = text.trim().split(/\s+/).filter(Boolean).length
     const duration = mp3DurationSeconds(rawBytes) ?? Math.round((wordCount / 150) * 60)
 
-    return json({ stopId, audioUrl: pub.publicUrl, durationSeconds: duration })
+    return json({ stopId, audioUrl: pub.publicUrl, durationSeconds: duration, sentenceTimings })
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : 'Error desconocido' }, 500)
   }

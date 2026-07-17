@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  ChevronDown, ChevronLeft, ChevronRight, Navigation, Pause, Play, RotateCcw, RotateCw, Users,
+  BookOpen, ChevronDown, ChevronLeft, ChevronRight, Navigation, Pause, Play, RotateCcw, RotateCw, Users,
 } from 'lucide-react'
 import type { AudioguideStop } from '@/types/database'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useAudioguideGroupPlayback, type AudioguideSyncState } from '@/lib/realtime/useAudioguideGroupPlayback'
+import { AudioguideTranscript } from './AudioguideTranscript'
 
 interface Props {
   stops: AudioguideStop[]
@@ -31,6 +32,7 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
   const { user } = useAuthStore()
   const [index, setIndex] = useState(0)
   const [showIndex, setShowIndex] = useState(false)
+  const [showTranscript, setShowTranscript] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -166,16 +168,30 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
       <div className="rounded-xl p-4 space-y-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
         <div className="flex items-center justify-between text-xs text-muted-foreground uppercase tracking-widest">
           <span>Parada {index + 1} de {stops.length}</span>
-          {stop.audio_url && (
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={cycleRate}
-              title="Velocidad de reproducción"
-              className="font-medium px-2 py-1 rounded-md border border-border hover:border-primary/50 transition-colors normal-case tracking-normal"
+              onClick={() => setShowTranscript((v) => !v)}
+              aria-pressed={showTranscript}
+              title={showTranscript ? 'Ocultar el guion' : 'Leer el guion'}
+              className={cn(
+                'font-medium px-2 py-1 rounded-md border transition-colors',
+                showTranscript ? 'border-primary text-foreground' : 'border-border hover:border-primary/50',
+              )}
             >
-              {playbackRate}×
+              <BookOpen size={14} />
             </button>
-          )}
+            {stop.audio_url && (
+              <button
+                type="button"
+                onClick={cycleRate}
+                title="Velocidad de reproducción"
+                className="font-medium px-2 py-1 rounded-md border border-border hover:border-primary/50 transition-colors normal-case tracking-normal"
+              >
+                {playbackRate}×
+              </button>
+            )}
+          </div>
         </div>
 
         <div>
@@ -266,6 +282,21 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">Audio no disponible.</p>
+        )}
+
+        {showTranscript && (
+          <AudioguideTranscript
+            key={stop.id}
+            stop={stop}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            onSeek={stop.audio_url ? (seconds) => {
+              const el = audioRef.current
+              if (!el) return
+              el.currentTime = seconds
+              setCurrentTime(seconds)
+            } : undefined}
+          />
         )}
 
         <div className="flex items-center gap-2 pt-1">
