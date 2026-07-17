@@ -501,7 +501,7 @@ function PasteLink({ value, onChange, onSubmit, loading }: {
         </Button>
       </div>
 
-      {isAppleTouch && <IOSShortcutCard />}
+      {/* {isAppleTouch && <IOSShortcutCard />} */}
     </div>
   )
 }

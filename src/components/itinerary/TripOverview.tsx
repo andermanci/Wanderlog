@@ -1,14 +1,14 @@
 import { useMemo } from 'react'
-import { CalendarRange, Sparkles, Wallet, Clock3 } from 'lucide-react'
+import { CalendarRange, Sparkles, Clock3 } from 'lucide-react'
 import {
-  formatDate, formatCurrency, effectiveStatus, countdownLabel,
+  formatDate, effectiveStatus, countdownLabel,
   STATUS_LABELS, STATUS_COLORS,
 } from '@/lib/utils'
 import type { Activity, ItineraryDay, Trip } from '@/types/database'
 import { format } from 'date-fns'
 
 // Visión de conjunto del viaje sobre la lista de días: días, actividades,
-// coste planificado, rango de fechas y estado/progreso.
+// rango de fechas y estado/progreso.
 export function TripOverview({ trip, days, activities }: {
   trip: Trip
   days: ItineraryDay[]
@@ -16,11 +16,6 @@ export function TripOverview({ trip, days, activities }: {
 }) {
   const status = effectiveStatus(trip)
   const statusColor = STATUS_COLORS[status] ?? 'var(--muted-foreground)'
-
-  const plannedCost = useMemo(
-    () => activities.reduce((sum, a) => sum + (a.price ?? 0), 0),
-    [activities],
-  )
 
   // Progreso del viaje en curso: cuántos días han transcurrido (incluido hoy).
   const progress = useMemo(() => {
@@ -33,7 +28,6 @@ export function TripOverview({ trip, days, activities }: {
   const stats = [
     { icon: CalendarRange, label: days.length === 1 ? 'día' : 'días', value: String(days.length) },
     { icon: Sparkles, label: activities.length === 1 ? 'actividad' : 'actividades', value: String(activities.length) },
-    ...(plannedCost > 0 ? [{ icon: Wallet, label: 'planificado', value: formatCurrency(plannedCost) }] : []),
   ]
 
   return (
