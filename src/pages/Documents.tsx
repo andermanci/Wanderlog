@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { motion } from 'framer-motion'
 import {
   Plus, FileText, Trash2, Pencil, ExternalLink, File, Loader2, Upload, CalendarPlus, ShieldCheck,
-  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair, ChevronRight, QrCode, CalendarClock,
+  MapPin, IdCard, AlertTriangle, UserPlus, User, Eye, Phone, Clock, StickyNote, Hash, Armchair, ChevronRight, QrCode, CalendarClock, Plane,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,6 +55,7 @@ const schema = z.object({
   origin: z.string().optional(),
   destination: z.string().optional(),
   seat: z.string().optional(),
+  flight_number: z.string().optional(),
   phone: z.string().optional(),
   notes: z.string().optional(),
   show_in_itinerary: z.boolean().optional(),
@@ -217,7 +218,8 @@ export function DocumentsPage() {
       datetime_start: doc.datetime_start ? doc.datetime_start.slice(0, 16) : '',
       datetime_end: doc.datetime_end ? doc.datetime_end.slice(0, 16) : '',
       origin: doc.origin ?? '', destination: doc.destination ?? '',
-      seat: doc.seat ?? '', phone: doc.phone ?? '', notes: doc.notes ?? '',
+      seat: doc.seat ?? '', flight_number: doc.flight_number ?? '',
+      phone: doc.phone ?? '', notes: doc.notes ?? '',
       // En edición el estado real es si ya tiene actividad espejo vinculada.
       show_in_itinerary: !!doc.activity_id,
     })
@@ -245,7 +247,8 @@ export function DocumentsPage() {
       link: values.link || null,
       datetime_start: values.datetime_start || null, datetime_end: values.datetime_end || null,
       origin: values.origin || null, destination: values.destination || null,
-      seat: values.seat || null, phone: values.phone || null, notes: values.notes || null,
+      seat: values.seat || null, flight_number: values.flight_number || null,
+      phone: values.phone || null, notes: values.notes || null,
       file_url: fileUrl, back_url: fileUrl2, traveler_id: null,
     }
     const saved = editDoc
@@ -621,6 +624,12 @@ export function DocumentsPage() {
                 <Input {...register('confirmation_number')} placeholder="000000000" />
               </div>
             </div>
+            {cat === 'flight' && (
+              <div className="space-y-1.5">
+                <Label>Número de vuelo</Label>
+                <Input {...register('flight_number')} placeholder="IB3456" className="font-mono" />
+              </div>
+            )}
             {(isTransport || isOther) && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -921,6 +930,11 @@ function DocDetailDialog({ doc, onClose, onEdit, onDelete, onOpenFile }: {
 
         <div className="py-1">
           {doc.provider && <Field icon={FileText} label="Proveedor">{doc.provider}</Field>}
+          {doc.flight_number && (
+            <Field icon={Plane} label="Número de vuelo">
+              <span className="font-mono">{doc.flight_number}</span>
+            </Field>
+          )}
           {doc.locator && (
             <Field icon={Hash} label="Localizador">
               <span className="font-mono px-1.5 py-0.5 rounded text-xs"
@@ -1024,6 +1038,12 @@ function DocRow({ doc, i, onEdit, onDelete, onOpenFile, onOpen }: {
             <p className="font-medium">{doc.title}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
               {doc.provider && <span className="text-xs text-muted-foreground">{doc.provider}</span>}
+              {doc.flight_number && (
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded"
+                  style={{ background: 'var(--secondary)' }}>
+                  {doc.flight_number}
+                </span>
+              )}
               {doc.locator && (
                 <span className="text-xs font-mono px-1.5 py-0.5 rounded"
                   style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>

@@ -23,6 +23,7 @@ import { useWalletPassStore } from '@/store/walletPassStore'
 import { buildAttachmentPass, buildDocPass } from '@/lib/wallet/pass'
 import { useDocuments } from '@/lib/queries/documents'
 import { DocIcon } from '@/components/icons/DocIcon'
+import { DocLightbox } from '@/components/documents/DocLightbox'
 import { ACTIVITY_COLORS, ACTIVITY_LABELS, formatDate } from '@/lib/utils'
 import { isMove } from '@/lib/travelTime'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
@@ -49,6 +50,7 @@ export function ActivityDetailPage() {
   const [uploading, setUploading] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [directionsTo, setDirectionsTo] = useState<DirectionsTarget | null>(null)
+  const [docLightbox, setDocLightbox] = useState<{ url: string; name: string } | null>(null)
 
   const activity = activities?.find(a => a.id === activityId)
   const day = days?.find(d => d.id === activity?.day_id)
@@ -325,6 +327,11 @@ export function ActivityDetailPage() {
             </div>
             {linkedDoc.provider && <p className="text-sm font-medium">{linkedDoc.provider}</p>}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+              {linkedDoc.flight_number && (
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: 'var(--secondary)' }}>
+                  {linkedDoc.flight_number}
+                </span>
+              )}
               {linkedDoc.locator && (
                 <span className="text-xs font-mono px-1.5 py-0.5 rounded"
                   style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>
@@ -340,8 +347,20 @@ export function ActivityDetailPage() {
                   <QrCode size={14} /> Mostrar código
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="gap-1.5" asChild>
-                <Link to={`/trips/${tripId}/documents`}><FileText size={14} /> Ver en Documentos</Link>
+              {linkedDoc.file_url && (
+                <Button size="sm" variant="outline" className="gap-1.5"
+                  onClick={() => setDocLightbox({ url: linkedDoc.file_url!, name: linkedDoc.title })}>
+                  <FileText size={14} /> Ver billete
+                </Button>
+              )}
+              {linkedDoc.back_url && (
+                <Button size="sm" variant="outline" className="gap-1.5"
+                  onClick={() => setDocLightbox({ url: linkedDoc.back_url!, name: `${linkedDoc.title} (2)` })}>
+                  <FileText size={14} /> 2º adjunto
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" className="gap-1.5" asChild>
+                <Link to={`/trips/${tripId}/documents`}><ExternalLink size={14} /> Ver en Documentos</Link>
               </Button>
             </div>
           </div>
@@ -454,6 +473,13 @@ export function ActivityDetailPage() {
       </AlertDialog>
 
       <DirectionsDialog target={directionsTo} onClose={() => setDirectionsTo(null)} />
+
+      <DocLightbox
+        open={!!docLightbox}
+        onOpenChange={(o) => !o && setDocLightbox(null)}
+        url={docLightbox?.url ?? null}
+        name={docLightbox?.name ?? ''}
+      />
     </div>
   )
 }

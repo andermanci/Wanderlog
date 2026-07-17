@@ -283,6 +283,7 @@ export type Database = {
           destination: string | null
           seat: string | null
           phone: string | null
+          flight_number: string | null
           file_url: string | null
           back_url: string | null
           traveler_id: string | null
@@ -305,6 +306,7 @@ export type Database = {
           destination?: string | null
           seat?: string | null
           phone?: string | null
+          flight_number?: string | null
           file_url?: string | null
           back_url?: string | null
           traveler_id?: string | null
@@ -327,6 +329,7 @@ export type Database = {
           destination?: string | null
           seat?: string | null
           phone?: string | null
+          flight_number?: string | null
           file_url?: string | null
           back_url?: string | null
           traveler_id?: string | null

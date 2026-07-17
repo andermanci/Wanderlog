@@ -117,6 +117,7 @@ function ActivityForm({ tripId, days, activity, linkedDoc, isEdit, defaultDayId 
     provider: linkedDoc?.provider ?? '',
     confirmation_number: linkedDoc?.confirmation_number ?? '',
     seat: linkedDoc?.seat ?? '',
+    flight_number: linkedDoc?.flight_number ?? '',
     link: linkedDoc?.link ?? '',
   }))
   const [resvFileUrl, setResvFileUrl] = useState<string | null>(linkedDoc?.file_url ?? null)
@@ -410,8 +411,8 @@ function ActivityForm({ tripId, days, activity, linkedDoc, isEdit, defaultDayId 
             <div className="p-3 pt-1 space-y-3 border-t border-border">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Localizador</Label>
-                  <Input value={resv.locator} onChange={(e) => setResv(r => ({ ...r, locator: e.target.value }))} placeholder="ABC123" />
+                  <Label>Número de vuelo</Label>
+                  <Input value={resv.flight_number} onChange={(e) => setResv(r => ({ ...r, flight_number: e.target.value }))} placeholder="IB3456" className="font-mono" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Aerolínea</Label>
@@ -420,13 +421,17 @@ function ActivityForm({ tripId, days, activity, linkedDoc, isEdit, defaultDayId 
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
+                  <Label>Localizador</Label>
+                  <Input value={resv.locator} onChange={(e) => setResv(r => ({ ...r, locator: e.target.value }))} placeholder="ABC123" className="font-mono" />
+                </div>
+                <div className="space-y-1.5">
                   <Label>Nº de confirmación</Label>
                   <Input value={resv.confirmation_number} onChange={(e) => setResv(r => ({ ...r, confirmation_number: e.target.value }))} placeholder="…" />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Asiento</Label>
-                  <Input value={resv.seat} onChange={(e) => setResv(r => ({ ...r, seat: e.target.value }))} placeholder="12A" />
-                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Asiento</Label>
+                <Input value={resv.seat} onChange={(e) => setResv(r => ({ ...r, seat: e.target.value }))} placeholder="12A" />
               </div>
               <div className="space-y-1.5">
                 <Label>Enlace de la reserva</Label>

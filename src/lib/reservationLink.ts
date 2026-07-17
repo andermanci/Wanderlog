@@ -80,6 +80,7 @@ export interface ReservationExtras {
   provider?: string | null
   confirmation_number?: string | null
   seat?: string | null
+  flight_number?: string | null
   link?: string | null
   file_url?: string | null
   back_url?: string | null
@@ -88,7 +89,7 @@ export interface ReservationExtras {
 export type MirrorDocFields = Pick<
   Document,
   'category' | 'title' | 'origin' | 'destination' | 'datetime_start' | 'datetime_end'
-  | 'locator' | 'provider' | 'confirmation_number' | 'seat' | 'link' | 'file_url' | 'back_url'
+  | 'locator' | 'provider' | 'confirmation_number' | 'seat' | 'flight_number' | 'link' | 'file_url' | 'back_url'
 >
 
 // Campos del documento derivados de una actividad + los datos de reserva que se
@@ -113,6 +114,7 @@ export function activityToDocFields(
     provider: extra.provider || null,
     confirmation_number: extra.confirmation_number || null,
     seat: extra.seat || null,
+    flight_number: extra.flight_number || null,
     link: extra.link || null,
     file_url: extra.file_url ?? null,
     back_url: extra.back_url ?? null,
