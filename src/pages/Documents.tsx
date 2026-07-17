@@ -286,6 +286,7 @@ export function DocumentsPage() {
       file_url: pForm.front, back_url: pForm.back,
       locator: null, provider: null, link: null, datetime_start: null,
       origin: null, destination: null, seat: null, phone: null, notes: null,
+      flight_number: null,
     }
     if (pForm.id) await updateDoc.mutateAsync({ id: pForm.id, ...payload })
     else await createDoc.mutateAsync(payload)
