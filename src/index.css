@@ -276,3 +276,21 @@ input[type="week"] {
 .fc .fc-col-header-cell-cushion,
 .fc .fc-daygrid-day-number { color: var(--muted-foreground); text-decoration: none; }
 .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: var(--primary); }
+
+/* En móvil el toolbar (prev/next/hoy, título, vista) no cabe en una fila: el
+   título en español ("julio de 2026") choca con los botones. Se apila. */
+@media (max-width: 640px) {
+  .fc .fc-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+  .fc .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 1.2em;
+    text-align: center;
+  }
+}
