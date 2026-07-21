@@ -26,7 +26,8 @@ import { es } from 'date-fns/locale'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { MarkdownView } from '@/components/MarkdownView'
 import { useTrip } from '@/lib/queries/trips'
-import { useItineraryDays, useActivities, useUpdateDayGuide } from '@/lib/queries/itinerary'
+import { useItineraryDays, useActivities, useUpdateDayCities } from '@/lib/queries/itinerary'
+import { addCity, dayCities, hasGuide, removeGuide } from '@/lib/cities'
 import {
   useDestinationGuides, useAddDestinationGuide, useUpdateDestinationGuide, useDeleteDestinationGuide, useReorderGuides,
 } from '@/lib/queries/guide'
@@ -171,7 +172,7 @@ export function GuidePage() {
               {guides?.map(g => (
                 <DestinationGuideBlock
                   key={g.id} guide={g} tripId={tripId!}
-                  days={days} activities={activities} guides={guides}
+                  days={days} activities={activities}
                   defaultOpen={guides.length <= 2}
                   onImport={(prev) => importInto(g.id, g.name, prev)}
                 />
@@ -250,14 +251,14 @@ export function GuidePage() {
 const FACT_ICONS = { currency: Coins, languages: Languages, emergency: Phone, plug: Plug, voltage: Zap, callingCode: Hash } as const
 const FACT_LABELS = { currency: 'Moneda', languages: 'Idioma', emergency: 'Emergencias', plug: 'Enchufe', voltage: 'Voltaje', callingCode: 'Prefijo' } as const
 
-function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaultOpen, onImport }: {
+function DestinationGuideBlock({ guide, tripId, days, activities, defaultOpen, onImport }: {
   guide: DestinationGuide; tripId: string
-  days: ItineraryDay[] | undefined; activities: Activity[] | undefined; guides: DestinationGuide[]
+  days: ItineraryDay[] | undefined; activities: Activity[] | undefined
   defaultOpen: boolean; onImport: (prev: GuideSection[]) => Promise<void>
 }) {
   const update = useUpdateDestinationGuide()
   const del = useDeleteDestinationGuide()
-  const setDayGuide = useUpdateDayGuide()
+  const setDayCities = useUpdateDayCities()
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: guide.id })
 
@@ -274,7 +275,7 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
   const sections = guide.sections ?? []
   const filled = sections.filter(s => s.body.trim()).length
   const busy = update.isPending || importing
-  const assignedDays = (days ?? []).filter(d => d.guide_id === guide.id)
+  const assignedDays = (days ?? []).filter(d => hasGuide(d, guide.id))
   const facts = guide.facts ?? {}
   const factEntries = (Object.keys(FACT_LABELS) as (keyof typeof FACT_LABELS)[])
     .filter(k => facts[k]).map(k => ({ k, label: FACT_LABELS[k], Icon: FACT_ICONS[k], value: facts[k]! }))
@@ -306,8 +307,13 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
     setOpen(true); setEditingId(id); setDraftTitle('Nueva sección'); setDraftBody('')
   }
 
+  // Marcar/desmarcar el día suma o quita ESTE destino: los demás que tuviera el
+  // día (un día puede ser dos ciudades) se quedan como están.
   function toggleDay(day: ItineraryDay, checked: boolean) {
-    setDayGuide.mutate({ id: day.id, guideId: checked ? guide.id : null, tripId })
+    const cities = checked
+      ? addCity(dayCities(day), { name: guide.name, guide_id: guide.id })
+      : removeGuide(dayCities(day), guide.id)
+    setDayCities.mutate({ id: day.id, cities, tripId })
   }
 
   // Autoasignar: días cuyas actividades (título/dirección) mencionan la ciudad.
@@ -317,8 +323,8 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
     for (const d of (days ?? [])) {
       const acts = (activities ?? []).filter(a => a.day_id === d.id)
       const text = normalize(acts.map(a => `${a.title} ${a.address ?? ''}`).join(' '))
-      if (text.includes(target) && d.guide_id !== guide.id) {
-        setDayGuide.mutate({ id: d.id, guideId: guide.id, tripId })
+      if (text.includes(target) && !hasGuide(d, guide.id)) {
+        toggleDay(d, true)
         n++
       }
     }
@@ -466,18 +472,21 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
       <Dialog open={daysOpen} onOpenChange={setDaysOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Días en {guide.name}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground -mt-2">Marca los días de tu viaje que transcurren en {guide.name}.</p>
+          <p className="text-sm text-muted-foreground -mt-2">
+            Marca los días de tu viaje que pasan por {guide.name}. Un día puede estar en varias ciudades.
+          </p>
           <div className="max-h-[50vh] overflow-y-auto space-y-1 pr-1">
             {(days ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">Aún no hay días en el itinerario.</p>
             ) : (days ?? []).map(d => {
-              const mine = d.guide_id === guide.id
-              const otherName = d.guide_id && !mine ? guides.find(g => g.id === d.guide_id)?.name : null
+              const mine = hasGuide(d, guide.id)
+              // Las otras ciudades del día, para ver de un vistazo con qué se comparte
+              const others = dayCities(d).filter(c => c.guide_id !== guide.id).map(c => c.name).join(' · ')
               return (
                 <label key={d.id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-secondary cursor-pointer">
                   <Checkbox checked={mine} onCheckedChange={(v) => toggleDay(d, v === true)} />
                   <span className="text-sm capitalize flex-1">{format(parseISO(d.date), "EEE d 'de' MMM", { locale: es })}</span>
-                  {otherName && <span className="text-xs text-muted-foreground">{otherName}</span>}
+                  {others && <span className="text-xs text-muted-foreground truncate max-w-[40%]">{others}</span>}
                 </label>
               )
             })}

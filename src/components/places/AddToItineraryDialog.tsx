@@ -10,8 +10,9 @@ import { useCreateActivity, useItineraryDays } from '@/lib/queries/itinerary'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { useTrip } from '@/lib/queries/trips'
 import { placeCategoryToActivityType } from '@/lib/maps'
+import { dayCities, resolveNames } from '@/lib/cities'
 import { formatDate } from '@/lib/utils'
-import type { PlaceCategory } from '@/types/database'
+import type { ItineraryDay, PlaceCategory } from '@/types/database'
 import { toast } from 'sonner'
 
 export interface PendingPlace {
@@ -41,19 +42,19 @@ export function AddToItineraryDialog({ open, onOpenChange, tripId, place }: Prop
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
 
-  // Pista: ¿en qué ciudad está el sitio y qué días del viaje son de esa ciudad?
-  // Se cruza la ciudad de cada día (itinerary_days.city o su guía) con lo que
+  // Pista: ¿en qué ciudad está el sitio y qué días del viaje pasan por ella?
+  // Se cruzan las ciudades de cada día (itinerary_days.cities) con lo que
   // aparece en el nombre/dirección del lugar. Es orientativo, no bloquea nada.
   const hint = useMemo(() => {
     if (!place || !days?.length) return null
-    const guideName = new Map((guides ?? []).map(g => [g.id, g.name]))
-    const cityOf = (d: { city: string | null; guide_id: string | null }) =>
-      (d.city?.trim() || (d.guide_id ? guideName.get(d.guide_id) : '') || '').trim()
+    const namesOf = (d: ItineraryDay) => resolveNames(dayCities(d), guides).map(c => c.name)
     const haystack = `${place.name} ${place.address ?? ''}`.toLowerCase()
 
-    const cities = Array.from(new Set(days.map(cityOf).filter(Boolean)))
+    const cities = Array.from(new Set(days.flatMap(namesOf)))
     let city = cities.find(c => haystack.includes(c.toLowerCase())) ?? null
-    let matchedDays = city ? days.filter(d => cityOf(d).toLowerCase() === city!.toLowerCase()) : []
+    let matchedDays = city
+      ? days.filter(d => namesOf(d).some(n => n.toLowerCase() === city!.toLowerCase()))
+      : []
 
     // Sin ciudad por día: probar con el destino del viaje (ej. "Roma, Italia").
     if (!city && trip?.destination) {

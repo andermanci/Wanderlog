@@ -15,6 +15,7 @@ import { useDocuments } from '@/lib/queries/documents'
 import { useTripWeather, useTodayWeatherHourly, weatherIcon, destinationHourKey } from '@/lib/queries/weather'
 import { useDestinationGuides } from '@/lib/queries/guide'
 import { buildDay, focusEntry } from '@/lib/today'
+import { dayCities, resolveNames } from '@/lib/cities'
 import { lodgingByDayMap } from '@/lib/lodging'
 import type { DirectionsTarget } from '@/lib/directions'
 import type { Trip, Activity, ItineraryDay } from '@/types/database'
@@ -51,7 +52,6 @@ export function TodayHub({ trip, activities, days }: {
 
   const todayStr = format(new Date(), 'yyyy-MM-dd')
   const todayDay = days?.find(d => d.date === todayStr)
-  const todayGuide = todayDay?.guide_id ? guides?.find(g => g.id === todayDay.guide_id) : undefined
 
   const todayActs = useMemo(() => {
     if (!todayDay) return []
@@ -91,8 +91,16 @@ export function TodayHub({ trip, activities, days }: {
   const rainAt = upcomingHours.find(h => h.precipProb >= 50)
   const showRainRow = upcomingHours.some(h => h.precipProb >= 30)
 
+  // Dónde estás hoy: puede ser más de una ciudad ("Roma · Tívoli"). La guía que
+  // se abre es la de la primera que la tenga. Va aquí abajo, y no junto a
+  // todayDay, porque el compilador de React da por hecho que pasar el día a una
+  // función podría mutarlo y deja de memoizar los useMemo de más arriba.
+  const todayCities = resolveNames(dayCities(todayDay), guides)
+  const todayWhere = todayCities.map(c => c.name).join(' · ')
+  const todayGuide = guides?.find(g => todayCities.some(c => c.guide_id === g.id))
+
   // Facts de la guía: la de hoy, o la primera con datos.
-  const facts = (todayDay?.guide_id ? guides?.find(g => g.id === todayDay.guide_id)?.facts : undefined)
+  const facts = todayGuide?.facts
     ?? guides?.find(g => g.facts && Object.values(g.facts).some(Boolean))?.facts
 
   // La hora del destino solo importa cuando no es la tuya.
@@ -125,15 +133,19 @@ export function TodayHub({ trip, activities, days }: {
             <span className="first-letter:uppercase">
               {format(parseISO(todayStr), "EEEE, d 'de' MMMM", { locale: es })}
             </span>
-            {todayGuide && (
+            {todayWhere && (
               <>
                 <span aria-hidden="true" className="opacity-40">·</span>
-                <Link to={`/trips/${trip.id}/guide`}
-                  className="inline-flex items-center gap-0.5 font-medium transition-opacity hover:opacity-80"
-                  style={{ color: 'var(--primary)' }}>
-                  {todayGuide.name}
-                  <ChevronRight size={12} aria-hidden="true" />
-                </Link>
+                {todayGuide ? (
+                  <Link to={`/trips/${trip.id}/guide`}
+                    className="inline-flex items-center gap-0.5 font-medium transition-opacity hover:opacity-80"
+                    style={{ color: 'var(--primary)' }}>
+                    {todayWhere}
+                    <ChevronRight size={12} aria-hidden="true" />
+                  </Link>
+                ) : (
+                  <span className="font-medium">{todayWhere}</span>
+                )}
               </>
             )}
             {thereTime && (

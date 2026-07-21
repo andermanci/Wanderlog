@@ -4,7 +4,7 @@ import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { enqueue, isNetworkError } from '@/lib/offline'
-import type { Activity, ItineraryDay } from '@/types/database'
+import type { Activity, DayCity, ItineraryDay } from '@/types/database'
 import { toast } from 'sonner'
 
 // Sube una foto de portada de actividad al bucket público (offline-cacheable).
@@ -340,50 +340,25 @@ export function useUpdateDayNotes() {
   })
 }
 
-// Asigna (o quita) la ciudad/guía de destino de un día. guide_id = null lo desasocia.
-export function useUpdateDayCity() {
+// Las ciudades del día (ver 045): la lista entera de una vez, en orden. Cada una
+// puede ir enganchada a una guía de destino o ser texto suelto.
+export function useUpdateDayCities() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, city, tripId }: { id: string; city: string | null; tripId: string }) => {
-      const { error } = await supabase.from('itinerary_days').update({ city }).eq('id', id)
+    mutationFn: async ({ id, cities }: { id: string; cities: DayCity[]; tripId: string }) => {
+      const { error } = await supabase.from('itinerary_days').update({ cities }).eq('id', id)
       if (error) throw error
-      return { tripId }
     },
-    onMutate: async ({ id, city, tripId }) => {
+    onMutate: async ({ id, cities, tripId }) => {
       const key = itineraryKeys.days(tripId)
       await qc.cancelQueries({ queryKey: key })
       const prev = qc.getQueryData<ItineraryDay[]>(key)
-      qc.setQueryData<ItineraryDay[]>(key, (old) => old?.map(d => d.id === id ? { ...d, city } : d))
+      qc.setQueryData<ItineraryDay[]>(key, (old) => old?.map(d => d.id === id ? { ...d, cities } : d))
       return { prev, tripId }
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.tripId && ctx.prev) qc.setQueryData(itineraryKeys.days(ctx.tripId), ctx.prev)
       toast.error('No se pudo guardar la ciudad')
-    },
-    onSettled: (_d, _e, vars) => {
-      qc.invalidateQueries({ queryKey: itineraryKeys.days(vars.tripId) })
-    },
-  })
-}
-
-export function useUpdateDayGuide() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ id, guideId, tripId }: { id: string; guideId: string | null; tripId: string }) => {
-      const { error } = await supabase.from('itinerary_days').update({ guide_id: guideId }).eq('id', id)
-      if (error) throw error
-      return { tripId }
-    },
-    onMutate: async ({ id, guideId, tripId }) => {
-      const key = itineraryKeys.days(tripId)
-      await qc.cancelQueries({ queryKey: key })
-      const prev = qc.getQueryData<ItineraryDay[]>(key)
-      qc.setQueryData<ItineraryDay[]>(key, (old) => old?.map(d => d.id === id ? { ...d, guide_id: guideId } : d))
-      return { prev, tripId }
-    },
-    onError: (_e, _v, ctx) => {
-      if (ctx?.tripId && ctx.prev) qc.setQueryData(itineraryKeys.days(ctx.tripId), ctx.prev)
-      toast.error('No se pudo asignar la ciudad')
     },
     onSettled: (_d, _e, vars) => {
       qc.invalidateQueries({ queryKey: itineraryKeys.days(vars.tripId) })

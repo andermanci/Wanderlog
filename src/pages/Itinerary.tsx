@@ -18,8 +18,8 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ActivityBlock } from '@/components/itinerary/ActivityBlock'
+import { DayCitiesEditor } from '@/components/itinerary/DayCitiesEditor'
 import { DayJournalDialog } from '@/components/itinerary/DayJournalDialog'
 import { DayAlerts } from '@/components/itinerary/DayAlerts'
 import { TripOverview } from '@/components/itinerary/TripOverview'
@@ -28,7 +28,7 @@ import { useJournalPhotos } from '@/lib/queries/journal'
 import { useTripWeather, weatherIcon } from '@/lib/queries/weather'
 import {
   useItineraryDays, useActivities, useUpsertDays,
-  useDeleteActivity, useReorderActivities, useUpdateDayGuide, useUpdateDayCity, useSetActivityDone,
+  useDeleteActivity, useReorderActivities, useUpdateDayCities, useSetActivityDone,
   useRehostGoogleCovers,
 } from '@/lib/queries/itinerary'
 import { useTripRole, canEditRole } from '@/lib/queries/sharing'
@@ -36,6 +36,7 @@ import { useTripTravelTimes } from '@/lib/queries/travelTime'
 import { pairKey, formatDayTotal, isMove } from '@/lib/travelTime'
 import { useBackfillTimezones } from '@/lib/queries/timezones'
 import { detectTripConflicts } from '@/lib/conflicts'
+import { dayCities, resolveNames } from '@/lib/cities'
 import { DayConflicts, ConflictBadge, DayDriftNote } from '@/components/itinerary/DayConflicts'
 import { useItineraryModeStore, resolveEditMode } from '@/store/itineraryModeStore'
 import { useDayAlerts } from '@/lib/queries/dayAlerts'
@@ -83,8 +84,7 @@ function ItineraryPageInner() {
   const upsertDays = useUpsertDays()
   const deleteActivity = useDeleteActivity()
   const reorderActivities = useReorderActivities()
-  const updateDayGuide = useUpdateDayGuide()
-  const updateDayCity = useUpdateDayCity()
+  const updateDayCities = useUpdateDayCities()
   const setActivityDone = useSetActivityDone()
   const { data: guides } = useDestinationGuides(tripId!)
   const { data: dayAlerts } = useDayAlerts(tripId!)
@@ -385,10 +385,9 @@ function ItineraryPageInner() {
                 const isToday = day.date === todayStr
                 const isPast = day.date < todayStr
                 const hasJournal = !!day.journal || !!journalPhotos?.some(p => p.day_id === day.id)
-                // "Dónde estoy" ese día: la ciudad puesta a mano tiene prioridad;
-                // si no, la de la guía de destino asignada (si la hay).
-                const dayGuideName = day.guide_id ? guides?.find(g => g.id === day.guide_id)?.name : undefined
-                const whereLabel = day.city || dayGuideName || null
+                // "Dónde estoy" ese día: las ciudades en orden ("Roma · Tívoli").
+                // El nombre lo manda la guía cuando la ciudad viene de una.
+                const dayCityList = resolveNames(dayCities(day), guides)
 
                 return (
                   <motion.div
@@ -442,70 +441,41 @@ function ItineraryPageInner() {
                         </p>
                         {/* Los trayectos que no caben en las horas escritas */}
                         <DayDriftNote drift={driftByDay.get(day.id)} />
-                        {/* Guía de destino del día (contenido de la ciudad, opcional) */}
-                        {editMode && (guides?.length ?? 0) > 0 && (
-                          <div className="flex items-center gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
-                            <MapPin size={13} className="text-muted-foreground flex-shrink-0" />
-                            <Select
-                              value={day.guide_id ?? 'none'}
-                              onValueChange={(v) => updateDayGuide.mutate({ id: day.id, guideId: v === 'none' ? null : v, tripId: tripId! })}
-                            >
-                              <SelectTrigger className="h-7 text-xs w-auto min-w-[120px] max-w-[180px] gap-1.5">
-                                <SelectValue placeholder="Sin ciudad" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Sin ciudad</SelectItem>
-                                {guides!.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                            {day.guide_id && (
-                              <Link to={`/trips/${tripId}/guide`} onClick={(e) => e.stopPropagation()}
-                                aria-label="Ver guía del destino" title="Ver guía del destino"
-                                className="text-primary hover:opacity-80 flex-shrink-0">
-                                <BookOpen size={14} />
-                              </Link>
-                            )}
+                        {/* Ciudades del día: varias, y cada una puede llevar guía */}
+                        {editMode && (
+                          <DayCitiesEditor
+                            cities={dayCityList}
+                            guides={guides}
+                            onChange={(cities) => updateDayCities.mutate({ id: day.id, cities, tripId: tripId! })}
+                          />
+                        )}
+                        {/* En modo Ver: "Roma · Ostia Antica", y las que tienen guía
+                            la abren. Va debajo del título y no al lado para no
+                            robarle el ancho a la fecha en el móvil. */}
+                        {!editMode && dayCityList.length > 0 && (
+                          <div className="flex items-center gap-1 flex-wrap mt-1.5 text-xs">
+                            <MapPin size={12} className="flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                            {dayCityList.map((c, i) => (
+                              <span key={`${c.guide_id ?? 'txt'}-${c.name}-${i}`} className="flex items-center gap-1">
+                                {i > 0 && <span aria-hidden="true" className="opacity-40">·</span>}
+                                {c.guide_id ? (
+                                  <Link
+                                    to={`/trips/${tripId}/guide`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    title={`Ver guía de ${c.name}`}
+                                    className="inline-flex items-center gap-0.5 font-medium text-primary hover:opacity-80"
+                                  >
+                                    {c.name}
+                                    <BookOpen size={11} className="flex-shrink-0" />
+                                  </Link>
+                                ) : (
+                                  <span className="font-medium text-muted-foreground">{c.name}</span>
+                                )}
+                              </span>
+                            ))}
                           </div>
                         )}
-                        {/* Ciudad del día en modo Ver (solo lectura + enlace a la guía) */}
-                        {!editMode && day.guide_id && (
-                          <Link
-                            to={`/trips/${tripId}/guide`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1.5 mt-2 text-xs text-primary hover:opacity-80 w-fit"
-                            title="Ver guía del destino"
-                          >
-                            <MapPin size={13} className="flex-shrink-0" />
-                            <span className="truncate max-w-[200px]">{guides?.find(g => g.id === day.guide_id)?.name ?? 'Ciudad'}</span>
-                            <BookOpen size={13} className="flex-shrink-0" />
-                          </Link>
-                        )}
                       </div>
-
-                      {editMode ? (
-                        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="text"
-                            defaultValue={day.city ?? ''}
-                            placeholder={dayGuideName || 'Ciudad'}
-                            onBlur={(e) => {
-                              const value = e.target.value.trim()
-                              if (value !== (day.city ?? '')) {
-                                updateDayCity.mutate({ id: day.id, city: value || null, tripId: tripId! })
-                              }
-                            }}
-                            className="h-7 text-xs px-2 rounded-md border border-border bg-background w-20 sm:w-28 focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                        </div>
-                      ) : whereLabel && (
-                        <span
-                          className="flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full flex-shrink-0"
-                          style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}
-                        >
-                          <MapPin size={11} className="flex-shrink-0" />
-                          <span className="truncate max-w-[90px] sm:max-w-[160px]">{whereLabel}</span>
-                        </span>
-                      )}
 
                       {weather?.[day.date] && (
                         <span

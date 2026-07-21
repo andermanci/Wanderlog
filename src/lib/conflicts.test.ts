@@ -9,7 +9,7 @@ const DATE = '2026-05-10'
 
 const day: ItineraryDay = {
   id: DAY_ID, trip_id: 't', date: DATE, notes: null, journal: null,
-  guide_id: null, city: null, tz: null,
+  guide_id: null, city: null, cities: [], tz: null,
 }
 
 let seq = 0

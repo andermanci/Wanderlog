@@ -1,5 +1,13 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
+// Una ciudad de un día del itinerario (itinerary_days.cities, ver 045). El
+// nombre se guarda siempre —aunque venga de una guía— para que borrar la guía
+// no vacíe el día: el chip se queda como texto.
+export interface DayCity {
+  name: string
+  guide_id: string | null
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -85,8 +93,11 @@ export type Database = {
           date: string
           notes: string | null
           journal: string | null
+          /** @deprecated histórico: las ciudades del día viven en `cities` (ver 045) */
           guide_id: string | null
+          /** @deprecated histórico: las ciudades del día viven en `cities` (ver 045) */
           city: string | null
+          cities: DayCity[]
           tz: string | null
         }
         Insert: {
@@ -97,6 +108,7 @@ export type Database = {
           journal?: string | null
           guide_id?: string | null
           city?: string | null
+          cities?: DayCity[]
           tz?: string | null
         }
         Update: {
@@ -107,6 +119,7 @@ export type Database = {
           journal?: string | null
           guide_id?: string | null
           city?: string | null
+          cities?: DayCity[]
           tz?: string | null
         }
         Relationships: []
