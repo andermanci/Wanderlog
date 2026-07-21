@@ -2,23 +2,26 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Clock, BedDouble, Receipt, Map as MapIcon, CalendarDays, ChevronRight, BookOpen, Navigation, Coins } from 'lucide-react'
+import { Receipt, Map as MapIcon, CalendarDays, ChevronRight, Clock3, Coins, Plus } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CurrencyConverter } from '@/components/CurrencyConverter'
 import { useAuthStore } from '@/store/authStore'
-import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { DirectionsDialog } from '@/components/DirectionsDialog'
-import { UsefulInfoCard } from '@/components/trips/UsefulInfoCard'
+import { DestinationFacts } from '@/components/trips/DestinationFacts'
 import { TodayDocsRow } from '@/components/trips/TodayDocsRow'
+import { TodayTimeline } from '@/components/trips/TodayTimeline'
 import { FlightStatusCard } from '@/components/itinerary/FlightStatusCard'
 import { useDocuments } from '@/lib/queries/documents'
-import { displayCover } from '@/lib/queries/itinerary'
 import { useTripWeather, useTodayWeatherHourly, weatherIcon, destinationHourKey } from '@/lib/queries/weather'
 import { useDestinationGuides } from '@/lib/queries/guide'
+import { buildDay, focusEntry } from '@/lib/today'
 import { lodgingByDayMap } from '@/lib/lodging'
 import type { DirectionsTarget } from '@/lib/directions'
-import { ACTIVITY_COLORS } from '@/lib/utils'
 import type { Trip, Activity, ItineraryDay } from '@/types/database'
+
+// Fondo de la tarjeta. Se expone además como variable para que los puntos del
+// hilo del día puedan "perforar" la línea con un halo del mismo color.
+const HUB_BG = 'color-mix(in srgb, var(--primary) 7%, var(--card))'
 
 // Destino navegable de una actividad: coords propias, o las de destino/origen
 // (transportes), o su dirección en texto. null si no hay nada que navegar.
@@ -30,13 +33,9 @@ function activityTarget(a: Activity): DirectionsTarget | null {
   return { name: a.title, lat, lng, address }
 }
 
-const toMin = (t: string) => {
-  const [h, m] = t.slice(0, 5).split(':').map(Number)
-  return h * 60 + m
-}
-
-// Centro del día: qué tienes ahora y a continuación, tiempo y dónde duermes.
-// Se muestra solo cuando el viaje está en curso (lo decide TripDetail).
+// Centro del día: qué tienes ahora, cómo va el resto de la jornada, dónde
+// duermes y qué necesitas a mano. Solo se muestra con el viaje en curso (lo
+// decide TripDetail).
 export function TodayHub({ trip, activities, days }: {
   trip: Trip
   activities: Activity[] | undefined
@@ -45,9 +44,11 @@ export function TodayHub({ trip, activities, days }: {
   const { data: weather } = useTripWeather(trip, days, activities)
   const { data: hourly } = useTodayWeatherHourly(trip, days, activities)
   const { data: guides } = useDestinationGuides(trip.id)
+  const { data: documents } = useDocuments(trip.id)
   const [directionsTo, setDirectionsTo] = useState<DirectionsTarget | null>(null)
   const [converterOpen, setConverterOpen] = useState(false)
   const { profile } = useAuthStore()
+
   const todayStr = format(new Date(), 'yyyy-MM-dd')
   const todayDay = days?.find(d => d.date === todayStr)
   const todayGuide = todayDay?.guide_id ? guides?.find(g => g.id === todayDay.guide_id) : undefined
@@ -59,22 +60,21 @@ export function TodayHub({ trip, activities, days }: {
       .sort((a, b) => (a.start_time ?? '99').localeCompare(b.start_time ?? '99'))
   }, [activities, todayDay])
 
-  const { current, next } = useMemo(() => {
-    const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
-    const timed = todayActs.filter(a => a.start_time)
-    const current = timed.find(a => toMin(a.start_time!) <= nowMin && (a.end_time ? toMin(a.end_time) >= nowMin : false)) ?? null
-    const next = timed.find(a => toMin(a.start_time!) > nowMin) ?? null
-    return { current, next }
+  // Se recalcula en cada render; con el minuto que cambia basta, y la tarjeta
+  // se vuelve a pintar de sobra al navegar o al refrescarse cualquier query.
+  const entries = useMemo(() => {
+    const now = new Date()
+    return buildDay(todayActs, now.getHours() * 60 + now.getMinutes())
   }, [todayActs])
+  const focus = focusEntry(entries)
 
   const lodging = todayDay ? lodgingByDayMap(activities, days).get(todayDay.id)?.[0] : undefined
+  const lodgingActivity = lodging && lodging.role !== 'out' ? lodging.activity : null
   const w = weather?.[todayStr]
-  const featured = current ?? next ?? todayActs[0] ?? null
 
   // Vuelo de hoy: el día que vuelas, el retraso y la puerta son lo primero que
   // quieres saber. Se busca por la reserva vinculada, que es la que guarda el
   // número de vuelo (documents.flight_number).
-  const { data: documents } = useDocuments(trip.id)
   const todayFlightNumber = useMemo(() => {
     const flightIds = new Set(todayActs.filter(a => a.type === 'flight').map(a => a.id))
     if (!flightIds.size) return null
@@ -86,123 +86,138 @@ export function TodayHub({ trip, activities, days }: {
   const upcomingHours = useMemo(() => {
     if (!hourly) return []
     const nowKey = destinationHourKey(hourly.timezone)
-    return hourly.hours.filter(h => h.time >= nowKey).slice(0, 10)
+    return hourly.hours.filter(h => h.time >= nowKey).slice(0, 8)
   }, [hourly])
   const rainAt = upcomingHours.find(h => h.precipProb >= 50)
+  const showRainRow = upcomingHours.some(h => h.precipProb >= 30)
 
   // Facts de la guía: la de hoy, o la primera con datos.
   const facts = (todayDay?.guide_id ? guides?.find(g => g.id === todayDay.guide_id)?.facts : undefined)
     ?? guides?.find(g => g.facts && Object.values(g.facts).some(Boolean))?.facts
 
+  // La hora del destino solo importa cuando no es la tuya.
+  const tzDiffers = !!hourly && hourly.utcOffsetSeconds !== -new Date().getTimezoneOffset() * 60
+  const thereTime = tzDiffers
+    ? new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', timeZone: hourly!.timezone }).format(new Date())
+    : null
+
   if (!todayDay) return null
 
   return (
-    <div className="rounded-2xl p-4 sm:p-5" style={{ background: 'color-mix(in srgb, var(--primary) 7%, var(--card))', border: '1px solid color-mix(in srgb, var(--primary) 22%, transparent)' }}>
-      {/* Cabecera */}
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="font-serif text-xl font-medium flex items-center gap-2">
-          <CalendarDays size={18} style={{ color: 'var(--primary)' }} />
-          Hoy <span className="text-sm font-normal text-muted-foreground capitalize">· {format(parseISO(todayStr), "EEEE d 'de' MMM", { locale: es })}</span>
-        </h2>
+    <section
+      aria-label="Hoy"
+      className="rounded-2xl p-4 sm:p-5"
+      style={{
+        background: HUB_BG,
+        border: '1px solid color-mix(in srgb, var(--primary) 22%, transparent)',
+        '--hub-bg': HUB_BG,
+      } as React.CSSProperties}
+    >
+      {/* Cabecera: el "cuándo y dónde" en dos líneas, para que el plan empiece
+          cuanto antes. Fecha, ciudad y hora local iban antes en tres bloques
+          separados repartidos por toda la tarjeta. */}
+      <header className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <h2 className="font-serif text-2xl font-medium leading-none">Hoy</h2>
+          <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground mt-1.5">
+            {/* first-letter en vez de capitalize: en español solo va en mayúscula
+                la primera palabra ("martes, 21 de julio", no "Martes 21 De Julio"). */}
+            <span className="first-letter:uppercase">
+              {format(parseISO(todayStr), "EEEE, d 'de' MMMM", { locale: es })}
+            </span>
+            {todayGuide && (
+              <>
+                <span aria-hidden="true" className="opacity-40">·</span>
+                <Link to={`/trips/${trip.id}/guide`}
+                  className="inline-flex items-center gap-0.5 font-medium transition-opacity hover:opacity-80"
+                  style={{ color: 'var(--primary)' }}>
+                  {todayGuide.name}
+                  <ChevronRight size={12} aria-hidden="true" />
+                </Link>
+              </>
+            )}
+            {thereTime && (
+              <>
+                <span aria-hidden="true" className="opacity-40">·</span>
+                <span className="inline-flex items-center gap-1">
+                  <Clock3 size={11} aria-hidden="true" />
+                  <span className="tabular-nums">{thereTime}</span> allí
+                </span>
+              </>
+            )}
+          </p>
+        </div>
+
         {w && (
-          <span className="flex items-center gap-1 text-sm flex-shrink-0">
-            <span className="text-lg leading-none">{weatherIcon(w.code)}</span>
-            <span className="font-medium">{w.tmax}°</span>
-            <span className="opacity-60 text-xs">/ {w.tmin}°</span>
+          <span className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+            <span className="text-xl leading-none" aria-hidden="true">{weatherIcon(w.code)}</span>
+            <span className="text-lg font-medium tabular-nums leading-none">{w.tmax}°</span>
+            <span className="text-xs text-muted-foreground tabular-nums leading-none">{w.tmin}°</span>
           </span>
         )}
-      </div>
+      </header>
 
-      {/* Próximas horas: aviso de lluvia + mini-franja horaria */}
       {rainAt && (
-        <p className="flex items-center gap-1.5 text-xs font-medium mb-2 px-2 py-1 rounded-md w-fit"
+        <p className="flex items-center gap-1.5 text-xs font-medium mb-3 px-2 py-1 rounded-md w-fit"
           style={{ color: 'var(--info)', background: 'color-mix(in srgb, var(--info) 10%, transparent)' }}>
           🌧 Lluvia probable ({rainAt.precipProb}%) a las {rainAt.time.slice(11, 13)}h
         </p>
       )}
+
+      {/* Franja horaria sin cajas: es contexto, no debe competir con el plan.
+          Va sangrada hasta el borde de la tarjeta para que la columna que sobra
+          se corte contra el canto y se lea como "hay más, desliza", en vez de
+          parecer un recorte a media hora en mitad del contenido. */}
       {upcomingHours.length > 1 && (
-        <div className="flex gap-1 overflow-x-auto mb-3 -mx-1 px-1 [scrollbar-width:none]">
+        <div className="flex gap-1 overflow-x-auto mb-3 -mx-4 px-4 sm:-mx-5 sm:px-5 [scrollbar-width:none]">
           {upcomingHours.map(h => (
-            <div key={h.time} className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg flex-shrink-0 surface">
-              <span className="text-[10px] text-muted-foreground tabular-nums">{h.time.slice(11, 16)}</span>
-              <span className="text-sm leading-none">{weatherIcon(h.code)}</span>
+            <div key={h.time} className="flex flex-col items-center gap-0.5 flex-shrink-0 w-10">
+              <span className="text-[10px] text-muted-foreground tabular-nums">{h.time.slice(11, 13)}h</span>
+              <span className="text-sm leading-none" aria-hidden="true">{weatherIcon(h.code)}</span>
               <span className="text-[11px] font-medium tabular-nums">{h.temp}°</span>
-              {h.precipProb >= 30 && (
-                <span className="text-[9px] tabular-nums" style={{ color: 'var(--info)' }}>{h.precipProb}%</span>
+              {/* La fila de lluvia solo existe si va a llover en alguna de estas
+                  horas; si no, era una franja de huecos vacíos en todas. Dentro
+                  de la franja sí se reserva, para que no bailen las columnas. */}
+              {showRainRow && (
+                <span className="text-[9px] tabular-nums leading-none"
+                  style={{ color: h.precipProb >= 30 ? 'var(--info)' : 'transparent' }}>
+                  {h.precipProb}%
+                </span>
               )}
             </div>
           ))}
         </div>
       )}
 
-      {/* Ciudad de hoy (guía del destino) */}
-      {todayGuide && (
-        <Link to={`/trips/${trip.id}/guide`}
-          className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-full text-sm transition-colors hover:brightness-105 surface">
-          <BookOpen size={14} style={{ color: 'var(--primary)' }} />
-          <span className="text-muted-foreground">Hoy en</span>
-          <span className="font-medium">{todayGuide.name}</span>
-          <ChevronRight size={14} className="text-muted-foreground" />
-        </Link>
-      )}
-
-      {/* Ahora / A continuación */}
-      {featured ? (
-        <Link
-          to={`/trips/${trip.id}/itinerary/${featured.id}`}
-          className="flex items-center gap-3 p-3 rounded-xl mb-3 transition-colors hover:brightness-[1.02] surface"
-        >
-          {displayCover(featured.cover_image_url) ? (
-            <img src={displayCover(featured.cover_image_url)!} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-          ) : (
-            <span className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ background: `color-mix(in srgb, ${ACTIVITY_COLORS[featured.type]} 14%, transparent)` }}>
-              <ActivityIcon type={featured.type} size={20} style={{ color: ACTIVITY_COLORS[featured.type] }} />
-            </span>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium" style={{ color: 'var(--primary)' }}>
-              {current ? 'Ahora' : next ? 'A continuación' : 'Hoy'}
-            </p>
-            <p className="font-medium line-clamp-1">{featured.title}</p>
-            {featured.start_time && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                <Clock size={11} /> {featured.start_time.slice(0, 5)}{featured.end_time && ` — ${featured.end_time.slice(0, 5)}`}
-              </p>
-            )}
-          </div>
-          {activityTarget(featured) && (
-            <button
-              type="button"
-              aria-label="Cómo llegar"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDirectionsTo(activityTarget(featured)) }}
-              className="flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0 transition-colors hover:brightness-110"
-              style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)' }}
-            >
-              <Navigation size={16} style={{ color: 'var(--primary)' }} />
-            </button>
-          )}
-          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
-        </Link>
+      {/* El día, de una pieza */}
+      {entries.length > 0 || lodgingActivity ? (
+        <TodayTimeline
+          tripId={trip.id}
+          entries={entries}
+          focusId={focus?.activity.id ?? null}
+          lodging={lodgingActivity}
+          onDirections={setDirectionsTo}
+          targetOf={activityTarget}
+        />
       ) : (
-        <p className="text-sm text-muted-foreground mb-3">No hay actividades planificadas para hoy.</p>
+        <Link to={`/trips/${trip.id}/itinerary/new`}
+          className="flex items-center gap-3 p-3 rounded-xl mb-4 border border-dashed border-border transition-colors hover:border-primary">
+          <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)' }}>
+            <Plus size={17} style={{ color: 'var(--primary)' }} aria-hidden="true" />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-medium">Hoy no tienes nada planificado</span>
+            <span className="block text-xs text-muted-foreground">Añade un plan al itinerario</span>
+          </span>
+          <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" aria-hidden="true" />
+        </Link>
       )}
 
-      {/* Estado del vuelo de hoy (si hoy vuelas y la reserva trae número) */}
       {todayFlightNumber && (
-        <div className="mb-3">
+        <div className="mb-4">
           <FlightStatusCard flightNumber={todayFlightNumber} date={todayStr} />
         </div>
-      )}
-
-      {/* Dónde duermes esta noche */}
-      {lodging && lodging.role !== 'out' && (
-        <Link to={`/trips/${trip.id}/itinerary/${lodging.activity.id}`}
-          className="flex items-center gap-2 text-sm mb-3 px-1">
-          <BedDouble size={15} style={{ color: 'var(--primary)' }} className="flex-shrink-0" />
-          <span className="text-muted-foreground">Esta noche:</span>
-          <span className="font-medium truncate">{lodging.activity.title}</span>
-        </Link>
       )}
 
       {/* Billetes, reservas y adjuntos que se necesitan hoy */}
@@ -210,47 +225,21 @@ export function TodayHub({ trip, activities, days }: {
         tripId={trip.id}
         todayStr={todayStr}
         todayActs={todayActs}
-        lodgingActivityId={lodging?.activity.id}
+        lodgingActivityId={lodgingActivity?.id}
       />
 
-      {/* Hora local, emergencias y datos del destino */}
-      <UsefulInfoCard hourly={hourly} facts={facts} />
-
-      {/* Accesos rápidos */}
-      <div className="grid grid-cols-4 gap-2">
-        <Link to={`/trips/${trip.id}/itinerary?day=${todayStr}`}
-          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary surface">
-          <CalendarDays size={16} style={{ color: 'var(--primary)' }} /> Itinerario
-        </Link>
-        <Link to={`/trips/${trip.id}/map`}
-          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary surface">
-          <MapIcon size={16} style={{ color: 'var(--primary)' }} /> Mapa
-        </Link>
-        <Link to={`/trips/${trip.id}/expenses`}
-          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary surface">
-          <Receipt size={16} style={{ color: 'var(--primary)' }} /> Gasto
-        </Link>
-        <button type="button" onClick={() => setConverterOpen(true)}
-          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary surface">
-          <Coins size={16} style={{ color: 'var(--primary)' }} /> Divisas
-        </button>
+      {/* Accesos rápidos: son navegación, no contenido, así que van planos y
+          por debajo del plan en peso visual. */}
+      <div className="grid grid-cols-4 gap-1.5">
+        <QuickAction to={`/trips/${trip.id}/itinerary?day=${todayStr}`} icon={CalendarDays} label="Itinerario" />
+        <QuickAction to={`/trips/${trip.id}/map`} icon={MapIcon} label="Mapa" />
+        <QuickAction to={`/trips/${trip.id}/expenses`} icon={Receipt} label="Gasto" />
+        <QuickAction icon={Coins} label="Divisas" onClick={() => setConverterOpen(true)} />
       </div>
 
-      {/* Resto de actividades de hoy */}
-      {todayActs.length > 1 && (
-        <div className="mt-3 space-y-1">
-          {todayActs.filter(a => a.id !== featured?.id).map(a => (
-            <Link key={a.id} to={`/trips/${trip.id}/itinerary/${a.id}`}
-              className="flex items-center gap-2 px-1 py-1.5 rounded-lg hover:bg-secondary transition-colors">
-              <span className="text-xs tabular-nums w-11 flex-shrink-0 text-muted-foreground">
-                {a.start_time ? a.start_time.slice(0, 5) : '—'}
-              </span>
-              <ActivityIcon type={a.type} size={13} style={{ color: ACTIVITY_COLORS[a.type] }} className="flex-shrink-0" />
-              <span className="text-sm flex-1 min-w-0 line-clamp-1">{a.title}</span>
-            </Link>
-          ))}
-        </div>
-      )}
+      {/* Moneda, enchufe, idioma, emergencias: se consultan una vez por viaje,
+          así que van al final y plegados. */}
+      <DestinationFacts facts={facts} placeName={todayGuide?.name} />
 
       <DirectionsDialog target={directionsTo} onClose={() => setDirectionsTo(null)} />
 
@@ -267,6 +256,25 @@ export function TodayHub({ trip, activities, days }: {
           />
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   )
+}
+
+function QuickAction({ to, icon: Icon, label, onClick }: {
+  to?: string
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>
+  label: string
+  onClick?: () => void
+}) {
+  const cls = 'flex flex-col items-center gap-1 py-2 rounded-lg text-[11px] font-medium transition-colors hover:brightness-95'
+  const style = { background: 'var(--secondary)' }
+  const inner = (
+    <>
+      <Icon size={16} style={{ color: 'var(--primary)' }} />
+      {label}
+    </>
+  )
+  return to
+    ? <Link to={to} className={cls} style={style}>{inner}</Link>
+    : <button type="button" onClick={onClick} className={cls} style={style}>{inner}</button>
 }
