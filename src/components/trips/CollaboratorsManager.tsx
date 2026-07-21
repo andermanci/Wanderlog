@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { Mail, Trash2, Loader2, Clock, Check } from 'lucide-react'
+import { Mail, Trash2, Loader2, Clock, Check, Send, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   useCollaborators, useShareTrip, useRemoveCollaborator, useSetCollaboratorRole,
-  useTripRole, canShareRole, ROLE_LABELS,
+  useResendInvite, useTripRole, canShareRole, inviteUrl, ROLE_LABELS,
 } from '@/lib/queries/sharing'
 import { useTrip } from '@/lib/queries/trips'
 import { useAuthStore } from '@/store/authStore'
+import { formatDate } from '@/lib/utils'
 import type { TripCollaborator } from '@/types/database'
+import { toast } from 'sonner'
 
 // Invitar y gestionar colaboradores con su nivel de permiso.
 // Reutilizado por el dialog de compartir y por Ajustes del viaje.
@@ -21,6 +23,7 @@ export function CollaboratorsManager({ tripId }: { tripId: string }) {
   const share = useShareTrip(tripId)
   const remove = useRemoveCollaborator(tripId)
   const setRole = useSetCollaboratorRole(tripId)
+  const resend = useResendInvite(tripId)
   const [email, setEmail] = useState('')
 
   const isOwner = !!trip && trip.user_id === user?.id
@@ -35,6 +38,27 @@ export function CollaboratorsManager({ tripId }: { tripId: string }) {
     const value = email.trim()
     if (!value) return
     share.mutate(value, { onSuccess: () => setEmail('') })
+  }
+
+  // Casi nadie mira el correo: el enlace se manda también por WhatsApp. En
+  // móvil se abre el compartir del sistema; en escritorio, al portapapeles.
+  async function handleShareLink(c: TripCollaborator) {
+    const url = inviteUrl(c.invite_token)
+    const text = `Te invito a "${trip?.name ?? 'mi viaje'}" en Wanderlog`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: text, text, url })
+        return
+      } catch {
+        // cancelado o no permitido: se cae al portapapeles
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Enlace de invitación copiado')
+    } catch {
+      toast.error('No se pudo copiar el enlace')
+    }
   }
 
   return (
@@ -69,9 +93,10 @@ export function CollaboratorsManager({ tripId }: { tripId: string }) {
             {collaborators.map((c) => (
               <li
                 key={c.id}
-                className="flex items-center justify-between gap-2 rounded-lg px-3 py-2"
+                className="rounded-lg px-3 py-2"
                 style={{ background: 'var(--secondary)' }}
               >
+                <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <span className="text-sm truncate">{c.email}</span>
                   {c.user_id ? (
@@ -114,6 +139,38 @@ export function CollaboratorsManager({ tripId }: { tripId: string }) {
                   >
                     <Trash2 size={14} />
                   </Button>
+                )}
+                </div>
+
+                {/* Mientras no haya entrado, las dos formas de insistir:
+                    reenviar el correo o pasarle el enlace por otro sitio. */}
+                {!c.user_id && canInvite && (
+                  <div className="flex items-center gap-3 pt-1.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => resend.mutate(c.id)}
+                      disabled={resend.isPending && resend.variables === c.id}
+                      className="flex items-center gap-1 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                    >
+                      {resend.isPending && resend.variables === c.id
+                        ? <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                        : <Send size={12} aria-hidden="true" />}
+                      Reenviar correo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShareLink(c)}
+                      className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    >
+                      <Link2 size={12} aria-hidden="true" />
+                      Compartir enlace
+                    </button>
+                    {c.invite_sent_at && (
+                      <span className="text-muted-foreground/70 ml-auto hidden sm:inline">
+                        Enviado {formatDate(c.invite_sent_at, "d MMM 'a las' HH:mm")}
+                      </span>
+                    )}
+                  </div>
                 )}
               </li>
             ))}

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { TripCollaborator } from '@/types/database'
+import { tripKeys } from '@/lib/queries/trips'
+import type { InvitePreview, TripCollaborator } from '@/types/database'
 import { toast } from 'sonner'
 
 export const collaboratorKeys = {
@@ -51,6 +52,27 @@ export function useCollaborators(tripId: string) {
   })
 }
 
+// Enlace de la invitación, para copiarlo o mandarlo por WhatsApp. Es el mismo
+// que lleva el correo: lo abre igual quien ya tiene cuenta y quien no.
+export const inviteUrl = (token: string) => `${window.location.origin}/invite/${token}`
+
+// Manda (o reenvía) el correo de invitación. La función devuelve `skipped`
+// cuando no tocaba enviar (ya aceptada, o reenvío demasiado seguido).
+async function sendInviteEmail(collaboratorId: string) {
+  const { data, error } = await supabase.functions.invoke('send-trip-invite', {
+    body: { collaboratorId },
+  })
+  if (error) {
+    // Con un status no-2xx, supabase-js deja `data` a null y solo da un
+    // "non-2xx status code" genérico: el motivo real está en el cuerpo.
+    const res = (error as { context?: Response }).context
+    const body = res ? await res.json().catch(() => null) : null
+    throw new Error(body?.error ?? error.message ?? 'No se pudo enviar el correo')
+  }
+  if (data?.error) throw new Error(data.error)
+  return data as { sent?: boolean; skipped?: string; email?: string }
+}
+
 export function useShareTrip(tripId: string) {
   const qc = useQueryClient()
   return useMutation({
@@ -60,15 +82,76 @@ export function useShareTrip(tripId: string) {
         p_email: email.trim(),
       })
       if (error) throw error
-      return data
+      // El acceso ya está dado: si el correo falla no se revierte nada, solo
+      // se avisa para que se comparta el enlace a mano.
+      const row = data as TripCollaborator
+      let mailed = true
+      try {
+        await sendInviteEmail(row.id)
+      } catch {
+        mailed = false
+      }
+      return { row, mailed }
     },
-    onSuccess: () => {
+    onSuccess: ({ row, mailed }) => {
       qc.invalidateQueries({ queryKey: collaboratorKeys.byTrip(tripId) })
-      toast.success('Viaje compartido')
+      if (mailed) toast.success(`Invitación enviada a ${row.email}`)
+      else toast.warning('Compartido, pero no se pudo enviar el correo. Copia el enlace y mándaselo.')
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : 'No se pudo compartir el viaje'
       toast.error(msg)
+    },
+  })
+}
+
+// Reenviar el correo a alguien que sigue pendiente.
+export function useResendInvite(tripId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: sendInviteEmail,
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: collaboratorKeys.byTrip(tripId) })
+      if (data.skipped === 'cooldown') toast.info('Ya se acaba de enviar; espera un momento')
+      else if (data.skipped) toast.info('Esa persona ya está en el viaje')
+      else toast.success('Invitación reenviada')
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : 'No se pudo reenviar la invitación')
+    },
+  })
+}
+
+// Ficha del viaje al que te invitan. Se consulta SIN sesión: es lo que ve
+// quien todavía no tiene cuenta antes de decidir crearla.
+export function useInvitePreview(token: string | undefined) {
+  return useQuery({
+    queryKey: ['invite', token],
+    enabled: !!token,
+    retry: false,
+    // Nada que cachear entre sesiones: el estado cambia al aceptar.
+    gcTime: 0,
+    queryFn: async (): Promise<InvitePreview> => {
+      const { data, error } = await supabase.rpc('invite_preview', { p_token: token! })
+      if (error) throw error
+      return data as InvitePreview
+    },
+  })
+}
+
+// Vincula la invitación a la cuenta con la que se ha entrado y devuelve el
+// viaje. Funciona aunque el correo de esa cuenta no sea al que se invitó.
+export function useAcceptInvite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const { data, error } = await supabase.rpc('accept_invite', { p_token: token })
+      if (error) throw error
+      return data as string
+    },
+    onSuccess: () => {
+      // El viaje recién aceptado tiene que aparecer ya en el dashboard.
+      qc.invalidateQueries({ queryKey: tripKeys.all })
     },
   })
 }

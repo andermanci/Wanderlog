@@ -765,6 +765,11 @@ export type Database = {
           invited_by: string
           role: 'viewer' | 'editor' | 'admin'
           created_at: string
+          // Token del enlace /invite/:token que va en el correo de invitación
+          invite_token: string
+          invite_sent_at: string | null
+          accepted_at: string | null
+          invite_expires_at: string
         }
         Insert: {
           id?: string
@@ -774,6 +779,10 @@ export type Database = {
           invited_by: string
           role?: 'viewer' | 'editor' | 'admin'
           created_at?: string
+          invite_token?: string
+          invite_sent_at?: string | null
+          accepted_at?: string | null
+          invite_expires_at?: string
         }
         Update: {
           id?: string
@@ -783,6 +792,10 @@ export type Database = {
           invited_by?: string
           role?: 'viewer' | 'editor' | 'admin'
           created_at?: string
+          invite_token?: string
+          invite_sent_at?: string | null
+          accepted_at?: string | null
+          invite_expires_at?: string
         }
         Relationships: []
       }
@@ -805,6 +818,16 @@ export type Database = {
         Args: { p_trip_id: string }
         Returns: Database['public']['Tables']['trips']['Row']
       }
+      // Ficha del viaje para la pantalla de invitación: es la única lectura
+      // que se hace SIN sesión (quien aún no tiene cuenta).
+      invite_preview: {
+        Args: { p_token: string }
+        Returns: InvitePreview
+      }
+      accept_invite: {
+        Args: { p_token: string }
+        Returns: string
+      }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
@@ -822,6 +845,21 @@ export type Reminder = Database['public']['Tables']['reminders']['Row']
 export type PackingItem = Database['public']['Tables']['packing_items']['Row']
 export type Expense = Database['public']['Tables']['expenses']['Row']
 export type TripCollaborator = Database['public']['Tables']['trip_collaborators']['Row']
+
+// Lo que devuelve la RPC invite_preview (ver 044_trip_invites.sql). Cuando el
+// estado no es 'pending' los campos del viaje pueden venir vacíos ('invalid').
+export interface InvitePreview {
+  status: 'pending' | 'accepted' | 'expired' | 'invalid'
+  trip_id: string | null
+  trip_name: string | null
+  destination: string | null
+  start_date: string | null
+  end_date: string | null
+  cover_image_url: string | null
+  inviter_name: string | null
+  invited_email: string | null
+  role: 'viewer' | 'editor' | 'admin' | null
+}
 export type BankConnection = Database['public']['Tables']['bank_connections']['Row']
 export type ActivityAttachment = Database['public']['Tables']['activity_attachments']['Row']
 export type JournalPhoto = Database['public']['Tables']['journal_photos']['Row']

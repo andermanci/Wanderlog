@@ -167,7 +167,24 @@ npx supabase functions deploy revolut-connect  # Conexión bancaria (GoCardless)
 npx supabase functions deploy revolut-sync
 npx supabase functions deploy send-reminders
 # Cron send-reminders: 0 * * * * (cada hora) en Supabase → Edge Functions → Schedules
+npx supabase functions deploy send-trip-invite  # Correo al compartir un viaje
 ```
+
+**Correo de invitación** (`send-trip-invite`): sale por SMTP de Gmail, así que no
+hace falta dominio propio ni proveedor de pago. Requiere una *contraseña de
+aplicación* de Google (myaccount.google.com → Seguridad → Contraseñas de
+aplicaciones; solo aparece con la verificación en 2 pasos activada):
+
+```bash
+npx supabase secrets set GMAIL_USER=tu@gmail.com
+npx supabase secrets set GMAIL_APP_PASSWORD=xxxxxxxxxxxxxxxx
+npx supabase secrets set APP_URL=https://tu-dominio   # base de los enlaces del correo
+```
+
+El correo lleva a `/invite/<token>`, una ruta **pública**: quien no tiene cuenta
+ve el viaje al que le invitan y se registra ahí mismo (Google o enlace mágico),
+y al volver entra directo al viaje. El enlace caduca a los 30 días y se puede
+compartir también a mano desde la lista de colaboradores.
 
 ---
 

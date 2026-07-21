@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { takePendingInvite } from '@/lib/pendingInvite'
 
 export function AuthCallback() {
   const navigate = useNavigate()
@@ -8,7 +9,10 @@ export function AuthCallback() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate('/dashboard', { replace: true })
+        // Si se venía de una invitación, se vuelve a ella para aceptarla en
+        // vez de soltar a la persona en un dashboard vacío.
+        const invite = takePendingInvite()
+        navigate(invite ? `/invite/${invite}` : '/dashboard', { replace: true })
       } else {
         navigate('/login', { replace: true })
       }

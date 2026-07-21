@@ -20,6 +20,7 @@ import { AuthCallback } from '@/pages/AuthCallback'
 
 // El resto, por ruta. Sin esto, quien abre /login se descarga FullCalendar,
 // Recharts y Google Maps antes de poder escribir su email.
+const InvitePage = lazy(() => import('@/pages/InvitePage').then(m => ({ default: m.InvitePage })))
 const RevolutCallback = lazy(() => import('@/pages/RevolutCallback').then(m => ({ default: m.RevolutCallback })))
 const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })))
 const TripDetail = lazy(() => import('@/pages/TripDetail').then(m => ({ default: m.TripDetail })))
@@ -113,6 +114,9 @@ export default function App() {
           {/* Públicas */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          {/* Invitación a un viaje: pública a propósito, para que quien
+              todavía no tiene cuenta vea a qué le invitan antes de crearla. */}
+          <Route path="/invite/:token" element={<InvitePage />} />
 
           {/* Protegidas */}
           <Route element={<ProtectedRoute />}>
