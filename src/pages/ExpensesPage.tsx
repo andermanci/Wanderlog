@@ -335,7 +335,7 @@ export function ExpensesPage() {
             className="w-24 text-base font-medium"
           />
           <Input
-            placeholder="¿En qué? (opcional)"
+            placeholder="¿En qué?"
             value={quickDesc}
             onChange={(e) => setQuickDesc(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && quickAdd()}
