@@ -22,7 +22,7 @@ export function DocLightbox({ open, onOpenChange, url, name }: DocLightboxProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="max-w-3xl surface">
         <DialogHeader>
           <DialogTitle className="font-serif truncate pr-6">{name}</DialogTitle>
         </DialogHeader>

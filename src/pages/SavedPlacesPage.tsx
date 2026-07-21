@@ -132,8 +132,7 @@ export function SavedPlacesPage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03 }}
-                    className="rounded-xl p-4 flex flex-col gap-2"
-                    style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                    className="rounded-xl p-4 flex flex-col gap-2 surface"
                   >
                     <div className="flex items-start gap-3">
                       <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -194,7 +193,7 @@ export function SavedPlacesPage() {
 
       {/* Editar lugar (lista, nota, enlace) */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="surface">
           <DialogHeader>
             <DialogTitle className="font-serif truncate pr-6">{editing?.name}</DialogTitle>
           </DialogHeader>
@@ -244,7 +243,7 @@ export function SavedPlacesPage() {
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar lugar?</AlertDialogTitle>
             <AlertDialogDescription>Se eliminará <strong>{deleteTarget?.name}</strong> de tus lugares guardados.</AlertDialogDescription>

@@ -24,7 +24,7 @@ export function IdCardViewer({ open, onOpenChange, title, subtitle, front, back 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="surface">
         <DialogHeader>
           <DialogTitle className="font-serif flex items-center gap-2 pr-6">
             <IdCard size={18} style={{ color: 'var(--primary)' }} />

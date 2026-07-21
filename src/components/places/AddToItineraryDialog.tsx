@@ -104,7 +104,7 @@ export function AddToItineraryDialog({ open, onOpenChange, tripId, place }: Prop
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { setDate(''); setTime('') } onOpenChange(o) }}>
-      <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="surface">
         <DialogHeader>
           <DialogTitle className="font-serif">Añadir al itinerario</DialogTitle>
         </DialogHeader>

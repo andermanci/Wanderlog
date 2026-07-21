@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
+import { enqueue, isNetworkError } from '@/lib/offline'
 import type { Activity, ItineraryDay } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -279,12 +280,28 @@ export function useReorderActivities() {
 
 // Marca/desmarca una actividad como hecha (modo "Ver", en pleno viaje).
 // Actualización optimista: el check se ve al instante, sin toast.
+// Funciona offline —que es justo cuando más se usa, a mitad de excursión—: el
+// cambio se queda en la caché persistida y se encola para subirlo al reconectar.
 export function useSetActivityDone() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, done }: { id: string; done: boolean; tripId: string }) => {
-      const { error } = await supabase.from('activities').update({ done }).eq('id', id)
-      if (error) throw error
+    mutationFn: async ({ id, done, tripId }: { id: string; done: boolean; tripId: string }): Promise<{ pending: boolean }> => {
+      const queueOffline = () => {
+        enqueue({ id: crypto.randomUUID(), kind: 'activity.done', payload: { activity_id: id, trip_id: tripId, done } })
+        return { pending: true }
+      }
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return queueOffline()
+      try {
+        const { error } = await supabase.from('activities').update({ done }).eq('id', id)
+        if (error) {
+          if (isNetworkError(error)) return queueOffline()
+          throw error
+        }
+        return { pending: false }
+      } catch (e) {
+        if (isNetworkError(e)) return queueOffline()
+        throw e
+      }
     },
     onMutate: async ({ id, done, tripId }) => {
       const key = itineraryKeys.activities(tripId)
@@ -293,11 +310,17 @@ export function useSetActivityDone() {
       qc.setQueryData<Activity[]>(key, (old) => old?.map(a => a.id === id ? { ...a, done } : a))
       return { prev, tripId }
     },
+    // Aquí ya solo llegan errores de datos o de permiso: los de red los absorbe
+    // la cola. Deshacer el check por un corte de cobertura era el fallo que
+    // hacía que la app pareciese rota justo en mitad del viaje.
     onError: (_e, _v, ctx) => {
       if (ctx?.tripId && ctx.prev) qc.setQueryData(itineraryKeys.activities(ctx.tripId), ctx.prev)
       toast.error('No se pudo actualizar')
     },
-    onSettled: (_d, _e, vars) => {
+    onSettled: (data, _e, vars) => {
+      // Si está en la cola, la verdad la tiene la caché local: refrescar contra
+      // el servidor solo devolvería el valor viejo.
+      if (data?.pending) return
       qc.invalidateQueries({ queryKey: itineraryKeys.activities(vars.tripId) })
     },
   })

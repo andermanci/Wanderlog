@@ -145,7 +145,7 @@ export function PackingPage() {
 
       {/* Progreso */}
       {totalItems > 0 && (
-        <div className="mb-6 p-4 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="mb-6 p-4 rounded-xl surface">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm text-muted-foreground">Progreso del equipaje</span>
             <span className="text-sm font-medium" style={{ color: 'var(--primary)' }}>{Math.round(pct)}%</span>
@@ -228,8 +228,7 @@ export function PackingPage() {
             const collapsed = collapsedCats.has(cat)
             const checkedCat = catItems.filter(i => i.is_checked).length
             return (
-              <div key={cat} className="rounded-xl overflow-hidden"
-                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <div key={cat} className="rounded-xl overflow-hidden surface">
                 <button
                   onClick={() => setCollapsedCats(prev => {
                     const next = new Set(prev)

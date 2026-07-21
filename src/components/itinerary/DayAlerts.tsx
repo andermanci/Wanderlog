@@ -174,7 +174,7 @@ export function DayAlerts({ tripId, day, alerts, editMode = true }: { tripId: st
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="surface">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">
               {editing === 'new' ? 'Nueva alerta del día' : 'Editar alerta'}
@@ -292,7 +292,7 @@ export function DayAlerts({ tripId, day, alerts, editMode = true }: { tripId: st
       </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar alerta?</AlertDialogTitle>
             <AlertDialogDescription>

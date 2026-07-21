@@ -189,6 +189,14 @@
   }
 }
 
+/* Superficie estándar: el fondo de tarjeta sobre el lienzo de la página.
+   Es el par fondo+borde más repetido de la app; como clase, un cambio de
+   estilo de tarjeta se aplica en todas a la vez en lugar de en 94 de 95. */
+.surface {
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
 /* Tarjeta translúcida (login / paneles flotantes) */
 .glass {
   background: color-mix(in srgb, var(--card) 80%, transparent);

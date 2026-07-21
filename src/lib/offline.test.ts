@@ -14,6 +14,18 @@ const journalOp = (dayId: string, journal: string): OutboxOp => ({
   payload: { day_id: dayId, trip_id: 't', journal },
 })
 
+const doneOp = (activityId: string, done: boolean): OutboxOp => ({
+  id: crypto.randomUUID(),
+  kind: 'activity.done',
+  payload: { activity_id: activityId, trip_id: 't', done },
+})
+
+const packingOp = (itemId: string, is_checked: boolean): OutboxOp => ({
+  id: crypto.randomUUID(),
+  kind: 'packing.toggle',
+  payload: { item_id: itemId, trip_id: 't', is_checked },
+})
+
 beforeEach(() => localStorage.clear())
 
 describe('outbox', () => {
@@ -58,6 +70,46 @@ describe('outbox', () => {
   it('sobrevive a un localStorage corrupto', () => {
     localStorage.setItem('wanderlog-outbox', '{no es json')
     expect(readOutbox()).toEqual([])
+  })
+
+  it('marcar y desmarcar una actividad deja una sola operación (la última)', () => {
+    // Sin colapsar, dudar diez veces sobre una casilla encolaba diez peticiones
+    // que además podían aplicarse desordenadas al reconectar.
+    enqueue(doneOp('a1', true))
+    enqueue(doneOp('a1', false))
+    enqueue(doneOp('a1', true))
+
+    const ops = readOutbox()
+    expect(ops).toHaveLength(1)
+    expect(ops[0].payload).toMatchObject({ activity_id: 'a1', done: true })
+  })
+
+  it('el equipaje colapsa por prenda, no entre prendas distintas', () => {
+    enqueue(packingOp('i1', true))
+    enqueue(packingOp('i2', true))
+    enqueue(packingOp('i1', false))
+
+    const ops = readOutbox()
+    expect(ops).toHaveLength(2)
+    expect(ops.map(o => o.payload)).toMatchObject([
+      { item_id: 'i2', is_checked: true },
+      { item_id: 'i1', is_checked: false },
+    ])
+  })
+
+  it('no colapsa entre tipos distintos que comparten id', () => {
+    // Un id de actividad y uno de prenda podrían coincidir: cada tipo tiene su
+    // propio espacio de nombres al colapsar.
+    enqueue(doneOp('x', true))
+    enqueue(packingOp('x', true))
+    expect(readOutbox()).toHaveLength(2)
+  })
+
+  it('los gastos NO colapsan: cada alta es un gasto distinto', () => {
+    enqueue(expenseOp('e1'))
+    enqueue(expenseOp('e2'))
+    enqueue(expenseOp('e3'))
+    expect(outboxCount()).toBe(3)
   })
 })
 

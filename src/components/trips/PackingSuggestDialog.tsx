@@ -98,7 +98,7 @@ export function PackingSuggestDialog({ open, onClose, trip, existing }: PackingS
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="max-w-lg surface">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles size={18} /> Generar mi lista

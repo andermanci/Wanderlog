@@ -22,8 +22,7 @@ export function AudioguideEntryCard({ activity, tripId }: Props) {
   return (
     <Link
       to={`/trips/${tripId}/itinerary/${activity.id}/audioguide`}
-      className="rounded-xl p-4 flex items-center justify-between gap-2 transition-colors hover:border-primary/50"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      className="rounded-xl p-4 flex items-center justify-between gap-2 transition-colors hover:border-primary/50 surface"
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <Headphones size={16} style={{ color: 'var(--primary)' }} className="shrink-0" />

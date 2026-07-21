@@ -12,7 +12,7 @@ const STEPS = [
 export function OnboardingWelcome({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="surface">
         <DialogHeader>
           <div className="flex flex-col items-center text-center gap-2">
             <div className="w-12 h-12 rounded-full flex items-center justify-center"

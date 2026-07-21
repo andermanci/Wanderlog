@@ -227,7 +227,7 @@ export function GuidePage() {
 
       {/* Confirmar creación de destinos detectados */}
       <AlertDialog open={!!detectList} onOpenChange={(o) => !o && setDetectList(null)}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Crear guías de destino?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -493,7 +493,7 @@ function DestinationGuideBlock({ guide, tripId, days, activities, guides, defaul
 
       {/* Confirmar borrado del destino */}
       <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar la guía de {guide.name}?</AlertDialogTitle>
             <AlertDialogDescription>Se borrará esta guía de destino y todas sus secciones. No afecta a tus días ni lugares.</AlertDialogDescription>

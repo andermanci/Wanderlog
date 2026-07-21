@@ -75,7 +75,6 @@ export function TripSettingsPage() {
     navigate(`/trips/${copy.id}`)
   }
 
-  const cardStyle = { background: 'var(--card)', border: '1px solid var(--border)' } as const
 
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-8">
@@ -90,7 +89,7 @@ export function TripSettingsPage() {
             <Coins size={18} style={{ color: 'var(--primary)' }} />
             <h2 className="font-serif text-xl">Divisa</h2>
           </div>
-          <div className="p-6 rounded-xl space-y-1.5" style={cardStyle}>
+          <div className="p-6 rounded-xl space-y-1.5 surface">
             <Label>Divisa por defecto</Label>
             <CurrencySelect value={currency} onChange={setCurrency} className="w-56" />
             <p className="text-xs text-muted-foreground">
@@ -106,7 +105,7 @@ export function TripSettingsPage() {
             <Wallet size={18} style={{ color: 'var(--primary)' }} />
             <h2 className="font-serif text-xl">Presupuesto</h2>
           </div>
-          <div className="p-6 rounded-xl space-y-1.5" style={cardStyle}>
+          <div className="p-6 rounded-xl space-y-1.5 surface">
             <Label>Presupuesto total</Label>
             <Input
               type="number"
@@ -128,7 +127,7 @@ export function TripSettingsPage() {
             <Flag size={18} style={{ color: 'var(--primary)' }} />
             <h2 className="font-serif text-xl">Estado</h2>
           </div>
-          <div className="p-6 rounded-xl space-y-1.5" style={cardStyle}>
+          <div className="p-6 rounded-xl space-y-1.5 surface">
             <Label>Estado del viaje</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as Trip['status'])}>
               <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
@@ -156,7 +155,7 @@ export function TripSettingsPage() {
             <Users size={18} style={{ color: 'var(--primary)' }} />
             <h2 className="font-serif text-xl">Colaboradores</h2>
           </div>
-          <div className="p-6 rounded-xl" style={cardStyle}>
+          <div className="p-6 rounded-xl surface">
             <p className="text-xs text-muted-foreground mb-4">
               Los invitados entran con permiso de solo lectura. Como propietario puedes
               subirles el nivel a «Editar» o «Editar y compartir».
@@ -171,7 +170,7 @@ export function TripSettingsPage() {
             <Copy size={18} style={{ color: 'var(--primary)' }} />
             <h2 className="font-serif text-xl">Duplicar viaje</h2>
           </div>
-          <div className="p-6 rounded-xl flex items-center justify-between gap-3" style={cardStyle}>
+          <div className="p-6 rounded-xl flex items-center justify-between gap-3 surface">
             <div className="min-w-0">
               <p className="font-medium text-sm">Crear una copia</p>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -215,7 +214,7 @@ export function TripSettingsPage() {
       </motion.div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar viaje?</AlertDialogTitle>
             <AlertDialogDescription>

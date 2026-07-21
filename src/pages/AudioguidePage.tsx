@@ -320,7 +320,7 @@ export function AudioguidePage() {
       {body}
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Regenerar audioguía?</AlertDialogTitle>
             <AlertDialogDescription>

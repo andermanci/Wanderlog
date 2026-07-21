@@ -106,7 +106,7 @@ export function IdPhotoInput({ label, value, tripId, onChange }: IdPhotoInputPro
 
       {/* Previsualización del recorte */}
       <Dialog open={!!pending} onOpenChange={(o) => !o && !uploading && closePending()}>
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="surface">
           <DialogHeader>
             <DialogTitle className="font-serif flex items-center gap-2">
               <ImageIcon size={18} style={{ color: 'var(--primary)' }} /> {label}

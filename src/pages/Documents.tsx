@@ -337,7 +337,7 @@ export function DocumentsPage() {
             </div>
 
             {!travelers?.length && !unassignedPersonal.length ? (
-              <div className="rounded-xl p-6 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <div className="rounded-xl p-6 text-center surface">
                 <User size={26} className="mx-auto mb-2 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">Añade a los viajeros y guarda su DNI o pasaporte (anverso y reverso).</p>
               </div>
@@ -347,7 +347,7 @@ export function DocumentsPage() {
                   const docs = docsByTraveler(t.id)
                   const hasId = docs.some(d => d.category === 'dni' || d.category === 'passport')
                   return (
-                    <div key={t.id} className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                    <div key={t.id} className="rounded-xl p-4 surface">
                       <div className="flex items-center justify-between gap-2 mb-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
@@ -386,7 +386,7 @@ export function DocumentsPage() {
 
                 {/* Documentos personales sin viajero asignado */}
                 {unassignedPersonal.length > 0 && (
-                  <div className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                  <div className="rounded-xl p-4 surface">
                     <p className="font-medium text-sm text-muted-foreground mb-3">Sin viajero asignado</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {unassignedPersonal.map(doc => (
@@ -416,7 +416,7 @@ export function DocumentsPage() {
             </div>
 
             {!insuranceDocs.length ? (
-              <div className="rounded-xl p-6 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <div className="rounded-xl p-6 text-center surface">
                 <ShieldCheck size={26} className="mx-auto mb-2 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">Guarda la póliza de viaje y el teléfono de asistencia, a mano por si acaso.</p>
               </div>
@@ -453,7 +453,7 @@ export function DocumentsPage() {
             </div>
 
             {!bookingItems.length ? (
-              <div className="rounded-xl p-6 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <div className="rounded-xl p-6 text-center surface">
                 <FileText size={26} className="mx-auto mb-2 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">Guarda vuelos, hoteles, entradas y confirmaciones.</p>
               </div>
@@ -513,7 +513,7 @@ export function DocumentsPage() {
 
       {/* ---- Nuevo viajero ---- */}
       <Dialog open={travelerFormOpen} onOpenChange={setTravelerFormOpen}>
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="surface">
           <DialogHeader><DialogTitle className="font-serif">Añadir viajero</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <Label>Nombre</Label>
@@ -532,7 +532,7 @@ export function DocumentsPage() {
 
       {/* ---- Documento personal (DNI/pasaporte…) ---- */}
       <Dialog open={!!pForm} onOpenChange={(o) => !o && setPForm(null)}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto surface">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">{pForm?.id ? 'Editar documento' : 'Documento de identidad'}</DialogTitle>
           </DialogHeader>
@@ -592,7 +592,7 @@ export function DocumentsPage() {
 
       {/* ---- Form reservas/billetes ---- */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto surface">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">{editDoc ? 'Editar reserva' : 'Nueva reserva / billete'}</DialogTitle>
           </DialogHeader>
@@ -750,7 +750,7 @@ export function DocumentsPage() {
 
       {/* ---- Confirmaciones de borrado ---- */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar documento?</AlertDialogTitle>
             <AlertDialogDescription>Se eliminará <strong>{deleteTarget?.title}</strong>.</AlertDialogDescription>
@@ -766,7 +766,7 @@ export function DocumentsPage() {
       </AlertDialog>
 
       <AlertDialog open={!!deleteTravTarget} onOpenChange={() => setDeleteTravTarget(null)}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar viajero?</AlertDialogTitle>
             <AlertDialogDescription>Se eliminará <strong>{deleteTravTarget?.name}</strong>. Sus documentos quedarán sin asignar (no se borran).</AlertDialogDescription>
@@ -782,7 +782,7 @@ export function DocumentsPage() {
       </AlertDialog>
 
       <AlertDialog open={!!deleteAttTarget} onOpenChange={() => setDeleteAttTarget(null)}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar adjunto?</AlertDialogTitle>
             <AlertDialogDescription>Se eliminará <strong>{deleteAttTarget?.name}</strong> del itinerario.</AlertDialogDescription>
@@ -915,7 +915,7 @@ function DocDetailDialog({ doc, onClose, onEdit, onDelete, onOpenFile }: {
 
   return (
     <Dialog open={!!doc} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto surface">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"

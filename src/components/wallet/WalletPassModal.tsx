@@ -90,8 +90,8 @@ export default function WalletPassModal() {
                     dragConstraints={{ top: 0, bottom: 0 }}
                     dragElastic={{ top: 0, bottom: 0.4 }}
                     onDragEnd={(_, info) => { if (info.offset.y > 120) close() }}
-                    className="w-full max-w-[380px] max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl mx-0 sm:mx-4 mb-0"
-                    style={{ background: 'var(--card)', border: '1px solid var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+                    className="w-full max-w-[380px] max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl mx-0 sm:mx-4 mb-0 surface"
+                    style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
                   >
                     {/* Asa de arrastre (móvil) */}
                     <div className="sm:hidden flex justify-center pt-2.5 pb-1">

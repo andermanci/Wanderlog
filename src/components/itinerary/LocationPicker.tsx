@@ -48,7 +48,7 @@ export function LocationPicker({ value, onChange, placeholder = 'Seleccionar ubi
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="max-w-2xl surface">
           <DialogHeader>
             <DialogTitle className="font-serif">Elegir ubicación</DialogTitle>
           </DialogHeader>

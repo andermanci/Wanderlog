@@ -83,7 +83,7 @@ export function RevolutImportDialog({ open, onClose, tripId }: RevolutImportDial
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="max-w-lg surface">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Landmark size={18} /> Importar de Revolut</DialogTitle>
           <DialogDescription>

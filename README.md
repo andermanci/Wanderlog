@@ -125,6 +125,7 @@ supabase/
     ├── audioguide-tts/  # Google Cloud TTS: guion → MP3 por paradas
     ├── revolut-connect/ # Conexión bancaria (GoCardless/Nordigen)
     ├── revolut-sync/    # Importación de movimientos como gastos
+    ├── flight-status/   # Estado real del vuelo (AeroDataBox); opcional
     └── send-reminders/  # Cron horario para emails de avisos
 ```
 
@@ -147,7 +148,8 @@ supabase/
 | **Equipaje** | Checklist por categorías, plantillas reutilizables |
 | **Gastos** | Reparto entre viajeros, multi-divisa con conversión, gráficos, importación bancaria (Revolut) |
 | **Recuerdos** | Diario y fotos por día, vista imprimible a PDF |
-| **Offline** | PWA instalable: caché persistente + outbox de cambios sin conexión |
+| **Vuelos** | Estado real el día del vuelo: retraso, terminal y puerta (opcional, ver Edge Functions) |
+| **Offline** | PWA instalable: caché persistente + outbox (gastos, diario, actividades hechas y equipaje) |
 
 ---
 
@@ -166,9 +168,24 @@ npx supabase functions deploy audioguide-tts   # TTS de audioguías (requiere GO
 npx supabase functions deploy revolut-connect  # Conexión bancaria (GoCardless)
 npx supabase functions deploy revolut-sync
 npx supabase functions deploy send-reminders
+npx supabase functions deploy flight-status    # Estado real del vuelo (opcional)
 # Cron send-reminders: 0 * * * * (cada hora) en Supabase → Edge Functions → Schedules
 npx supabase functions deploy send-trip-invite  # Correo al compartir un viaje
 ```
+
+**Estado del vuelo** (`flight-status`): usa el número de vuelo que ya guarda la
+reserva para enseñar retraso, terminal y puerta el día que vuelas — en el bloque
+"Hoy" del viaje y en el detalle de la actividad. Es **opcional**: sin el secreto
+la función responde 501 y la tarjeta simplemente no aparece, sin romper nada.
+
+```bash
+npx supabase secrets set AERODATABOX_RAPIDAPI_KEY=xxxxxxxx
+```
+
+La clave es gratis en [rapidapi.com/aedbx-aedbx/api/aerodatabox](https://rapidapi.com/aedbx-aedbx/api/aerodatabox)
+(capa gratuita con cuota mensual). Para no gastarla, solo se consulta entre el
+día anterior y dos días después del vuelo, y se refresca cada 5 minutos
+únicamente el día del vuelo.
 
 **Correo de invitación** (`send-trip-invite`): sale por SMTP de Gmail, así que no
 hace falta dominio propio ni proveedor de pago. Requiere una *contraseña de

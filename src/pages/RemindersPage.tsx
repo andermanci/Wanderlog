@@ -229,7 +229,7 @@ export function RemindersPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="surface">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">Nuevo recordatorio</DialogTitle>
           </DialogHeader>
@@ -268,7 +268,7 @@ export function RemindersPage() {
       </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar recordatorio?</AlertDialogTitle>
             <AlertDialogDescription>Se eliminará <strong>{deleteTarget?.title}</strong>.</AlertDialogDescription>
@@ -297,8 +297,7 @@ function ReminderRow({ reminder, index, onDelete }: { reminder: Reminder; index:
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.04 }}
-      className="group flex items-center gap-4 p-4 rounded-xl"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      className="group flex items-center gap-4 p-4 rounded-xl surface"
     >
       <Bell size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
       <div className="flex-1 min-w-0">

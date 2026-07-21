@@ -28,6 +28,7 @@ import { ACTIVITY_COLORS, ACTIVITY_LABELS, formatDate } from '@/lib/utils'
 import { isMove } from '@/lib/travelTime'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { FlightTimes } from '@/components/itinerary/FlightTimes'
+import { FlightStatusCard } from '@/components/itinerary/FlightStatusCard'
 import { AudioguideEntryCard } from '@/components/itinerary/AudioguideEntryCard'
 import { toast } from 'sonner'
 
@@ -203,7 +204,7 @@ export function ActivityDetailPage() {
 
         {/* Transporte: origen → destino + ruta */}
         {isTransport && (
-          <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="rounded-xl p-4 space-y-3 surface">
             <div className="flex items-start gap-2 text-sm">
               <MapPin size={14} style={{ color: 'var(--primary)' }} className="flex-shrink-0 mt-0.5" />
               <span className="min-w-0 break-words">
@@ -233,7 +234,7 @@ export function ActivityDetailPage() {
 
         {/* Dirección + mapa */}
         {!isTransport && activity.address && (
-          <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="rounded-xl p-4 space-y-3 surface">
             <div className="flex items-start justify-between gap-2">
               <p className="flex items-start gap-1.5 text-sm text-muted-foreground min-w-0">
                 <MapPin size={13} style={{ color: 'var(--primary)' }} className="flex-shrink-0 mt-0.5" />
@@ -270,7 +271,7 @@ export function ActivityDetailPage() {
 
         {/* Recordarme antes (crea un aviso relativo a la hora de la actividad) */}
         {day && activity.start_time && (
-          <div className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="rounded-xl p-4 surface">
             <div className="flex items-center gap-1.5 mb-3">
               <Bell size={14} style={{ color: 'var(--primary)' }} />
               <span className="text-sm font-medium">Recordarme antes</span>
@@ -290,7 +291,7 @@ export function ActivityDetailPage() {
 
         {/* Descripción / notas / enlace */}
         {(activity.description || activity.notes || activity.external_link) && (
-          <div className="rounded-xl p-4 space-y-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="rounded-xl p-4 space-y-4 surface">
             {activity.description && (
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Descripción</p>
@@ -317,10 +318,17 @@ export function ActivityDetailPage() {
           <AudioguideEntryCard activity={activity} tripId={tripId!} />
         )}
 
+        {/* Estado real del vuelo. Se pinta solo si la reserva trae número y
+            estamos en los días del vuelo; si no, no ocupa sitio. */}
+        <FlightStatusCard
+          flightNumber={linkedDoc?.flight_number}
+          date={day?.date ?? linkedDoc?.datetime_start?.slice(0, 10)}
+        />
+
         {/* Reserva vinculada (documents.activity_id): datos ricos metidos desde
             Documentos — localizador, proveedor, asiento, código y adjunto. */}
         {linkedDoc && (
-          <div className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="rounded-xl p-4 surface">
             <div className="flex items-center gap-2 mb-3">
               <DocIcon category={linkedDoc.category} size={15} style={{ color: 'var(--primary)' }} />
               <p className="text-xs text-muted-foreground uppercase tracking-widest">Reserva vinculada</p>
@@ -367,7 +375,7 @@ export function ActivityDetailPage() {
         )}
 
         {/* Wallet: entradas y documentos, con subida directa */}
-        <div className="rounded-xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="rounded-xl p-4 surface">
           <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3">Entradas y documentos</p>
           <div className="flex flex-wrap gap-2">
             {attachments.map(att => {
@@ -450,7 +458,7 @@ export function ActivityDetailPage() {
       </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar actividad?</AlertDialogTitle>
             <AlertDialogDescription>

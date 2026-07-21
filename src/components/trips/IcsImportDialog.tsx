@@ -59,7 +59,7 @@ export function IcsImportDialog({ open, onClose, tripId }: IcsImportDialogProps)
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose() } }}>
-      <DialogContent className="max-w-lg" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="max-w-lg surface">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarPlus size={18} /> Importar reserva

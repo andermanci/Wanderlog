@@ -168,7 +168,7 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
   return (
     <>
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto surface">
         <DialogHeader>
           <DialogTitle className="font-serif text-2xl">{trip ? 'Editar viaje' : 'Nuevo viaje'}</DialogTitle>
         </DialogHeader>
@@ -315,7 +315,7 @@ export function TripFormDialog({ open, onClose, trip }: TripFormDialogProps) {
     </Dialog>
 
     <AlertDialog open={!!dateShift} onOpenChange={(o) => { if (!o) setDateShift(null) }}>
-      <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <AlertDialogContent className="surface">
         <AlertDialogHeader>
           <AlertDialogTitle className="font-serif text-xl">¿Adapto las actividades a las nuevas fechas?</AlertDialogTitle>
           <AlertDialogDescription>

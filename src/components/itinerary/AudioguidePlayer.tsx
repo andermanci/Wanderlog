@@ -165,7 +165,7 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
         </button>
       </div>
 
-      <div className="rounded-xl p-4 space-y-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <div className="rounded-xl p-4 space-y-4 surface">
         <div className="flex items-center justify-between text-xs text-muted-foreground uppercase tracking-widest">
           <span>Parada {index + 1} de {stops.length}</span>
           <div className="flex items-center gap-1.5">
@@ -319,7 +319,7 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
         </div>
       </div>
 
-      <div className="rounded-xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <div className="rounded-xl overflow-hidden surface">
         <button
           type="button"
           onClick={() => setShowIndex((v) => !v)}

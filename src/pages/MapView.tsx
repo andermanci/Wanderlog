@@ -622,8 +622,7 @@ export function MapViewPage() {
         ) : (
           <div className="space-y-2">
             {offlineStops.map((p, i) => (
-              <div key={p.key} className="flex items-center gap-3 p-3 rounded-xl"
-                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <div key={p.key} className="flex items-center gap-3 p-3 rounded-xl surface">
                 <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
                   style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
                   {i + 1}
@@ -999,9 +998,8 @@ export function MapViewPage() {
           {/* Modo de la ruta: a pie / coche (solo con el recorrido visible) */}
           {showRoute && (
             <div
-              className={cn('absolute left-3 z-10 flex rounded-full shadow-md overflow-hidden',
+              className={cn('surface absolute left-3 z-10 flex rounded-full shadow-md overflow-hidden',
                 dayChips.length >= 2 ? 'top-14' : 'top-3')}
-              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
               role="group" aria-label="Modo de la ruta"
             >
               {([
@@ -1317,7 +1315,7 @@ export function MapViewPage() {
         open={addToItineraryState?.open ?? false}
         onOpenChange={() => setAddToItineraryState(null)}
       >
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="surface">
           <DialogHeader>
             <DialogTitle className="font-serif">Añadir al itinerario</DialogTitle>
           </DialogHeader>
@@ -1359,7 +1357,7 @@ export function MapViewPage() {
 
       {/* Editar favorito: lista, nota y enlace */}
       <Dialog open={!!editFav} onOpenChange={(o) => !o && setEditFav(null)}>
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="surface">
           <DialogHeader>
             <DialogTitle className="font-serif truncate pr-6">{editFav?.name}</DialogTitle>
           </DialogHeader>

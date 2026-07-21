@@ -1,10 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Search, SlidersHorizontal, Bell, MapPin, Calendar, CalendarClock, Clock, ChevronRight, Sparkles, Loader2 } from 'lucide-react'
+import { Plus, Search, Bell, MapPin, Calendar, CalendarClock, Clock, ChevronRight, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -139,8 +138,7 @@ export function Dashboard() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-6 rounded-xl p-4"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+              className="mb-6 rounded-xl p-4 surface"
             >
               <div className="flex items-center gap-2 mb-3">
                 <CalendarClock size={16} style={{ color: 'var(--primary)' }} />
@@ -185,8 +183,7 @@ export function Dashboard() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="lg:hidden mb-6 rounded-xl p-4"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+              className="lg:hidden mb-6 rounded-xl p-4 surface"
             >
               <div className="flex items-center gap-2 mb-3">
                 <Bell size={16} style={{ color: 'var(--primary)' }} />
@@ -233,7 +230,7 @@ export function Dashboard() {
           )}
 
           {/* Toolbar */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -243,49 +240,38 @@ export function Dashboard() {
                 className="pl-9"
               />
             </div>
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-44">
-                  <SlidersHorizontal size={14} className="mr-2" />
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={() => { setEditTrip(null); setFormOpen(true) }}
-                variant="brand"
-                className="gap-2 font-medium"
-              >
-                <Plus size={16} />
-                Nuevo viaje
-              </Button>
-            </div>
+            <Button
+              onClick={() => { setEditTrip(null); setFormOpen(true) }}
+              variant="brand"
+              className="gap-2 font-medium"
+            >
+              <Plus size={16} />
+              Nuevo viaje
+            </Button>
           </div>
 
-          {/* Contadores rápidos */}
+          {/* Filtro por estado. Antes esto convivía con un desplegable que hacía
+              exactamente lo mismo: dos controles para un único filtro, y el
+              desplegable además sin decir cuántos viajes hay en cada estado. */}
           {trips && trips.length > 0 && (
-            <div className="flex gap-3 mb-6 flex-wrap">
+            <div className="flex gap-2 mb-6 flex-wrap" role="group" aria-label="Filtrar por estado">
+              <StatusChip
+                label="Todos"
+                count={trips.length}
+                active={statusFilter === 'all'}
+                onClick={() => setStatusFilter('all')}
+              />
               {Object.entries(STATUS_LABELS).map(([key, label]) => {
                 const count = trips.filter(t => effectiveStatus(t) === key).length
                 if (!count) return null
                 return (
-                  <button
+                  <StatusChip
                     key={key}
+                    label={label}
+                    count={count}
+                    active={statusFilter === key}
                     onClick={() => setStatusFilter(prev => prev === key ? 'all' : key)}
-                    className="text-xs px-3 py-1 rounded-full border transition-all"
-                    style={{
-                      borderColor: statusFilter === key ? 'var(--primary)' : 'var(--border)',
-                      color: statusFilter === key ? 'var(--primary)' : 'var(--muted-foreground)',
-                      background: statusFilter === key ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
-                    }}
-                  >
-                    {label} · {count}
-                  </button>
+                  />
                 )
               })}
             </div>
@@ -295,7 +281,7 @@ export function Dashboard() {
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="rounded-xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                <div key={i} className="rounded-xl overflow-hidden surface">
                   <Skeleton className="h-52 w-full" style={{ background: 'var(--secondary)' }} />
                   <div className="p-4 space-y-2">
                     <Skeleton className="h-5 w-3/4" style={{ background: 'var(--secondary)' }} />
@@ -375,8 +361,7 @@ export function Dashboard() {
                   key={r.id}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="p-3 rounded-lg"
-                  style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                  className="p-3 rounded-lg surface"
                 >
                   <p className="text-sm font-medium text-foreground line-clamp-1">{r.title}</p>
                   {r.trips && (
@@ -404,7 +389,7 @@ export function Dashboard() {
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <AlertDialogContent className="surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">¿Eliminar viaje?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -428,5 +413,30 @@ export function Dashboard() {
 
       <OnboardingWelcome open={showWelcome} onClose={closeWelcome} />
     </div>
+  )
+}
+
+// Chip de filtro por estado: además de filtrar, dice cuántos viajes hay en ese
+// estado, que es la mitad de la razón para mirar aquí.
+function StatusChip({ label, count, active, onClick }: {
+  label: string
+  count: number
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="text-xs px-3 py-1 rounded-full border transition-all"
+      style={{
+        borderColor: active ? 'var(--primary)' : 'var(--border)',
+        color: active ? 'var(--primary)' : 'var(--muted-foreground)',
+        background: active ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
+      }}
+    >
+      {label} · {count}
+    </button>
   )
 }

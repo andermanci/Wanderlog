@@ -12,7 +12,7 @@ interface ShareTripDialogProps {
 export function ShareTripDialog({ open, onClose, tripId }: ShareTripDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="surface">
         <DialogHeader>
           <DialogTitle>Compartir viaje</DialogTitle>
           <DialogDescription>

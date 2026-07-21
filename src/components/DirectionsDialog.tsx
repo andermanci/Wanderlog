@@ -10,7 +10,7 @@ export function DirectionsDialog({ target, onClose }: {
   const navApps = target ? navAppsFor(target) : []
   return (
     <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="surface">
         <DialogHeader>
           <DialogTitle className="font-serif flex items-center gap-2">
             <Navigation size={18} style={{ color: 'var(--primary)' }} />

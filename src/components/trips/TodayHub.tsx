@@ -10,6 +10,8 @@ import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { DirectionsDialog } from '@/components/DirectionsDialog'
 import { UsefulInfoCard } from '@/components/trips/UsefulInfoCard'
 import { TodayDocsRow } from '@/components/trips/TodayDocsRow'
+import { FlightStatusCard } from '@/components/itinerary/FlightStatusCard'
+import { useDocuments } from '@/lib/queries/documents'
 import { displayCover } from '@/lib/queries/itinerary'
 import { useTripWeather, useTodayWeatherHourly, weatherIcon, destinationHourKey } from '@/lib/queries/weather'
 import { useDestinationGuides } from '@/lib/queries/guide'
@@ -69,6 +71,17 @@ export function TodayHub({ trip, activities, days }: {
   const w = weather?.[todayStr]
   const featured = current ?? next ?? todayActs[0] ?? null
 
+  // Vuelo de hoy: el día que vuelas, el retraso y la puerta son lo primero que
+  // quieres saber. Se busca por la reserva vinculada, que es la que guarda el
+  // número de vuelo (documents.flight_number).
+  const { data: documents } = useDocuments(trip.id)
+  const todayFlightNumber = useMemo(() => {
+    const flightIds = new Set(todayActs.filter(a => a.type === 'flight').map(a => a.id))
+    if (!flightIds.size) return null
+    return (documents ?? []).find(d => d.activity_id && flightIds.has(d.activity_id) && d.flight_number)
+      ?.flight_number ?? null
+  }, [documents, todayActs])
+
   // Próximas horas (en hora local del DESTINO, como las sirve Open-Meteo).
   const upcomingHours = useMemo(() => {
     if (!hourly) return []
@@ -110,8 +123,7 @@ export function TodayHub({ trip, activities, days }: {
       {upcomingHours.length > 1 && (
         <div className="flex gap-1 overflow-x-auto mb-3 -mx-1 px-1 [scrollbar-width:none]">
           {upcomingHours.map(h => (
-            <div key={h.time} className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg flex-shrink-0"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <div key={h.time} className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg flex-shrink-0 surface">
               <span className="text-[10px] text-muted-foreground tabular-nums">{h.time.slice(11, 16)}</span>
               <span className="text-sm leading-none">{weatherIcon(h.code)}</span>
               <span className="text-[11px] font-medium tabular-nums">{h.temp}°</span>
@@ -126,8 +138,7 @@ export function TodayHub({ trip, activities, days }: {
       {/* Ciudad de hoy (guía del destino) */}
       {todayGuide && (
         <Link to={`/trips/${trip.id}/guide`}
-          className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-full text-sm transition-colors hover:brightness-105"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-full text-sm transition-colors hover:brightness-105 surface">
           <BookOpen size={14} style={{ color: 'var(--primary)' }} />
           <span className="text-muted-foreground">Hoy en</span>
           <span className="font-medium">{todayGuide.name}</span>
@@ -139,8 +150,7 @@ export function TodayHub({ trip, activities, days }: {
       {featured ? (
         <Link
           to={`/trips/${trip.id}/itinerary/${featured.id}`}
-          className="flex items-center gap-3 p-3 rounded-xl mb-3 transition-colors hover:brightness-[1.02]"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+          className="flex items-center gap-3 p-3 rounded-xl mb-3 transition-colors hover:brightness-[1.02] surface"
         >
           {displayCover(featured.cover_image_url) ? (
             <img src={displayCover(featured.cover_image_url)!} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
@@ -178,6 +188,13 @@ export function TodayHub({ trip, activities, days }: {
         <p className="text-sm text-muted-foreground mb-3">No hay actividades planificadas para hoy.</p>
       )}
 
+      {/* Estado del vuelo de hoy (si hoy vuelas y la reserva trae número) */}
+      {todayFlightNumber && (
+        <div className="mb-3">
+          <FlightStatusCard flightNumber={todayFlightNumber} date={todayStr} />
+        </div>
+      )}
+
       {/* Dónde duermes esta noche */}
       {lodging && lodging.role !== 'out' && (
         <Link to={`/trips/${trip.id}/itinerary/${lodging.activity.id}`}
@@ -202,23 +219,19 @@ export function TodayHub({ trip, activities, days }: {
       {/* Accesos rápidos */}
       <div className="grid grid-cols-4 gap-2">
         <Link to={`/trips/${trip.id}/itinerary?day=${todayStr}`}
-          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary surface">
           <CalendarDays size={16} style={{ color: 'var(--primary)' }} /> Itinerario
         </Link>
         <Link to={`/trips/${trip.id}/map`}
-          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary surface">
           <MapIcon size={16} style={{ color: 'var(--primary)' }} /> Mapa
         </Link>
         <Link to={`/trips/${trip.id}/expenses`}
-          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary surface">
           <Receipt size={16} style={{ color: 'var(--primary)' }} /> Gasto
         </Link>
         <button type="button" onClick={() => setConverterOpen(true)}
-          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-secondary surface">
           <Coins size={16} style={{ color: 'var(--primary)' }} /> Divisas
         </button>
       </div>
@@ -242,7 +255,7 @@ export function TodayHub({ trip, activities, days }: {
       <DirectionsDialog target={directionsTo} onClose={() => setDirectionsTo(null)} />
 
       <Dialog open={converterOpen} onOpenChange={setConverterOpen}>
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="surface">
           <DialogHeader>
             <DialogTitle className="font-serif flex items-center gap-2">
               <Coins size={18} style={{ color: 'var(--primary)' }} /> Conversor de divisas

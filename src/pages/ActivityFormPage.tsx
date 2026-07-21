@@ -267,8 +267,7 @@ function ActivityForm({ tripId, days, activity, linkedDoc, isEdit, defaultDayId 
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="space-y-4 rounded-xl p-5"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      className="space-y-4 rounded-xl p-5 surface"
     >
       <div className="space-y-1.5">
         <Label>Título *</Label>

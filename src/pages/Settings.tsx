@@ -93,7 +93,7 @@ export function SettingsPage() {
             <h2 className="font-serif text-xl">Perfil</h2>
           </div>
 
-          <div className="p-6 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="p-6 rounded-xl surface">
             <div className="flex items-center gap-4 mb-6">
               <Avatar className="w-16 h-16 ring-2 ring-border">
                 <AvatarImage src={profile?.avatar_url ?? undefined} />
@@ -139,7 +139,7 @@ export function SettingsPage() {
             <h2 className="font-serif text-xl">Preferencias</h2>
           </div>
 
-          <div className="p-6 rounded-xl space-y-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="p-6 rounded-xl space-y-4 surface">
             <div className="space-y-1.5">
               <Label>Moneda por defecto</Label>
               <CurrencySelect
@@ -169,7 +169,7 @@ export function SettingsPage() {
             <Type size={18} style={{ color: 'var(--primary)' }} aria-hidden="true" />
             <h2 className="font-serif text-xl">Apariencia</h2>
           </div>
-          <div className="p-6 rounded-xl space-y-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="p-6 rounded-xl space-y-5 surface">
             {/* Tema */}
             <div className="space-y-2">
               <Label>Tema</Label>
@@ -226,7 +226,7 @@ export function SettingsPage() {
             <Bell size={18} style={{ color: 'var(--primary)' }} />
             <h2 className="font-serif text-xl">Notificaciones</h2>
           </div>
-          <div className="p-6 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="p-6 rounded-xl surface">
             {pushStatus === 'unsupported' ? (
               <p className="text-sm text-muted-foreground">Tu navegador no admite notificaciones push.</p>
             ) : (
@@ -267,7 +267,7 @@ export function SettingsPage() {
             <Download size={18} style={{ color: 'var(--primary)' }} aria-hidden="true" />
             <h2 className="font-serif text-xl">Aplicación</h2>
           </div>
-          <div className="p-6 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="p-6 rounded-xl surface">
             {pwa.installed ? (
               <p className="text-sm text-muted-foreground">Ya estás usando Wanderlog como app instalada. ✦</p>
             ) : pwa.canInstall ? (
@@ -311,7 +311,7 @@ export function SettingsPage() {
 
         {/* Información */}
         <section>
-          <div className="p-6 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="p-6 rounded-xl surface">
             <p className="text-xs text-muted-foreground text-center">
               Wanderlog · Tu diario de viajes personal<br />
               Todos tus datos son privados y protegidos con RLS en Supabase

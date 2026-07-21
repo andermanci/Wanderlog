@@ -77,8 +77,7 @@ export function CalendarPage() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl overflow-hidden p-4"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+        className="rounded-xl overflow-hidden p-4 surface"
       >
         <FullCalendar
           ref={calRef}

@@ -304,7 +304,7 @@ export function ExpensesPage() {
       )}
 
       {/* Conversor rápido (plegable) */}
-      <div className="rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <div className="rounded-xl mb-6 surface">
         <button type="button" onClick={() => setConverterOpen(o => !o)}
           className="w-full flex items-center gap-1.5 p-4" aria-expanded={converterOpen}>
           <Coins size={14} style={{ color: 'var(--primary)' }} />
@@ -319,7 +319,7 @@ export function ExpensesPage() {
       </div>
 
       {/* Gasto rápido */}
-      <div className="p-4 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <div className="p-4 rounded-xl mb-6 surface">
         <div className="flex items-center gap-1.5 mb-3">
           <Zap size={14} style={{ color: 'var(--primary)' }} />
           <span className="text-sm font-medium">Gasto rápido</span>
@@ -370,7 +370,7 @@ export function ExpensesPage() {
 
       {/* Resumen presupuesto */}
       {budget > 0 && (
-        <div className="p-5 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="p-5 rounded-xl mb-6 surface">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium">Presupuesto total</span>
             <span className="text-sm text-muted-foreground">{formatCurrency(total, mainCurrency)} / {formatCurrency(budget, mainCurrency)}</span>
@@ -395,7 +395,7 @@ export function ExpensesPage() {
 
       {/* Reparto entre viajeros */}
       {hasSplitData && (
-        <div className="rounded-xl p-5 mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="rounded-xl p-5 mb-6 surface">
           <div className="flex items-center gap-2 mb-4">
             <Users size={16} style={{ color: 'var(--primary)' }} aria-hidden="true" />
             <span className="font-medium">Reparto entre viajeros</span>
@@ -440,7 +440,7 @@ export function ExpensesPage() {
 
       {/* Totales rápidos */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="p-4 rounded-xl text-center surface">
           <p className="text-lg sm:text-2xl font-serif font-medium truncate" style={{ color: 'var(--primary)' }}>{formatCurrency(total, mainCurrency)}</p>
           <p className="text-xs text-muted-foreground mt-1">Total gastado{hasConversion ? ` (en ${mainCurrency})` : ''}</p>
           {otherTotals.length > 0 && (
@@ -449,11 +449,11 @@ export function ExpensesPage() {
             </p>
           )}
         </div>
-        <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="p-4 rounded-xl text-center surface">
           <p className="text-lg sm:text-2xl font-serif font-medium">{expenses?.length ?? 0}</p>
           <p className="text-xs text-muted-foreground mt-1">Transacciones</p>
         </div>
-        <div className="p-4 rounded-xl text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="p-4 rounded-xl text-center surface">
           <p className="text-lg sm:text-2xl font-serif font-medium truncate">
             {mainExpenses.length ? formatCurrency(total / mainExpenses.length, mainCurrency) : '—'}
           </p>
@@ -463,7 +463,7 @@ export function ExpensesPage() {
 
       {/* Gráfico */}
       {chartData.length > 0 && (
-        <div className="p-5 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="p-5 rounded-xl mb-6 surface">
           <h2 className="font-serif text-lg mb-4">Por categoría</h2>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -496,7 +496,7 @@ export function ExpensesPage() {
 
       {/* Gasto por día */}
       {dayChartData.length > 0 && (
-        <div className="p-5 rounded-xl mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="p-5 rounded-xl mb-6 surface">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-serif text-lg">Por día</h2>
             <span className="text-sm text-muted-foreground">Media: <span style={{ color: 'var(--primary)' }}>{formatCurrency(avgPerDay, mainCurrency)}</span>/día</span>
@@ -538,8 +538,7 @@ export function ExpensesPage() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.03 }}
-              className="group flex items-center gap-4 p-3 rounded-lg"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+              className="group flex items-center gap-4 p-3 rounded-lg surface"
             >
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
@@ -601,7 +600,7 @@ export function ExpensesPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={(open) => { if (!open) closeForm() }}>
-        <DialogContent style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <DialogContent className="surface">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">{editing ? 'Editar gasto' : 'Nuevo gasto'}</DialogTitle>
           </DialogHeader>

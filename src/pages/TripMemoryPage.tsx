@@ -88,7 +88,7 @@ export function TripMemoryPage() {
           { icon: Camera, value: photos?.length ?? 0, label: 'fotos' },
           { icon: Receipt, value: totals.length ? formatCurrency(totals[0][1], totals[0][0]) : '—', label: 'gastado' },
         ].map(({ icon: Icon, value, label }) => (
-          <div key={label} className="rounded-xl p-4 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div key={label} className="rounded-xl p-4 text-center surface">
             <Icon size={15} className="mx-auto mb-1.5" style={{ color: 'var(--primary)' }} />
             <p className="font-serif text-xl font-medium">{value}</p>
             <p className="text-xs text-muted-foreground">{label}</p>
@@ -152,7 +152,7 @@ export function TripMemoryPage() {
 
       {/* Gastos */}
       {totals.length > 0 && (
-        <div className="mt-12 rounded-xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="mt-12 rounded-xl p-5 surface">
           <h2 className="font-serif text-lg mb-2">Lo que costó la aventura</h2>
           <p className="text-sm text-muted-foreground">
             {totals.map(([c, v]) => formatCurrency(v, c)).join(' · ')} en {(expenses ?? []).length} gastos

@@ -35,8 +35,7 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
     <button
       onClick={save}
       disabled={saving}
-      className="w-full flex items-center justify-between p-4 rounded-xl transition-colors text-left"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      className="w-full flex items-center justify-between p-4 rounded-xl transition-colors text-left surface"
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"

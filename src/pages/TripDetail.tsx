@@ -172,7 +172,7 @@ export function TripDetail() {
       {phase === 'now' && <TodayHub trip={trip} activities={activities} days={days} />}
 
       {phase === 'pre' && (
-        <section className="rounded-2xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <section className="rounded-2xl p-5 surface">
           {/* Próximo plan */}
           {nextActivity ? (
             <Link to={`/trips/${tripId}/itinerary/${nextActivity.a.id}`}
@@ -242,8 +242,7 @@ export function TripDetail() {
 
       {/* Presupuesto (en cualquier fase, si está definido) */}
       {presupuesto > 0 && (
-        <Link to={`/trips/${tripId}/expenses`} className="block rounded-2xl p-5 transition-colors hover:border-primary"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <Link to={`/trips/${tripId}/expenses`} className="block rounded-2xl p-5 transition-colors hover:border-primary surface">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2"><Wallet size={16} style={{ color: 'var(--primary)' }} /><span className="font-medium">Presupuesto</span></div>
             <span className="text-sm text-muted-foreground">{formatCurrency(totalGastos, mainCurrency)} de {formatCurrency(presupuesto, mainCurrency)}</span>

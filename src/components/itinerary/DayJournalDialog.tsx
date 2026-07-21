@@ -62,7 +62,7 @@ export function DayJournalDialog({ open, onClose, tripId, day }: DayJournalDialo
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto surface">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-serif text-xl capitalize">
             <BookOpen size={18} style={{ color: 'var(--primary)' }} />

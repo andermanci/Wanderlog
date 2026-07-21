@@ -41,7 +41,7 @@ export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha',
           {selected ? format(selected, 'dd MMM yyyy', { locale: es }) : placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      <PopoverContent className="w-auto p-0 surface" align="start">
         <Calendar
           mode="single"
           selected={selected}
