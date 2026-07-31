@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Compass, Mail, Loader2, MailCheck } from 'lucide-react'
+import { Compass, Mail, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { signInWithGoogle, signInWithEmail } from '@/hooks/useAuth'
+import { EmailSentPanel } from '@/components/auth/EmailSentPanel'
+import { signInWithGoogle, useEmailLink } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
 
@@ -17,8 +18,8 @@ export function LoginPage() {
   }, [session, navigate])
 
   const [email, setEmail] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState(false)
+  const emailLink = useEmailLink()
+  const { send, sending, sent, cooldown } = emailLink
 
   async function handleGoogleLogin() {
     try {
@@ -28,18 +29,9 @@ export function LoginPage() {
     }
   }
 
-  async function handleEmailLogin(e: React.FormEvent) {
+  function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim()) return
-    setSending(true)
-    try {
-      await signInWithEmail(email.trim())
-      setSent(true)
-    } catch {
-      toast.error('No se pudo enviar el enlace. Revisa el email e inténtalo de nuevo.')
-    } finally {
-      setSending(false)
-    }
+    send(email)
   }
 
   return (
@@ -122,17 +114,11 @@ export function LoginPage() {
           </div>
 
           {sent ? (
-            <div className="w-full text-center flex flex-col items-center gap-2 p-4 rounded-xl"
-              style={{ background: 'var(--secondary)', border: '1px solid var(--border)' }}>
-              <MailCheck size={28} style={{ color: 'var(--primary)' }} aria-hidden="true" />
-              <p className="font-medium">Revisa tu correo</p>
-              <p className="text-sm text-muted-foreground">
-                Te hemos enviado un enlace a <strong>{email}</strong>. Ábrelo en este dispositivo para entrar.
-              </p>
-              <button onClick={() => setSent(false)} className="text-sm text-primary hover:underline mt-1">
-                Usar otro email
-              </button>
-            </div>
+            <EmailSentPanel
+              link={emailLink}
+              email={email}
+              note="Ábrelo en este dispositivo para entrar."
+            />
           ) : (
             <form onSubmit={handleEmailLogin} className="w-full flex flex-col gap-2">
               <div className="relative">
@@ -149,9 +135,9 @@ export function LoginPage() {
                   className="pl-9 h-12"
                 />
               </div>
-              <Button type="submit" variant="outline" className="w-full h-12 gap-2" disabled={sending}>
+              <Button type="submit" variant="outline" className="w-full h-12 gap-2" disabled={sending || cooldown > 0}>
                 {sending ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Mail size={16} aria-hidden="true" />}
-                Enviarme un enlace de acceso
+                {cooldown > 0 ? `Espera ${cooldown}s para pedir otro` : 'Enviarme un enlace de acceso'}
               </Button>
             </form>
           )}

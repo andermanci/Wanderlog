@@ -1,0 +1,62 @@
+<!--
+  Plantilla del correo de acceso (Supabase Auth > Emails > Templates > Magic Link).
+
+  NO se despliega desde el repo: hay que pegarla en el panel. Está aquí para
+  tenerla versionada y no reescribirla de memoria.
+
+  La clave es {{ .Token }}: la plantilla por defecto de Supabase solo incluye
+  {{ .ConfirmationURL }}, y sin el código no se puede entrar desde un iPhone que
+  tenga la app en la pantalla de inicio (allí el enlace abre Safari, que está
+  aislado del contenedor del PWA).
+
+  Estilos en línea y tabla de una columna a propósito: Gmail ignora <style>.
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf7f2;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border:1px solid #e8e0d5;border-radius:16px;padding:32px;">
+        <tr>
+          <td align="center" style="padding-bottom:8px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8a8175;">
+            Wanderlog
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding-bottom:20px;font-size:22px;font-weight:600;color:#2f2a24;">
+            Tu acceso a Wanderlog
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding-bottom:24px;font-size:15px;line-height:22px;color:#5c554c;">
+            Pulsa el botón para entrar. Si abriste Wanderlog desde la pantalla de inicio
+            de tu móvil, no uses el botón: escribe el código en la app.
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding-bottom:28px;">
+            <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#b4552d;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 32px;border-radius:10px;">
+              Entrar en Wanderlog
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding-bottom:8px;font-size:13px;color:#8a8175;">
+            o escribe este código en la app
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding-bottom:24px;">
+            <div style="display:inline-block;background:#f5efe6;border:1px solid #e8e0d5;border-radius:10px;padding:14px 28px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:30px;font-weight:700;letter-spacing:8px;color:#2f2a24;">
+              {{ .Token }}
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="border-top:1px solid #eee7dd;padding-top:20px;font-size:12px;line-height:18px;color:#a09789;">
+            El enlace y el código caducan en una hora y solo sirven una vez.
+            Si no has pedido tú este acceso, ignora este correo.
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

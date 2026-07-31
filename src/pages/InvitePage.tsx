@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Compass, Mail, MapPin, Calendar, Loader2, MailCheck, Frown } from 'lucide-react'
+import { Compass, Mail, MapPin, Calendar, Loader2, Frown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { EmailSentPanel } from '@/components/auth/EmailSentPanel'
 import { useInvitePreview, useAcceptInvite, ROLE_LABELS } from '@/lib/queries/sharing'
-import { signInWithGoogle, signInWithEmail } from '@/hooks/useAuth'
+import { signInWithGoogle, useEmailLink } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate } from '@/lib/utils'
 import { clearPendingInvite, rememberPendingInvite } from '@/lib/pendingInvite'
@@ -23,8 +24,6 @@ export function InvitePage() {
   const accepted = useRef(false)
 
   const [typedEmail, setTypedEmail] = useState<string | null>(null)
-  const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState(false)
 
   // El correo al que se invitó va prerrellenado (casi siempre es el que esa
   // persona quiere usar) hasta que escriba otro.
@@ -52,6 +51,11 @@ export function InvitePage() {
     if (token) rememberPendingInvite(token)
   }
 
+  // Se apunta la invitación antes de salir a por el enlace: al volver desde el
+  // correo hay que saber a qué viaje se estaba entrando.
+  const emailLink = useEmailLink(rememberInvite)
+  const { send, sending, sent, cooldown } = emailLink
+
   async function handleGoogle() {
     rememberInvite()
     try {
@@ -61,19 +65,9 @@ export function InvitePage() {
     }
   }
 
-  async function handleEmail(e: React.FormEvent) {
+  function handleEmail(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim()) return
-    rememberInvite()
-    setSending(true)
-    try {
-      await signInWithEmail(email.trim())
-      setSent(true)
-    } catch {
-      toast.error('No se pudo enviar el enlace. Revisa el email e inténtalo de nuevo.')
-    } finally {
-      setSending(false)
-    }
+    send(email)
   }
 
   // Con sesión se está aceptando en segundo plano y navegando fuera: se deja
@@ -172,18 +166,11 @@ export function InvitePage() {
               </div>
 
               {sent ? (
-                <div className="w-full text-center flex flex-col items-center gap-2 p-4 rounded-xl"
-                  style={{ background: 'var(--secondary)', border: '1px solid var(--border)' }}>
-                  <MailCheck size={28} style={{ color: 'var(--primary)' }} aria-hidden="true" />
-                  <p className="font-medium">Revisa tu correo</p>
-                  <p className="text-sm text-muted-foreground">
-                    Te hemos enviado un enlace a <strong>{email}</strong>. Ábrelo en este dispositivo
-                    y entrarás directo al viaje.
-                  </p>
-                  <button onClick={() => setSent(false)} className="text-sm text-primary hover:underline mt-1">
-                    Usar otro email
-                  </button>
-                </div>
+                <EmailSentPanel
+                  link={emailLink}
+                  email={email}
+                  note="Ábrelo en este dispositivo y entrarás directo al viaje."
+                />
               ) : (
                 <div className="w-full flex flex-col gap-3">
                   <p className="text-sm text-muted-foreground text-center">
@@ -225,9 +212,9 @@ export function InvitePage() {
                         className="pl-9 h-12"
                       />
                     </div>
-                    <Button type="submit" variant="outline" className="w-full h-12 gap-2" disabled={sending}>
+                    <Button type="submit" variant="outline" className="w-full h-12 gap-2" disabled={sending || cooldown > 0}>
                       {sending ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Mail size={16} aria-hidden="true" />}
-                      Enviarme un enlace de acceso
+                      {cooldown > 0 ? `Espera ${cooldown}s para pedir otro` : 'Enviarme un enlace de acceso'}
                     </Button>
                   </form>
 
