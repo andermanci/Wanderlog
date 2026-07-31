@@ -1,7 +1,7 @@
 import { MailCheck, Loader2, LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { useEmailLink } from '@/hooks/useAuth'
+import { OTP_MIN_LENGTH, OTP_MAX_LENGTH, type useEmailLink } from '@/hooks/useAuth'
 
 type EmailLink = ReturnType<typeof useEmailLink>
 
@@ -20,7 +20,7 @@ export function EmailSentPanel({
   note: string
 }) {
   const { code, setCode, verify, verifying, send, sending, cooldown, changeEmail } = link
-  const complete = code.length === 6
+  const complete = code.length >= OTP_MIN_LENGTH
 
   return (
     <div
@@ -47,20 +47,19 @@ export function EmailSentPanel({
         className="w-full flex flex-col gap-2"
       >
         <label htmlFor="otp-code" className="text-xs text-muted-foreground">
-          En el correo hay un código de 6 dígitos. Si abriste Wanderlog desde la pantalla
-          de inicio, entra por aquí: el enlace te llevaría a Safari.
+          Escribe aquí el código que viene en el correo. Si abriste Wanderlog desde la
+          pantalla de inicio, entra por aquí: el enlace te llevaría a Safari.
         </label>
         <Input
           id="otp-code"
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
-          maxLength={6}
+          maxLength={OTP_MAX_LENGTH}
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          placeholder="000000"
-          aria-label="Código de 6 dígitos"
-          className="h-12 text-center text-xl tracking-[0.4em] font-mono"
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, OTP_MAX_LENGTH))}
+          aria-label="Código del correo"
+          className="h-12 text-center text-xl tracking-[0.3em] font-mono"
         />
         <Button type="submit" variant="brand" className="w-full h-12 gap-2" disabled={!complete || verifying}>
           {verifying ? (

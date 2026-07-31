@@ -150,6 +150,12 @@ export async function signInWithEmail(email: string) {
 // que lo había escrito mal.
 const EMAIL_COOLDOWN_SECONDS = 60
 
+// Cuántos dígitos tiene el código del correo lo decide el proyecto en Supabase
+// (admite de 6 a 10; el nuestro manda 8). No se fija aquí un número exacto para
+// que cambiarlo en el panel no deje la pantalla sin poder validar nada.
+export const OTP_MIN_LENGTH = 6
+export const OTP_MAX_LENGTH = 10
+
 function isRateLimited(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const { status, code } = err as { status?: number; code?: string }
@@ -204,7 +210,7 @@ export function useEmailLink(onBeforeSend?: () => void) {
   // que aquí no se navega a ningún sitio.
   async function verify(email: string) {
     const digits = code.replace(/\D/g, '')
-    if (digits.length !== 6 || verifying) return
+    if (digits.length < OTP_MIN_LENGTH || verifying) return
     setVerifying(true)
     try {
       const { error } = await supabase.auth.verifyOtp({
