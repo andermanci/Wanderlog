@@ -14,6 +14,7 @@ import {
 import { CurrencySelect } from '@/components/CurrencySelect'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { CollaboratorsManager } from '@/components/trips/CollaboratorsManager'
+import { OfflineDataSection } from '@/components/trips/OfflineDataSection'
 import { useTrip, useUpdateTrip, useDeleteTrip, useDuplicateTrip } from '@/lib/queries/trips'
 import { useTripRole } from '@/lib/queries/sharing'
 import { STATUS_LABELS } from '@/lib/utils'
@@ -192,6 +193,8 @@ export function TripSettingsPage() {
             </Button>
           </div>
         </section>
+
+        <OfflineDataSection tripId={tripId!} />
 
         {/* Zona de peligro. Solo para quien creó el viaje: la RLS ya solo le
             deja borrarlo a él (trips_delete_own), así que a un colaborador el

@@ -12,7 +12,7 @@ import { attachmentKeys } from '@/lib/queries/attachments'
 import { guideKeys } from '@/lib/queries/guide'
 import { audioguideKeys } from '@/lib/queries/audioguides'
 import { removeDocs, clearDocCache } from '@/lib/docCache'
-import { removeAudios, clearAudioCache } from '@/lib/audioCache'
+import { removeAudios, clearAudioCache, formatBytes } from '@/lib/audioCache'
 import { removePhotos, clearPhotoCache } from '@/lib/photoCache'
 import type { Activity } from '@/types/database'
 
@@ -47,6 +47,18 @@ export function readOfflineIndex(tripId: string): OfflineIndex | null {
   } catch {
     return null
   }
+}
+
+/** Qué trajo la copia, en corto: «124 MB · con fotos y audios». */
+export function describeOfflineIndex(index: OfflineIndex): string {
+  const extras = [
+    index.photos.length > 0 ? 'fotos' : null,
+    index.audios.length > 0 ? 'audios' : null,
+  ].filter(Boolean)
+  return [
+    index.bytes > 0 ? formatBytes(index.bytes) : null,
+    extras.length > 0 ? `con ${extras.join(' y ')}` : null,
+  ].filter(Boolean).join(' · ')
 }
 
 export function writeOfflineIndex(tripId: string, index: OfflineIndex) {

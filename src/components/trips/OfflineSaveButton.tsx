@@ -5,7 +5,7 @@ import {
   prefetchTripOffline, tripDownloadSummary,
   type DownloadSummary, type PrefetchProgress,
 } from '@/lib/offlineTrip'
-import { deleteTripOffline, readOfflineIndex } from '@/lib/offlineIndex'
+import { deleteTripOffline, describeOfflineIndex, readOfflineIndex } from '@/lib/offlineIndex'
 import { formatBytes } from '@/lib/audioCache'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -92,19 +92,10 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
     toast.success('Copia sin conexión eliminada')
   }
 
-  const parts = [
-    index && index.photos.length > 0 ? 'fotos' : null,
-    index && index.audios.length > 0 ? 'audios' : null,
-  ].filter(Boolean)
-
   const subtitle = saving
     ? 'Descargando el viaje a este dispositivo'
     : saved
-      ? [
-        index.bytes > 0 ? formatBytes(index.bytes) : null,
-        parts.length > 0 ? `con ${parts.join(' y ')}` : null,
-        'toca para actualizar',
-      ].filter(Boolean).join(' · ')
+      ? [describeOfflineIndex(index), 'toca para actualizar'].filter(Boolean).join(' · ')
       : 'Itinerario, documentos, gastos, guía y fotos'
 
   return (
