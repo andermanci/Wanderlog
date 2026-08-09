@@ -333,8 +333,12 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
           <ChevronDown size={14} className={cn('transition-transform', showIndex && 'rotate-180')} />
         </button>
 
+        {/* La lista crece entera y scrolla la página. Con su propio scroll
+            (max-h + overflow-y-auto) el gesto se lo quedaba el contenedor de
+            fuera en móvil y no había manera de recorrer las paradas: había que
+            ir pasándolas una a una con "Siguiente". */}
         {showIndex && (
-          <div className="space-y-1 max-h-72 overflow-y-auto px-3 pb-3">
+          <div className="space-y-1 px-3 pb-3">
             {stops.map((s, i) => (
               <button
                 key={s.id}
