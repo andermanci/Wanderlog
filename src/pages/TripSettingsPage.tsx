@@ -168,7 +168,9 @@ export function TripSettingsPage() {
           </div>
         </section>
 
-        {/* Duplicar viaje */}
+        {/* Duplicar viaje. Cosa del creador: quien viaja invitado no saca
+            copias del viaje de otro. */}
+        {isOwner && (
         <section className="mt-12">
           <div className="flex items-center gap-2 mb-4">
             <Copy size={18} style={{ color: 'var(--primary)' }} />
@@ -193,6 +195,7 @@ export function TripSettingsPage() {
             </Button>
           </div>
         </section>
+        )}
 
         <OfflineDataSection tripId={tripId!} />
 

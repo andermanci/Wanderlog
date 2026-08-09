@@ -121,15 +121,19 @@ export function TripCard({ trip, onEdit, onDelete, onDuplicate, index = 0 }: Tri
         >
           <Pencil size={12} />
         </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="w-9 h-9 sm:w-7 sm:h-7 glass rounded-md"
-          onClick={(e) => { e.preventDefault(); onDuplicate(trip) }}
-          aria-label="Duplicar viaje" title="Duplicar viaje"
-        >
-          <Copy size={12} />
-        </Button>
+        {/* Duplicar y eliminar, solo en los viajes propios: son cosas del
+            creador, no de quien viaja invitado. */}
+        {!isShared && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="w-9 h-9 sm:w-7 sm:h-7 glass rounded-md"
+            onClick={(e) => { e.preventDefault(); onDuplicate(trip) }}
+            aria-label="Duplicar viaje" title="Duplicar viaje"
+          >
+            <Copy size={12} />
+          </Button>
+        )}
         {!isShared && (
           <Button
             size="icon"
