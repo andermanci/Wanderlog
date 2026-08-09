@@ -11,9 +11,9 @@ import { journalKeys } from '@/lib/queries/journal'
 import { attachmentKeys } from '@/lib/queries/attachments'
 import { guideKeys } from '@/lib/queries/guide'
 import { audioguideKeys } from '@/lib/queries/audioguides'
-import { removeDocs } from '@/lib/docCache'
-import { removeAudios } from '@/lib/audioCache'
-import { removePhotos } from '@/lib/photoCache'
+import { removeDocs, clearDocCache } from '@/lib/docCache'
+import { removeAudios, clearAudioCache } from '@/lib/audioCache'
+import { removePhotos, clearPhotoCache } from '@/lib/photoCache'
 import type { Activity } from '@/types/database'
 
 // Qué se descargó de cada viaje. Guardar la lista exacta de ficheros (y no
@@ -26,7 +26,10 @@ export interface OfflineIndex {
   bytes: number
 }
 
-const KEY = (tripId: string) => `wanderlog-offline-${tripId}`
+const PREFIX = 'wanderlog-offline-'
+const KEY = (tripId: string) => `${PREFIX}${tripId}`
+// La caché de queries persistida, que es donde viven los datos descargados.
+const QUERY_CACHE_KEY = 'wanderlog-cache'
 
 export function readOfflineIndex(tripId: string): OfflineIndex | null {
   const raw = localStorage.getItem(KEY(tripId))
@@ -88,5 +91,33 @@ export async function deleteTripOffline(qc: QueryClient, tripId: string): Promis
 
   localStorage.removeItem(KEY(tripId))
   // Marca antigua de "esta copia traía audios", ya no se usa.
-  localStorage.removeItem(`wanderlog-offline-audio-${tripId}`)
+  localStorage.removeItem(`${PREFIX}audio-${tripId}`)
+}
+
+/** Lo que ocupa la app en este dispositivo, si el navegador lo cuenta. */
+export async function offlineUsageBytes(): Promise<number | null> {
+  try {
+    const estimate = await navigator.storage?.estimate?.()
+    return estimate?.usage ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Borra TODO lo descargado en este dispositivo: fotos, audios, documentos y los
+ * datos guardados de todos los viajes. No toca la cola de cambios sin subir
+ * (wanderlog-outbox), que no es una descarga sino trabajo pendiente de enviar.
+ */
+export async function clearAllOffline(qc: QueryClient): Promise<void> {
+  await Promise.all([
+    clearDocCache().catch(() => {}),
+    clearAudioCache().catch(() => {}),
+    clearPhotoCache().catch(() => {}),
+  ])
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith(PREFIX)) localStorage.removeItem(key)
+  }
+  qc.clear()
+  localStorage.removeItem(QUERY_CACHE_KEY)
 }

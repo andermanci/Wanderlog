@@ -82,11 +82,15 @@ export async function cachePhoto(url: string): Promise<number> {
 
 /**
  * Al cerrar sesión: las fotos del diario y los adjuntos son del usuario que se
- * va, igual que los documentos (ver clearDocCache).
+ * va, igual que los documentos (ver clearDocCache). Las de Wikipedia no son de
+ * nadie, pero se van con ellas para dejar el sitio libre.
  */
 export async function clearPhotoCache(): Promise<void> {
   if (!('caches' in globalThis)) return
-  await caches.delete(SUPABASE_CACHE).catch(() => {})
+  await Promise.all([
+    caches.delete(SUPABASE_CACHE).catch(() => {}),
+    caches.delete(WIKI_CACHE).catch(() => {}),
+  ])
 }
 
 export async function removePhotos(urls: string[]): Promise<void> {

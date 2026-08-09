@@ -3,8 +3,13 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { User, Globe, Loader2, LogOut, Bell, BellOff, Sun, Moon, Monitor, Type, Download, Share } from 'lucide-react'
+import { User, Globe, Loader2, LogOut, Bell, BellOff, Sun, Moon, Monitor, Type, Download, Share, Trash2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencySelect } from '@/components/CurrencySelect'
@@ -16,6 +21,8 @@ import { useA11yStore } from '@/store/a11yStore'
 import { useSignOut } from '@/hooks/useAuth'
 import { enablePush, disablePush, getPushStatus, type PushStatus } from '@/lib/push'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
+import { clearAllOffline, offlineUsageBytes } from '@/lib/offlineIndex'
+import { formatBytes } from '@/lib/audioCache'
 import { toast } from 'sonner'
 
 const schema = z.object({
@@ -36,6 +43,22 @@ export function SettingsPage() {
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null)
   const [pushBusy, setPushBusy] = useState(false)
   useEffect(() => { getPushStatus().then(setPushStatus) }, [])
+
+  // Lo descargado para usar la app sin conexión
+  const qc = useQueryClient()
+  const [usage, setUsage] = useState<number | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  useEffect(() => { offlineUsageBytes().then(setUsage) }, [])
+
+  async function clearOffline() {
+    setConfirmClear(false)
+    setClearing(true)
+    await clearAllOffline(qc).catch(() => {})
+    setUsage(await offlineUsageBytes())
+    setClearing(false)
+    toast.success('Descargas borradas de este dispositivo')
+  }
 
   async function togglePush() {
     if (!user) return
@@ -292,6 +315,26 @@ export function SettingsPage() {
                 Instálala desde el menú del navegador («Instalar aplicación») para usarla con icono propio y offline.
               </p>
             )}
+
+            <div className="mt-5 pt-5 border-t border-border flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium text-sm">Datos descargados</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {usage != null && `Wanderlog ocupa unos ${formatBytes(usage)} en este dispositivo. `}
+                  Libera el sitio de las fotos, audios, documentos y viajes que hayas guardado
+                  para consultarlos sin conexión.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="gap-1.5 flex-shrink-0 text-destructive hover:text-destructive"
+                disabled={clearing}
+                onClick={() => setConfirmClear(true)}
+              >
+                {clearing ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                Borrar
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -319,6 +362,29 @@ export function SettingsPage() {
           </div>
         </section>
       </motion.div>
+
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent className="surface">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">¿Borrar todo lo descargado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borran de este dispositivo las fotos, los audios, los documentos y los datos de
+              los viajes que hayas guardado para verlos sin conexión. Tus viajes siguen en tu
+              cuenta y se vuelven a cargar solos en cuanto haya conexión, pero hasta entonces la
+              app se queda sin nada que enseñar: si estás sin cobertura, mejor espera.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void clearOffline()}
+              style={{ background: 'var(--destructive)', color: 'white' }}
+            >
+              Borrar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

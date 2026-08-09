@@ -15,6 +15,7 @@ import { CurrencySelect } from '@/components/CurrencySelect'
 import { TripHeader } from '@/components/trips/TripHeader'
 import { CollaboratorsManager } from '@/components/trips/CollaboratorsManager'
 import { useTrip, useUpdateTrip, useDeleteTrip, useDuplicateTrip } from '@/lib/queries/trips'
+import { useTripRole } from '@/lib/queries/sharing'
 import { STATUS_LABELS } from '@/lib/utils'
 import type { Trip } from '@/types/database'
 import { toast } from 'sonner'
@@ -24,6 +25,8 @@ const STATUS_OPTIONS: Trip['status'][] = ['planning', 'confirmed', 'in_progress'
 export function TripSettingsPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const { data: trip } = useTrip(tripId!)
+  const { data: role } = useTripRole(tripId!)
+  const isOwner = role === 'owner'
   const updateTrip = useUpdateTrip()
   const deleteTrip = useDeleteTrip()
   const duplicateTrip = useDuplicateTrip()
@@ -190,7 +193,10 @@ export function TripSettingsPage() {
           </div>
         </section>
 
-        {/* Zona de peligro */}
+        {/* Zona de peligro. Solo para quien creó el viaje: la RLS ya solo le
+            deja borrarlo a él (trips_delete_own), así que a un colaborador el
+            botón le fallaba en silencio. */}
+        {isOwner && (
         <section className="mt-12">
           <h2 className="font-serif text-xl mb-4 text-destructive">Zona de peligro</h2>
           <div className="p-6 rounded-xl flex items-center justify-between gap-3"
@@ -211,6 +217,7 @@ export function TripSettingsPage() {
             </Button>
           </div>
         </section>
+        )}
       </motion.div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
