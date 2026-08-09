@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore'
 import { tripKeys } from '@/lib/queries/trips'
 import { reminderKeys } from '@/lib/queries/reminders'
 import { clearDocCache } from '@/lib/docCache'
+import { clearAudioCache } from '@/lib/audioCache'
 
 export function useAuthListener() {
   const { setSession, setProfile, setLoading } = useAuthStore()
@@ -248,6 +249,7 @@ export function useSignOut() {
     // Los documentos descargados para verlos sin conexión (DNIs, pasaportes) no
     // pueden quedarse en el dispositivo después de cerrar sesión.
     clearDocCache().catch(() => {})
+    clearAudioCache().catch(() => {})
     navigate('/login')
   }
 }

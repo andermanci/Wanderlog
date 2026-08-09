@@ -6,6 +6,7 @@ import type { AudioguideStop } from '@/types/database'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useAudioguideGroupPlayback, type AudioguideSyncState } from '@/lib/realtime/useAudioguideGroupPlayback'
+import { useAudioUrl } from '@/lib/audioCache'
 import { AudioguideTranscript } from './AudioguideTranscript'
 
 interface Props {
@@ -43,6 +44,9 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
 
   const group = useAudioguideGroupPlayback({ audioguideId, userId: user?.id ?? '' })
   const stop = stops[index]
+  // blob: local si la parada está descargada (suena sin conexión), y si no la
+  // URL pública de siempre.
+  const audioSrc = useAudioUrl(stop?.audio_url)
 
   // Al cambiar de parada, el <audio> se remonta (key={stop.id}): reinicia
   // tiempos/estado de la anterior, pero mantiene la velocidad elegida.
@@ -212,7 +216,7 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
               ref={audioRef}
               className="sr-only"
               preload="metadata"
-              src={stop.audio_url}
+              src={audioSrc ?? undefined}
               onPlay={() => { setIsPlaying(true); broadcastIfJoined(true) }}
               onPause={() => { setIsPlaying(false); broadcastIfJoined(false) }}
               onEnded={() => setIsPlaying(false)}

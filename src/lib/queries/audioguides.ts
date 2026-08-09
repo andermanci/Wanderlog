@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { Audioguide, AudioguideStop } from '@/types/database'
 import type { ParsedAudioguideStop } from '@/lib/audioguide/parseAudioguideText'
+import { removeAudios } from '@/lib/audioCache'
 import { toast } from 'sonner'
 
 export interface AudioguideWithStops extends Audioguide {
@@ -171,6 +172,11 @@ export function useDeleteAudioguide(tripId: string, activityId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ audioguideId, userId }: { audioguideId: string; userId: string }) => {
+      // Los MP3 descargados para escucharlos sin conexión también sobran.
+      const cached = qc.getQueryData<AudioguideWithStops | null>(audioguideKeys.byActivity(activityId))
+      const cachedUrls = (cached?.stops ?? []).map((s) => s.audio_url).filter((u): u is string => !!u)
+      if (cachedUrls.length > 0) await removeAudios(cachedUrls).catch(() => {})
+
       const prefix = `${userId}/${tripId}/${activityId}`
       const { data: files } = await supabase.storage.from('audioguides').list(prefix)
       if (files && files.length > 0) {

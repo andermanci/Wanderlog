@@ -1,7 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
-import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { PersistQueryClientProvider, removeOldestQuery } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { MotionConfig } from 'framer-motion'
 import { toast } from 'sonner'
@@ -69,6 +69,10 @@ const queryClient = new QueryClient({
 const persister = createSyncStoragePersister({
   storage: window.localStorage,
   key: 'wanderlog-cache',
+  // Si la caché no cabe en localStorage (los guiones de las audioguías son lo
+  // más voluminoso), se va soltando la query más vieja en vez de quedarnos sin
+  // persistir nada, que es lo que pasa por defecto al saltar la cuota.
+  retry: removeOldestQuery,
 })
 
 // En móvil los toasts van centrados arriba (arriba-derecha choca con el notch).
