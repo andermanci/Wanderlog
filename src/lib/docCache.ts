@@ -52,13 +52,23 @@ export async function signDoc(path: string): Promise<string | null> {
 }
 
 /** Descarga el documento a la caché local, para poder verlo sin conexión. */
-export async function cacheDoc(value: string): Promise<void> {
+export async function cacheDoc(value: string): Promise<number> {
   const path = toDocPath(value)
-  if (await getDoc(path)) return
+  if (await getDoc(path)) return 0
   const url = await signDoc(path).catch(() => null)
-  if (!url) return
+  if (!url) return 0
   const res = await fetch(url)
-  if (res.ok) await putDoc(path, await res.blob())
+  if (!res.ok) return 0
+  const blob = await res.blob()
+  await putDoc(path, blob)
+  return blob.size
+}
+
+/** Borra documentos concretos de la caché (al eliminar la copia sin conexión). */
+export async function removeDocs(values: string[]): Promise<void> {
+  const cache = await openCache()
+  if (!cache) return
+  await Promise.all(values.map((v) => cache.delete(cacheKey(toDocPath(v))).catch(() => false)))
 }
 
 /**

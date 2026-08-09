@@ -14,16 +14,20 @@ import { guideKeys } from '@/lib/queries/guide'
 import { audioguideKeys } from '@/lib/queries/audioguides'
 import { cacheDoc } from '@/lib/docCache'
 import { audioSize, cacheAudio } from '@/lib/audioCache'
+import { cachePhoto, photosSize } from '@/lib/photoCache'
+import { readOfflineIndex, writeOfflineIndex } from '@/lib/offlineIndex'
 import type { Audioguide, AudioguideStop } from '@/types/database'
 
 export type PrefetchProgress = {
-  phase: 'data' | 'files' | 'audio'
+  phase: 'data' | 'files' | 'photos' | 'audio'
   done: number
   total: number
 }
 
 export interface PrefetchOptions {
   onProgress?: (p: PrefetchProgress) => void
+  /** Descargar las fotos del viaje (se guardan reducidas). */
+  includePhotos?: boolean
   /** Descargar también los MP3 de las audioguías (pesan; se pregunta antes). */
   includeAudio?: boolean
 }
@@ -40,22 +44,51 @@ async function readyAudioStops(tripId: string): Promise<AudioguideStop[]> {
   return (data ?? []).filter((s) => !!s.audio_url)
 }
 
+/** Las fotos del viaje: portada, diario, adjuntos y portadas de las guías. */
+async function tripPhotoUrls(tripId: string): Promise<string[]> {
+  const [trip, journal, attachments, guides] = await Promise.all([
+    supabase.from('trips').select('cover_image_url').eq('id', tripId).single(),
+    supabase.from('journal_photos').select('file_url').eq('trip_id', tripId),
+    supabase.from('activity_attachments').select('file_url, mime').eq('trip_id', tripId),
+    supabase.from('destination_guides').select('cover_image_url').eq('trip_id', tripId),
+  ])
+  const urls = new Set<string>()
+  const add = (u?: string | null) => { if (u && /^https?:\/\//.test(u)) urls.add(u) }
+  add(trip.data?.cover_image_url)
+  ;(journal.data ?? []).forEach((j) => add(j.file_url))
+  ;(attachments.data ?? []).forEach((a) => {
+    // Los adjuntos también pueden ser PDFs: solo nos llevamos las imágenes.
+    if (a.mime?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(a.file_url)) add(a.file_url)
+  })
+  ;(guides.data ?? []).forEach((g) => add(g.cover_image_url))
+  return [...urls]
+}
+
+export interface DownloadSummary {
+  photos: { count: number; bytes: number; exact: boolean }
+  audio: { count: number; bytes: number; exact: boolean }
+}
+
 /**
- * Cuántos audios tiene el viaje y lo que ocupan, para avisar antes de
- * descargarlos. `exact` es false si algún tamaño se ha tenido que estimar.
+ * Qué extras tiene el viaje y lo que ocupan, para poder elegir antes de
+ * descargar. `exact` es false si algún tamaño se ha tenido que estimar.
  */
-export async function tripAudioSummary(
-  tripId: string,
-): Promise<{ count: number; bytes: number; exact: boolean }> {
-  const stops = await readyAudioStops(tripId).catch(() => [])
-  if (stops.length === 0) return { count: 0, bytes: 0, exact: true }
-  const sizes = await Promise.all(
-    stops.map((s) => audioSize(s.audio_url as string, s.audio_duration_seconds)),
-  )
+export async function tripDownloadSummary(tripId: string): Promise<DownloadSummary> {
+  const [stops, photoUrls] = await Promise.all([
+    readyAudioStops(tripId).catch(() => [] as AudioguideStop[]),
+    tripPhotoUrls(tripId).catch(() => [] as string[]),
+  ])
+  const [audioSizes, photos] = await Promise.all([
+    Promise.all(stops.map((s) => audioSize(s.audio_url as string, s.audio_duration_seconds))),
+    photosSize(photoUrls),
+  ])
   return {
-    count: stops.length,
-    bytes: sizes.reduce((sum, s) => sum + s.bytes, 0),
-    exact: sizes.every((s) => s.exact),
+    photos: { count: photoUrls.length, ...photos },
+    audio: {
+      count: stops.length,
+      bytes: audioSizes.reduce((sum, s) => sum + s.bytes, 0),
+      exact: audioSizes.every((s) => s.exact),
+    },
   }
 }
 
@@ -65,7 +98,7 @@ export async function tripAudioSummary(
 export async function prefetchTripOffline(
   qc: QueryClient,
   tripId: string,
-  { onProgress, includeAudio = false }: PrefetchOptions = {},
+  { onProgress, includePhotos = true, includeAudio = false }: PrefetchOptions = {},
 ): Promise<void> {
   const sel = (table: string, order?: { col: string; asc?: boolean }) => async () => {
     let q = supabase.from(table).select('*').eq('trip_id', tripId)
@@ -135,14 +168,16 @@ export async function prefetchTripOffline(
     qc.setQueryData(audioguideKeys.readinessByTrip(tripId), readyActivityIds)
   }
 
-  // 2) Calentar la caché de imágenes (el SW las guarda con CacheFirst).
+  // 2) Fotos: portada, diario, adjuntos y portadas de las guías.
   const urls = new Set<string>()
   const add = (u?: string | null) => { if (u && /^https?:\/\//.test(u)) urls.add(u) }
   add(results.trip?.cover_image_url)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(results.journal ?? []).forEach((j: any) => add(j.file_url))
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(results.attachments ?? []).forEach((a: any) => add(a.file_url))
+  ;(results.attachments ?? []).forEach((a: any) => {
+    if (a.mime?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(a.file_url)) add(a.file_url)
+  })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(results.guides ?? []).forEach((g: any) => add(g.cover_image_url))
 
@@ -170,26 +205,44 @@ export async function prefetchTripOffline(
     }).catch(() => null)
   }
 
-  const files = [...urls].length + [...docPaths].length
-  let filesDone = 0
-  const fileProgress = () => onProgress?.({ phase: 'files', done: ++filesDone, total: files })
-  await Promise.all([
-    ...[...urls].map((u) => fetch(u).catch(() => {}).then(fileProgress)),
-    ...[...docPaths].map((p) => cacheDoc(p).catch(() => {}).then(fileProgress)),
-  ])
+  // Los documentos van siempre: pesan poco y son lo que de verdad necesitas a
+  // mano sin cobertura (pasaporte, billetes).
+  const docs = [...docPaths]
+  let bytes = 0
+  let docsDone = 0
+  await Promise.all(docs.map((p) => cacheDoc(p)
+    .then((n) => { bytes += n })
+    .catch(() => {})
+    .then(() => onProgress?.({ phase: 'files', done: ++docsDone, total: docs.length }))))
 
-  // 3) Audios de las audioguías, solo si se han aceptado: son con diferencia lo
+  // 3) Fotos, si se han aceptado: se guardan reducidas (ver photoCache).
+  const photos = includePhotos ? [...urls] : []
+  let photosDone = 0
+  if (photos.length > 0) onProgress?.({ phase: 'photos', done: 0, total: photos.length })
+  await Promise.all(photos.map((u) => cachePhoto(u)
+    .then((n) => { bytes += n })
+    .catch(() => {})
+    .then(() => onProgress?.({ phase: 'photos', done: ++photosDone, total: photos.length }))))
+
+  // 4) Audios de las audioguías, solo si se han aceptado: son con diferencia lo
   // más pesado del viaje. De uno en uno para no saturar la red del móvil y para
   // que el progreso avance de verdad.
-  if (includeAudio) {
-    const audioUrls = audioStops
-      .filter((s) => s.status === 'ready' && s.audio_url)
-      .map((s) => s.audio_url as string)
-    let audioDone = 0
-    onProgress?.({ phase: 'audio', done: 0, total: audioUrls.length })
-    for (const url of audioUrls) {
-      await cacheAudio(url).catch(() => 0)
-      onProgress?.({ phase: 'audio', done: ++audioDone, total: audioUrls.length })
-    }
+  const audios = includeAudio
+    ? audioStops.filter((s) => s.status === 'ready' && s.audio_url).map((s) => s.audio_url as string)
+    : []
+  let audioDone = 0
+  if (audios.length > 0) onProgress?.({ phase: 'audio', done: 0, total: audios.length })
+  for (const url of audios) {
+    bytes += await cacheAudio(url).catch(() => 0)
+    onProgress?.({ phase: 'audio', done: ++audioDone, total: audios.length })
   }
+
+  // Deja constancia de lo descargado para poder borrarlo después.
+  const previous = readOfflineIndex(tripId)
+  writeOfflineIndex(tripId, {
+    photos: [...new Set([...(previous?.photos ?? []), ...photos])],
+    audios: [...new Set([...(previous?.audios ?? []), ...audios])],
+    docs: [...new Set([...(previous?.docs ?? []), ...docs])],
+    bytes: (previous?.bytes ?? 0) + bytes,
+  })
 }

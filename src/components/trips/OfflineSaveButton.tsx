@@ -1,69 +1,77 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Download, Loader2, CheckCircle2, WifiOff, Headphones } from 'lucide-react'
-import { prefetchTripOffline, tripAudioSummary, type PrefetchProgress } from '@/lib/offlineTrip'
+import { Download, Loader2, CheckCircle2, WifiOff, Headphones, Images, Trash2 } from 'lucide-react'
+import {
+  prefetchTripOffline, tripDownloadSummary,
+  type DownloadSummary, type PrefetchProgress,
+} from '@/lib/offlineTrip'
+import { deleteTripOffline, readOfflineIndex } from '@/lib/offlineIndex'
 import { formatBytes } from '@/lib/audioCache'
+import { Switch } from '@/components/ui/switch'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 
-interface AudioSummary { count: number; bytes: number; exact: boolean }
-
-// Texto del progreso: las tres fases (datos, archivos, audios) cuentan cosas
-// distintas, así que cada una se cuenta a su manera en vez de con un único %.
 function percent(p: PrefetchProgress | null): number {
   if (!p || p.total === 0) return 0
   return Math.round((p.done / p.total) * 100)
 }
 
+// Texto del progreso: cada fase cuenta cosas distintas, así que se cuenta cada
+// una a su manera en vez de con un único porcentaje.
 function progressLabel(p: PrefetchProgress): string {
-  if (p.phase === 'data') return `Guardando… ${percent(p)}%`
-  if (p.phase === 'files') return `Archivos ${p.done}/${p.total}`
-  return `Audios ${p.done}/${p.total}`
+  switch (p.phase) {
+    case 'data': return `Guardando… ${percent(p)}%`
+    case 'files': return `Documentos ${p.done}/${p.total}`
+    case 'photos': return `Fotos ${p.done}/${p.total}`
+    case 'audio': return `Audios ${p.done}/${p.total}`
+  }
 }
 
-// Botón "Guardar viaje sin conexión": descarga de una vez todos los datos e
-// imágenes del viaje para poder consultarlo sin señal (aeropuerto, frontera…).
-// Los audios de las audioguías se preguntan aparte, porque pesan.
+// Botón "Guardar viaje sin conexión": descarga de una vez los datos del viaje
+// para poder consultarlo sin señal (aeropuerto, frontera…). Las fotos y los
+// audios se eligen aparte, porque son los que ocupan. Y una vez descargado, se
+// puede borrar la copia desde el mismo sitio.
 export function OfflineSaveButton({ tripId }: { tripId: string }) {
   const qc = useQueryClient()
-  const flagKey = `wanderlog-offline-${tripId}`
-  const audioFlagKey = `wanderlog-offline-audio-${tripId}`
-  const [saved, setSaved] = useState(() => localStorage.getItem(flagKey) === '1')
-  const [savedAudio, setSavedAudio] = useState(() => localStorage.getItem(audioFlagKey) === '1')
+  const [index, setIndex] = useState(() => readOfflineIndex(tripId))
   const [saving, setSaving] = useState(false)
   const [progress, setProgress] = useState<PrefetchProgress | null>(null)
-  const [askAudio, setAskAudio] = useState<AudioSummary | null>(null)
+  const [ask, setAsk] = useState<DownloadSummary | null>(null)
+  const [withPhotos, setWithPhotos] = useState(true)
+  const [withAudio, setWithAudio] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   // Descarga en curso. Va en una ref (y no en el estado) porque hay que
   // consultarlo en el mismo tick en el que Radix cierra el diálogo.
   const runningRef = useRef(false)
 
-  // Antes de descargar, mira si el viaje tiene audioguías y lo que ocupan: si
-  // las hay, se pregunta; si no, no molestamos con un diálogo vacío.
+  const saved = index !== null
+
+  // Antes de descargar, mira qué extras tiene el viaje y lo que ocupan: si hay
+  // fotos o audios se pregunta; si no, no molestamos con un diálogo vacío.
   async function start() {
     if (saving || runningRef.current) return
     setSaving(true)
     setProgress(null)
-    const summary = await tripAudioSummary(tripId).catch(() => ({ count: 0, bytes: 0, exact: true }))
-    if (summary.count === 0) {
-      await save(false)
+    const summary = await tripDownloadSummary(tripId).catch(() => null)
+    if (!summary || (summary.photos.count === 0 && summary.audio.count === 0)) {
+      await save(false, false)
       return
     }
-    setAskAudio(summary)
+    setWithPhotos(summary.photos.count > 0)
+    setWithAudio(index !== null && index.audios.length > 0)
+    setAsk(summary)
   }
 
-  async function save(includeAudio: boolean) {
+  async function save(includePhotos: boolean, includeAudio: boolean) {
     runningRef.current = true
-    setAskAudio(null)
+    setAsk(null)
     setSaving(true)
     try {
-      await prefetchTripOffline(qc, tripId, { includeAudio, onProgress: setProgress })
-      localStorage.setItem(flagKey, '1')
-      setSaved(true)
-      if (includeAudio) localStorage.setItem(audioFlagKey, '1')
-      setSavedAudio(includeAudio || savedAudio)
+      await prefetchTripOffline(qc, tripId, { includePhotos, includeAudio, onProgress: setProgress })
+      setIndex(readOfflineIndex(tripId))
       toast.success('Viaje disponible sin conexión', {
         description: 'Consejo: descarga también el área del destino en Google Maps (Mapas sin conexión) para navegar sin datos.',
         duration: 8000,
@@ -77,20 +85,36 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
     }
   }
 
+  async function remove() {
+    setConfirmDelete(false)
+    await deleteTripOffline(qc, tripId).catch(() => {})
+    setIndex(null)
+    toast.success('Copia sin conexión eliminada')
+  }
+
+  const parts = [
+    index && index.photos.length > 0 ? 'fotos' : null,
+    index && index.audios.length > 0 ? 'audios' : null,
+  ].filter(Boolean)
+
   const subtitle = saving
     ? 'Descargando el viaje a este dispositivo'
     : saved
-      ? `Toca para actualizar la copia offline${savedAudio ? ' (incluye audios)' : ''}`
-      : 'Itinerario, documentos, gastos, guía e imágenes'
+      ? [
+        index.bytes > 0 ? formatBytes(index.bytes) : null,
+        parts.length > 0 ? `con ${parts.join(' y ')}` : null,
+        'toca para actualizar',
+      ].filter(Boolean).join(' · ')
+      : 'Itinerario, documentos, gastos, guía y fotos'
 
   return (
     <>
-      <button
-        onClick={start}
-        disabled={saving}
-        className="w-full flex items-center justify-between p-4 rounded-xl transition-colors text-left surface"
-      >
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="w-full flex items-center gap-2 p-4 rounded-xl surface">
+        <button
+          onClick={start}
+          disabled={saving}
+          className="flex items-center gap-3 min-w-0 flex-1 text-left"
+        >
           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
             style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}>
             {saving ? <Loader2 size={16} className="animate-spin" style={{ color: 'var(--primary)' }} />
@@ -113,51 +137,108 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
               </div>
             )}
           </div>
-        </div>
-        <Download size={16} className="text-muted-foreground flex-shrink-0" />
-      </button>
+          {!saved && <Download size={16} className="text-muted-foreground flex-shrink-0" />}
+        </button>
+
+        {saved && !saving && (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            aria-label="Borrar los datos descargados"
+            title="Borrar los datos descargados"
+            className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
+      </div>
 
       <AlertDialog
-        open={!!askAudio}
+        open={!!ask}
         // Elegir una opción también cierra el diálogo y pasa por aquí: solo hay
         // que abortar si se ha cerrado SIN elegir (Escape, toque fuera). Si no,
         // esto apagaba el "saving" recién encendido y la descarga se quedaba
         // corriendo por detrás, sin progreso a la vista.
         onOpenChange={(open) => {
-          if (!open && !runningRef.current) { setAskAudio(null); setSaving(false) }
+          if (!open && !runningRef.current) { setAsk(null); setSaving(false) }
         }}
       >
         <AlertDialogContent className="surface">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif flex items-center gap-2">
-              <Headphones size={18} style={{ color: 'var(--primary)' }} />
-              ¿Descargar también las audioguías?
-            </AlertDialogTitle>
+            <AlertDialogTitle className="font-serif">¿Qué quieres descargar?</AlertDialogTitle>
             <AlertDialogDescription>
-              {askAudio && (
-                <>
-                  Este viaje tiene {askAudio.count} audio{askAudio.count > 1 ? 's' : ''} que ocupa
-                  {askAudio.count > 1 ? 'n' : ''} {askAudio.exact ? '' : 'unos '}
-                  <strong>{formatBytes(askAudio.bytes)}</strong> en el móvil. El resto del viaje
-                  (itinerario, documentos, gastos, guía e imágenes) se descarga igualmente.
-                </>
-              )}
+              El itinerario, los documentos, los gastos y la guía se descargan siempre:
+              ocupan poco. Estos dos son los que llenan el móvil.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2">
+            {ask && ask.photos.count > 0 && (
+              <Option
+                icon={<Images size={16} style={{ color: 'var(--primary)' }} />}
+                title={`Fotos (${ask.photos.count})`}
+                detail={`${ask.photos.exact ? '' : 'unos '}${formatBytes(ask.photos.bytes)} de descarga · se guardan reducidas, ocupan bastante menos`}
+                checked={withPhotos}
+                onCheckedChange={setWithPhotos}
+              />
+            )}
+            {ask && ask.audio.count > 0 && (
+              <Option
+                icon={<Headphones size={16} style={{ color: 'var(--primary)' }} />}
+                title={`Audioguías (${ask.audio.count})`}
+                detail={`${ask.audio.exact ? '' : 'unos '}${formatBytes(ask.audio.bytes)} en el móvil`}
+                checked={withAudio}
+                onCheckedChange={setWithAudio}
+              />
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSaving(false)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void save(withPhotos, withAudio)}>
+              Descargar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent className="surface">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">¿Borrar los datos descargados?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se libera el sitio que ocupa este viaje en el móvil
+              {index && index.bytes > 0 ? ` (${formatBytes(index.bytes)})` : ''}: fotos, audios,
+              documentos y los datos guardados. No se borra nada del viaje, que sigue en tu cuenta
+              y vuelve a estar aquí en cuanto tengas conexión.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSaving(false)}>Cancelar</AlertDialogCancel>
-            <button
-              onClick={() => void save(false)}
-              className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
-            >
-              Sin audios
-            </button>
-            <AlertDialogAction onClick={() => void save(true)}>
-              Descargar con audios
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => void remove()}>
+              Borrar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
+  )
+}
+
+function Option({ icon, title, detail, checked, onCheckedChange }: {
+  icon: ReactNode
+  title: string
+  detail: string
+  checked: boolean
+  onCheckedChange: (v: boolean) => void
+}) {
+  return (
+    <label className="flex items-center gap-3 p-3 rounded-lg cursor-pointer" style={{ background: 'var(--secondary)' }}>
+      <span className="flex-shrink-0">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block text-xs text-muted-foreground">{detail}</span>
+      </span>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </label>
   )
 }

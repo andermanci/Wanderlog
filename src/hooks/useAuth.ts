@@ -8,6 +8,7 @@ import { tripKeys } from '@/lib/queries/trips'
 import { reminderKeys } from '@/lib/queries/reminders'
 import { clearDocCache } from '@/lib/docCache'
 import { clearAudioCache } from '@/lib/audioCache'
+import { clearPhotoCache } from '@/lib/photoCache'
 
 export function useAuthListener() {
   const { setSession, setProfile, setLoading } = useAuthStore()
@@ -250,6 +251,7 @@ export function useSignOut() {
     // pueden quedarse en el dispositivo después de cerrar sesión.
     clearDocCache().catch(() => {})
     clearAudioCache().catch(() => {})
+    clearPhotoCache().catch(() => {})
     navigate('/login')
   }
 }
