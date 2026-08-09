@@ -35,6 +35,16 @@ export async function hasAudio(url: string): Promise<boolean> {
   return !!(await cache?.match(cacheKey(url)))
 }
 
+/**
+ * Con qué identificar la versión de un fichero. De una respuesta de otro
+ * dominio el navegador solo deja leer las cabeceras seguras, y `etag` no está
+ * entre ellas: last-modified y content-length sí, y bastan para saber si el MP3
+ * se ha regenerado (al regenerar una parada se sube al mismo path).
+ */
+function version(headers: Headers): string {
+  return [headers.get('last-modified'), headers.get('content-length')].filter(Boolean).join('|')
+}
+
 /** Descarga el MP3 a la caché local. Devuelve los bytes guardados (0 si ya estaba). */
 export async function cacheAudio(url: string): Promise<number> {
   const cache = await openCache()
@@ -42,9 +52,37 @@ export async function cacheAudio(url: string): Promise<number> {
   if (await cache.match(cacheKey(url))) return 0
   const res = await fetch(url)
   if (!res.ok) throw new Error(`audio ${res.status}`)
-  const blob = await res.blob()
-  await cache.put(cacheKey(url), new Response(blob))
+  // Se guarda la respuesta entera, no solo el blob: sus cabeceras son las que
+  // luego permiten comprobar si el audio ha cambiado sin volver a bajarlo.
+  const blob = await res.clone().blob()
+  await cache.put(cacheKey(url), res)
   return blob.size
+}
+
+/**
+ * Mira si el audio descargado sigue siendo el bueno. Solo gasta una petición
+ * HEAD (unos cientos de bytes); el MP3 únicamente se vuelve a bajar si de
+ * verdad ha cambiado. Sin conexión, o si el servidor no contesta, se queda lo
+ * que ya hay. Devuelve true si la copia local se ha renovado.
+ */
+export async function refreshAudioIfChanged(url: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return false
+  const cache = await openCache()
+  const hit = await cache?.match(cacheKey(url))
+  if (!cache || !hit) return false
+
+  // Copias guardadas antes de que se guardaran las cabeceras: no hay con qué
+  // comparar, y bajarlas otra vez «por si acaso» sería gastar datos a ciegas.
+  const local = version(hit.headers)
+  if (!local) return false
+
+  const head = await fetch(url, { method: 'HEAD' }).catch(() => null)
+  if (!head?.ok || version(head.headers) === local) return false
+
+  const res = await fetch(url).catch(() => null)
+  if (!res?.ok) return false
+  await cache.put(cacheKey(url), res)
+  return true
 }
 
 /** Libera el sitio de una audioguía borrada. */
@@ -84,8 +122,10 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
- * URL reproducible para un audio: blob: local si está descargado (funciona sin
- * conexión y con seek), y si no la URL pública de siempre.
+ * URL reproducible para un audio. Si la parada está descargada suena desde el
+ * móvil: ni un byte de MP3 por la red, con o sin cobertura. Lo único que se
+ * consulta es si ese audio ha cambiado, y solo entonces se baja de nuevo. Lo
+ * que no esté descargado se reproduce en streaming, como siempre.
  */
 export function useAudioUrl(url: string | null | undefined): string | null {
   // Guardamos junto al resultado el valor que lo originó, para no reproducir
@@ -95,23 +135,38 @@ export function useAudioUrl(url: string | null | undefined): string | null {
   useEffect(() => {
     if (!url) return
 
-    let objectUrl: string | null = null
+    // Los blob: se liberan todos al final: soltar el anterior en cuanto llega
+    // el nuevo dejaría al <audio> reproduciendo una URL ya revocada.
+    const objectUrls: string[] = []
     let cancelled = false
+
+    const play = (blob: Blob) => {
+      const objectUrl = URL.createObjectURL(blob)
+      objectUrls.push(objectUrl)
+      setResolved({ src: url, url: objectUrl })
+    }
 
     void (async () => {
       const blob = await getAudio(url).catch(() => null)
       if (cancelled) return
-      if (blob) {
-        objectUrl = URL.createObjectURL(blob)
-        setResolved({ src: url, url: objectUrl })
-      } else {
+      if (!blob) {
         setResolved({ src: url, url })
+        return
       }
+      play(blob)
+
+      // Ya está sonando desde la copia local. Ahora, y solo si hay cobertura,
+      // se comprueba si el audio se ha regenerado desde que se descargó.
+      const changed = await refreshAudioIfChanged(url).catch(() => false)
+      if (cancelled || !changed) return
+      const fresh = await getAudio(url).catch(() => null)
+      if (cancelled || !fresh) return
+      play(fresh)
     })()
 
     return () => {
       cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      objectUrls.forEach((u) => URL.revokeObjectURL(u))
     }
   }, [url])
 
