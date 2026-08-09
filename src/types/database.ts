@@ -841,6 +841,12 @@ export type Database = {
         Args: { p_token: string }
         Returns: string
       }
+      // Marcar una actividad como hecha: lo puede hacer cualquiera con acceso
+      // al viaje, también quien solo tiene permiso de "ver".
+      set_activity_done: {
+        Args: { p_activity_id: string; p_done: boolean }
+        Returns: Database['public']['Tables']['activities']['Row']
+      }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>

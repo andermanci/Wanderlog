@@ -102,10 +102,10 @@ async function run(op: OutboxOp): Promise<boolean> {
       return settle(op.kind, error)
     }
     case 'activity.done': {
-      const { error } = await supabase
-        .from('activities')
-        .update({ done: op.payload.done })
-        .eq('id', op.payload.activity_id)
+      const { error } = await supabase.rpc('set_activity_done', {
+        p_activity_id: op.payload.activity_id,
+        p_done: op.payload.done,
+      })
       return settle(op.kind, error)
     }
     case 'packing.toggle': {

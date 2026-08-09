@@ -292,7 +292,10 @@ export function useSetActivityDone() {
       }
       if (typeof navigator !== 'undefined' && !navigator.onLine) return queueOffline()
       try {
-        const { error } = await supabase.from('activities').update({ done }).eq('id', id)
+        // Vía RPC y no update directo: las políticas de activities exigen
+        // permiso de edición, y tachar lo ya visitado lo hace también quien
+        // solo tiene "ver" (ver 046_viewer_activity_done.sql).
+        const { error } = await supabase.rpc('set_activity_done', { p_activity_id: id, p_done: done })
         if (error) {
           if (isNetworkError(error)) return queueOffline()
           throw error

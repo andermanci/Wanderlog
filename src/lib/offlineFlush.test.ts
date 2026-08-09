@@ -2,27 +2,31 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { QueryClient } from '@tanstack/react-query'
 import { flushOutbox, enqueue, readOutbox, type OutboxOp } from './offline'
 
-// Mock del cliente Supabase: registra a qué tabla y con qué datos va cada
-// operación de la cola, y permite simular un corte de red.
+// Mock del cliente Supabase: registra a qué destino (tabla o función RPC) y
+// con qué datos va cada operación de la cola, y permite simular un corte de red.
 const mock = vi.hoisted(() => ({
-  calls: [] as { table: string; op: string; values: unknown; id?: string }[],
+  calls: [] as { target: string; op: string; values: unknown; id?: string }[],
   error: null as unknown,
 }))
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
-    from: (table: string) => ({
+    from: (target: string) => ({
       insert: (values: unknown) => {
-        mock.calls.push({ table, op: 'insert', values })
+        mock.calls.push({ target, op: 'insert', values })
         return Promise.resolve({ error: mock.error })
       },
       update: (values: unknown) => ({
         eq: (_col: string, id: string) => {
-          mock.calls.push({ table, op: 'update', values, id })
+          mock.calls.push({ target, op: 'update', values, id })
           return Promise.resolve({ error: mock.error })
         },
       }),
     }),
+    rpc: (target: string, values: unknown) => {
+      mock.calls.push({ target, op: 'rpc', values })
+      return Promise.resolve({ error: mock.error })
+    },
   },
 }))
 
@@ -48,14 +52,16 @@ beforeEach(() => {
 })
 
 describe('flushOutbox', () => {
-  it('sube una actividad marcada como hecha a la tabla correcta', async () => {
+  // Por RPC y no por update: así también sube el check de quien solo tiene
+  // permiso de "ver" el viaje.
+  it('sube una actividad marcada como hecha por la RPC correcta', async () => {
     enqueue(doneOp('a1', true))
 
     const n = await flushOutbox(qc)
 
     expect(n).toBe(1)
     expect(mock.calls).toEqual([
-      { table: 'activities', op: 'update', values: { done: true }, id: 'a1' },
+      { target: 'set_activity_done', op: 'rpc', values: { p_activity_id: 'a1', p_done: true } },
     ])
     expect(readOutbox()).toHaveLength(0)
   })
@@ -66,7 +72,7 @@ describe('flushOutbox', () => {
     await flushOutbox(qc)
 
     expect(mock.calls).toEqual([
-      { table: 'packing_items', op: 'update', values: { is_checked: true }, id: 'i1' },
+      { target: 'packing_items', op: 'update', values: { is_checked: true }, id: 'i1' },
     ])
     expect(readOutbox()).toHaveLength(0)
   })
@@ -99,7 +105,7 @@ describe('flushOutbox', () => {
 
     await flushOutbox(qc)
 
-    expect(mock.calls.map(c => c.table)).toEqual(['activities', 'packing_items'])
+    expect(mock.calls.map(c => c.target)).toEqual(['set_activity_done', 'packing_items'])
     // Actividades y equipaje viven en queries distintas: ambas se invalidan.
     expect(qc.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(readOutbox()).toHaveLength(0)
