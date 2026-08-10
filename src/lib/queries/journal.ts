@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { itineraryKeys } from '@/lib/queries/itinerary'
 import { enqueue, isNetworkError } from '@/lib/offline'
+import { compressImage } from '@/lib/photoCache'
 import type { ItineraryDay, JournalPhoto } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -60,34 +61,54 @@ export function useUpdateDayJournal(tripId: string) {
   })
 }
 
+const EXT_BY_TYPE: Record<string, string> = {
+  'image/webp': 'webp',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+}
+
+/** Extensión que le toca al fichero ya comprimido (su tipo manda sobre el nombre original). */
+export function photoExtension(type: string, originalName: string): string {
+  if (EXT_BY_TYPE[type]) return EXT_BY_TYPE[type]
+  const ext = originalName.includes('.') ? originalName.split('.').pop() : ''
+  return ext || 'jpg'
+}
+
+// Sube la foto reducida (ver compressImage): el original de un móvil son varios
+// MB y aquí se ven a 80 px. El nombre lleva un uuid porque varias fotos de la
+// misma tanda se suben a la vez y un timestamp las haría chocar.
 export async function uploadJournalPhoto(
   file: File,
   userId: string,
   tripId: string,
   dayId: string,
 ): Promise<string> {
-  const ext = file.name.split('.').pop()
-  const path = `${userId}/${tripId}/journal/${dayId}/${Date.now()}.${ext}`
-  const { error } = await supabase.storage.from('attachments').upload(path, file)
+  const blob = await compressImage(file)
+  const ext = photoExtension(blob.type, file.name)
+  const path = `${userId}/${tripId}/journal/${dayId}/${crypto.randomUUID()}.${ext}`
+  const { error } = await supabase.storage
+    .from('attachments')
+    .upload(path, blob, { contentType: blob.type || 'image/webp' })
   if (error) throw error
   const { data } = supabase.storage.from('attachments').getPublicUrl(path)
   return data.publicUrl
 }
 
-export function useAddJournalPhoto(tripId: string) {
+// Una sola inserción para toda la tanda: las filas se mandan en el orden en que
+// se eligieron las fotos, aunque la subida haya terminado en otro orden.
+export function useAddJournalPhotos(tripId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ dayId, fileUrl }: { dayId: string; fileUrl: string }) => {
+    mutationFn: async ({ dayId, fileUrls }: { dayId: string; fileUrls: string[] }) => {
       const { data, error } = await supabase
         .from('journal_photos')
-        .insert({ trip_id: tripId, day_id: dayId, file_url: fileUrl })
+        .insert(fileUrls.map(fileUrl => ({ trip_id: tripId, day_id: dayId, file_url: fileUrl })))
         .select()
-        .single()
       if (error) throw error
-      return data as JournalPhoto
+      return data as JournalPhoto[]
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: journalKeys.photos(tripId) }),
-    onError: () => toast.error('No se pudo guardar la foto'),
+    onError: () => toast.error('No se pudieron guardar las fotos'),
   })
 }
 

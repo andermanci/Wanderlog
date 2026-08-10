@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { useJournalPhotos, useUpdateDayJournal, useAddJournalPhoto, useDeleteJournalPhoto, uploadJournalPhoto } from '@/lib/queries/journal'
+import { useJournalPhotos, useUpdateDayJournal, useAddJournalPhotos, useDeleteJournalPhoto, uploadJournalPhoto } from '@/lib/queries/journal'
 import { useAuthStore } from '@/store/authStore'
 import type { ItineraryDay } from '@/types/database'
 import { toast } from 'sonner'
@@ -24,11 +24,12 @@ export function DayJournalDialog({ open, onClose, tripId, day }: DayJournalDialo
   const { user } = useAuthStore()
   const { data: photos } = useJournalPhotos(tripId)
   const updateJournal = useUpdateDayJournal(tripId)
-  const addPhoto = useAddJournalPhoto(tripId)
+  const addPhotos = useAddJournalPhotos(tripId)
   const deletePhoto = useDeleteJournalPhoto(tripId)
   const fileRef = useRef<HTMLInputElement>(null)
   const [text, setText] = useState('')
-  const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
     if (open) setText(day?.journal ?? '')
@@ -36,19 +37,48 @@ export function DayJournalDialog({ open, onClose, tripId, day }: DayJournalDialo
 
   const dayPhotos = (photos ?? []).filter(p => p.day_id === day?.id)
   const offline = typeof navigator !== 'undefined' && !navigator.onLine
+  const uploading = progress !== null
 
-  async function handlePhotoUpload(file: File) {
-    if (!day || !user) return
+  // Sube toda la selección. Nada se descarta por tamaño: cada foto se reduce
+  // antes de subirla (uploadJournalPhoto). Varias a la vez, pero de tres en tres
+  // para no ahogar la conexión del móvil; si alguna falla, las demás siguen.
+  async function handlePhotosUpload(files: File[]) {
+    if (!day || !user || files.length === 0) return
     if (offline) { toast.info('Las fotos necesitan conexión; el texto sí se guarda offline'); return }
-    if (file.size > 10 * 1024 * 1024) { toast.error('La foto supera 10 MB'); return }
-    setUploading(true)
+
+    const { id: dayId } = day
+    const userId = user.id
+    setProgress({ done: 0, total: files.length })
+    const urls: (string | null)[] = new Array(files.length).fill(null)
+    let done = 0
+    let cursor = 0
+    const CONCURRENCY = 3
     try {
-      const url = await uploadJournalPhoto(file, user.id, tripId, day.id)
-      await addPhoto.mutateAsync({ dayId: day.id, fileUrl: url })
+      await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+        while (cursor < files.length) {
+          const i = cursor++
+          try {
+            urls[i] = await uploadJournalPhoto(files[i], userId, tripId, dayId)
+          } catch { /* se cuenta abajo por los huecos de urls */ }
+          done++
+          setProgress({ done, total: files.length })
+        }
+      }))
+
+      // En el orden en que se eligieron, no en el que acabaron de subir.
+      const subidas = urls.filter((u): u is string => u !== null)
+      if (subidas.length > 0) await addPhotos.mutateAsync({ dayId, fileUrls: subidas })
+
+      const fallos = files.length - subidas.length
+      if (fallos > 0) {
+        toast.error(subidas.length === 0
+          ? (files.length === 1 ? 'No se pudo subir la foto' : 'No se pudo subir ninguna foto')
+          : `${fallos} de ${files.length} fotos no se pudieron subir`)
+      }
     } catch {
-      toast.error('No se pudo subir la foto')
+      /* el insert falló: addPhotos ya avisa en su onError */
     } finally {
-      setUploading(false)
+      setProgress(null)
     }
   }
 
@@ -87,7 +117,19 @@ export function DayJournalDialog({ open, onClose, tripId, day }: DayJournalDialo
           />
 
           {/* Fotos del día */}
-          <div className="flex flex-wrap gap-2">
+          <div
+            className={`flex flex-wrap gap-2 rounded-lg transition-shadow ${
+              dragging ? 'ring-2 ring-primary ring-offset-4 ring-offset-background' : ''
+            }`}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragging(false)
+              const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+              if (files.length > 0) handlePhotosUpload(files)
+            }}
+          >
             {dayPhotos.map(p => (
               <div key={p.id} className="relative group">
                 <a href={p.file_url} target="_blank" rel="noreferrer">
@@ -103,6 +145,13 @@ export function DayJournalDialog({ open, onClose, tripId, day }: DayJournalDialo
                 </button>
               </div>
             ))}
+            {/* Huecos de las que están en camino */}
+            {progress && Array.from({ length: progress.total - progress.done }).map((_, i) => (
+              <div key={`pending-${i}`}
+                className="w-20 h-20 rounded-lg border border-dashed border-border flex items-center justify-center text-muted-foreground">
+                <Loader2 size={18} className="animate-spin" />
+              </div>
+            ))}
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
@@ -110,16 +159,18 @@ export function DayJournalDialog({ open, onClose, tripId, day }: DayJournalDialo
               className="w-20 h-20 rounded-lg border border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
             >
               {uploading ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
-              <span className="text-[10px]">{uploading ? 'Subiendo' : 'Foto'}</span>
+              <span className="text-[10px]">
+                {progress ? `${progress.done}/${progress.total}` : 'Fotos'}
+              </span>
             </button>
             <input
               ref={fileRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) handlePhotoUpload(file)
+                handlePhotosUpload(Array.from(e.target.files ?? []))
                 e.target.value = ''
               }}
             />
