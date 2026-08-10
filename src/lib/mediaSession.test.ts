@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  MEDIA_SESSION_ACTIONS, applyPositionState, buildArtwork, buildPositionState,
+  ACCIONES_REGISTRADAS, MEDIA_SESSION_ACTIONS, applyPositionState, buildArtwork, buildPositionState,
   clearMediaSession, setActionHandlerSafe, toAbsoluteUrl, type MediaSessionLike,
 } from './mediaSession'
 
@@ -108,5 +108,33 @@ describe('buildArtwork', () => {
 
   it('devuelve URLs absolutas', () => {
     expect(toAbsoluteUrl('/pwa-512.png')).toMatch(/^https?:\/\//)
+  })
+})
+
+describe('qué acciones se registran', () => {
+  it('NO REGISTRA seekbackward NI seekforward — en iOS taparían anterior/siguiente', () => {
+    // La pantalla de bloqueo de iOS tiene DOS huecos junto al play. Si hay
+    // manejadores de avance/retroceso, WebKit pone ahí los ±15 s y esconde los
+    // botones de parada anterior y siguiente. Este test existe para que nadie
+    // los vuelva a añadir "porque estaría bien tenerlos también".
+    expect(ACCIONES_REGISTRADAS).not.toContain('seekbackward')
+    expect(ACCIONES_REGISTRADAS).not.toContain('seekforward')
+  })
+
+  it('sí registra anterior y siguiente, que es lo que se quiere ver', () => {
+    expect(ACCIONES_REGISTRADAS).toContain('nexttrack')
+    expect(ACCIONES_REGISTRADAS).toContain('previoustrack')
+  })
+
+  it('mantiene seekto: no ocupa hueco y es lo que hace arrastrable la barra', () => {
+    expect(ACCIONES_REGISTRADAS).toContain('seekto')
+  })
+
+  it('al limpiar borra TAMBIÉN las que ya no se registran', () => {
+    // Una pestaña abierta desde antes del cambio las tiene puestas; sin
+    // limpiarlas seguiría enseñando los botones equivocados.
+    for (const a of ACCIONES_REGISTRADAS) expect(MEDIA_SESSION_ACTIONS).toContain(a)
+    expect(MEDIA_SESSION_ACTIONS).toContain('seekbackward')
+    expect(MEDIA_SESSION_ACTIONS).toContain('seekforward')
   })
 })

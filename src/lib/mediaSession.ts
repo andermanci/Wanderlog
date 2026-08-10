@@ -18,14 +18,34 @@ export interface MediaSessionLike {
   setPositionState?(state?: MediaPositionState): void
 }
 
-/** Todas las acciones que registramos; sirve también para limpiarlas de golpe. */
-export const MEDIA_SESSION_ACTIONS: readonly MediaSessionAction[] = [
-  'play', 'pause', 'stop', 'nexttrack', 'previoustrack',
-  'seekbackward', 'seekforward', 'seekto',
+/**
+ * Las acciones que SÍ se registran.
+ *
+ * NO ESTÁN 'seekbackward' NI 'seekforward', Y ES DELIBERADO. En iOS la
+ * pantalla de bloqueo (y el centro de control) tienen solo DOS huecos a los
+ * lados del play. Cuando hay manejadores de avance/retroceso registrados,
+ * WebKit pone ahí los botones de ±15 s y ESCONDE los de anterior/siguiente.
+ * No hay forma de pedir los cuatro ni de elegir: es uno u otro par.
+ *
+ * En una audioguía, moverse entre paradas vale mucho más que saltar 15
+ * segundos —para eso están los botones de dentro de la aplicación—, así que se
+ * eligen anterior y siguiente.
+ *
+ * 'seekto' sí se queda: no ocupa hueco, es lo que mueve la barra de progreso
+ * al arrastrarla, y sin él la barra sale pero no deja arrastrar.
+ */
+export const ACCIONES_REGISTRADAS: readonly MediaSessionAction[] = [
+  'play', 'pause', 'stop', 'nexttrack', 'previoustrack', 'seekto',
 ]
 
-/** El mismo salto que los botones de ±15 s de dentro de la app. */
-export const SEEK_OFFSET_SECONDS = 15
+/**
+ * Las que se limpian al salir. Incluye las que ya no registramos a propósito:
+ * una pestaña abierta desde antes de este cambio puede tenerlas puestas, y sin
+ * limpiarlas seguiría enseñando los botones equivocados hasta recargar.
+ */
+export const MEDIA_SESSION_ACTIONS: readonly MediaSessionAction[] = [
+  ...ACCIONES_REGISTRADAS, 'seekbackward', 'seekforward',
+]
 
 export function getMediaSession(): MediaSessionLike | null {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return null

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import {
-  MEDIA_SESSION_ACTIONS, SEEK_OFFSET_SECONDS, applyPositionState, buildArtwork,
+  ACCIONES_REGISTRADAS, MEDIA_SESSION_ACTIONS, applyPositionState, buildArtwork,
   clearMediaSession, getMediaSession, setActionHandlerSafe,
 } from '@/lib/mediaSession'
 
@@ -22,7 +22,6 @@ interface Options {
   onNext: (() => void) | null
   /** null en la primera. */
   onPrevious: (() => void) | null
-  onSeek: (deltaSeconds: number) => void
   onSeekTo: (seconds: number) => void
   onStop: () => void
 }
@@ -30,6 +29,9 @@ interface Options {
 // Publica lo que está sonando en el reproductor del sistema: título, portada y
 // botones de anterior/siguiente en la pantalla de bloqueo, el centro de
 // control, los auriculares y CarPlay.
+//
+// Los ±15 s NO salen ahí a propósito: iOS solo tiene dos huecos y, si se
+// registran, se comen los de anterior y siguiente.
 export function useMediaSession(options: Options) {
   const {
     enabled, title, artist, album, coverUrl, isPlaying, position, duration, playbackRate,
@@ -51,22 +53,27 @@ export function useMediaSession(options: Options) {
     const session = getMediaSession()
     if (!session || !enabled) return
 
-    setActionHandlerSafe(session, 'play', () => handlersRef.current.onPlay())
-    setActionHandlerSafe(session, 'pause', () => handlersRef.current.onPause())
-    setActionHandlerSafe(session, 'stop', () => handlersRef.current.onStop())
-    setActionHandlerSafe(session, 'seekbackward', (details) => {
-      handlersRef.current.onSeek(-(details.seekOffset ?? SEEK_OFFSET_SECONDS))
-    })
-    setActionHandlerSafe(session, 'seekforward', (details) => {
-      handlersRef.current.onSeek(details.seekOffset ?? SEEK_OFFSET_SECONDS)
-    })
-    setActionHandlerSafe(session, 'seekto', (details) => {
-      if (typeof details.seekTime === 'number') handlersRef.current.onSeekTo(details.seekTime)
-    })
-    // null explícito en los extremos: el sistema deshabilita el botón en vez
-    // de dejarlo puesto y muerto.
-    setActionHandlerSafe(session, 'nexttrack', hasNext ? () => handlersRef.current.onNext?.() : null)
-    setActionHandlerSafe(session, 'previoustrack', hasPrevious ? () => handlersRef.current.onPrevious?.() : null)
+    // Se recorre ACCIONES_REGISTRADAS en vez de llamar ocho veces a mano, y no
+    // es cosmético: así la lista de acciones es la ÚNICA fuente de verdad y no
+    // puede desalinearse de su test. Añadir aquí un 'seekforward' suelto no
+    // haría nada mientras no esté en la lista — que es justo lo que impide
+    // volver a romper los botones de iOS sin enterarse.
+    const manejadores: Partial<Record<MediaSessionAction, MediaSessionActionHandler | null>> = {
+      play: () => handlersRef.current.onPlay(),
+      pause: () => handlersRef.current.onPause(),
+      stop: () => handlersRef.current.onStop(),
+      seekto: (details) => {
+        if (typeof details.seekTime === 'number') handlersRef.current.onSeekTo(details.seekTime)
+      },
+      // null explícito en los extremos: el sistema deshabilita el botón en vez
+      // de dejarlo puesto y muerto.
+      nexttrack: hasNext ? () => handlersRef.current.onNext?.() : null,
+      previoustrack: hasPrevious ? () => handlersRef.current.onPrevious?.() : null,
+    }
+
+    for (const accion of ACCIONES_REGISTRADAS) {
+      setActionHandlerSafe(session, accion, manejadores[accion] ?? null)
+    }
 
     return () => {
       for (const action of MEDIA_SESSION_ACTIONS) setActionHandlerSafe(session, action, null)

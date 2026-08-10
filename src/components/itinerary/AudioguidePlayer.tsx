@@ -232,7 +232,6 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl 
     onPrevious: index > 0
       ? () => goTo(index - 1, { autoPlay: isActuallyPlaying() })
       : null,
-    onSeek: skip,
     onSeekTo: (seconds) => {
       const el = audioRef.current
       if (!el) return
