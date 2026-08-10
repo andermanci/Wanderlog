@@ -229,9 +229,17 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl 
     onNext: index < stops.length - 1
       ? () => goTo(index + 1, { autoPlay: isActuallyPlaying() })
       : null,
+    // En la primera parada, «anterior» reinicia esta —lo que hace cualquier
+    // reproductor—. No se pasa null: iOS lo leería como «no existe» y se
+    // llevaría por delante también el botón de siguiente.
     onPrevious: index > 0
       ? () => goTo(index - 1, { autoPlay: isActuallyPlaying() })
-      : null,
+      : () => {
+          const el = audioRef.current
+          if (!el) return
+          el.currentTime = 0
+          setCurrentTime(0)
+        },
     onSeekTo: (seconds) => {
       const el = audioRef.current
       if (!el) return

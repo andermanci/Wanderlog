@@ -18,9 +18,13 @@ interface Options {
   playbackRate: number
   onPlay: () => void
   onPause: () => void
-  /** null en la última parada: así el sistema atenúa el botón de siguiente. */
+  /**
+   * null en la última parada. El botón SIGUE saliendo en el reproductor del
+   * sistema y no hace nada al pulsarlo: ver el comentario de `nexttrack`, iOS
+   * no permite tener uno solo del par.
+   */
   onNext: (() => void) | null
-  /** null en la primera. */
+  /** Nunca null en la práctica: en la primera parada, reinicia esta. */
   onPrevious: (() => void) | null
   onSeekTo: (seconds: number) => void
   onStop: () => void
@@ -33,9 +37,12 @@ interface Options {
 // Los ±15 s NO salen ahí a propósito: iOS solo tiene dos huecos y, si se
 // registran, se comen los de anterior y siguiente.
 export function useMediaSession(options: Options) {
+  // Los callbacks NO se sacan aquí: se leen del ref dentro de los manejadores.
+  // Sacarlos invitaría a meterlos en las dependencias del efecto, y volver a
+  // registrar las acciones en cada cambio de parada es lo que hace parpadear
+  // los botones del reproductor del sistema.
   const {
     enabled, title, artist, album, coverUrl, isPlaying, position, duration, playbackRate,
-    onNext, onPrevious,
   } = options
 
   // Los callbacks son closures nuevas en cada render. Si dependiéramos de
@@ -45,9 +52,6 @@ export function useMediaSession(options: Options) {
   // a la versión fresca.
   const handlersRef = useRef(options)
   useEffect(() => { handlersRef.current = options })
-
-  const hasNext = !!onNext
-  const hasPrevious = !!onPrevious
 
   useEffect(() => {
     const session = getMediaSession()
@@ -65,10 +69,18 @@ export function useMediaSession(options: Options) {
       seekto: (details) => {
         if (typeof details.seekTime === 'number') handlersRef.current.onSeekTo(details.seekTime)
       },
-      // null explícito en los extremos: el sistema deshabilita el botón en vez
-      // de dejarlo puesto y muerto.
-      nexttrack: hasNext ? () => handlersRef.current.onNext?.() : null,
-      previoustrack: hasPrevious ? () => handlersRef.current.onPrevious?.() : null,
+      // LOS DOS SIEMPRE REGISTRADOS, aunque en el extremo no haya adónde ir.
+      //
+      // Registrar `null` significa «esta acción no existe», y entonces iOS se
+      // queda con un solo control de pista, no puede formar el par de botones
+      // laterales y VUELVE A SUS SALTOS DE ±10 s. O sea: poner null en la
+      // primera parada para que el botón saliera atenuado hacía desaparecer
+      // también el de siguiente. Es todo o nada.
+      //
+      // Si no hay adónde ir, el manejador no hace nada. Un botón que no
+      // responde en el extremo es mucho menos malo que no tener ninguno.
+      nexttrack: () => handlersRef.current.onNext?.(),
+      previoustrack: () => handlersRef.current.onPrevious?.(),
     }
 
     for (const accion of ACCIONES_REGISTRADAS) {
@@ -78,7 +90,11 @@ export function useMediaSession(options: Options) {
     return () => {
       for (const action of MEDIA_SESSION_ACTIONS) setActionHandlerSafe(session, action, null)
     }
-  }, [enabled, hasNext, hasPrevious])
+    // Sin `hasNext`/`hasPrevious` en las dependencias: los manejadores ya no
+    // cambian al movernos entre paradas —leen del ref—, así que registrarlos
+    // una sola vez basta. Antes se volvían a registrar en cada cambio de
+    // parada, y ese re-registro es justo lo que hacía parpadear los botones.
+  }, [enabled])
 
   useEffect(() => {
     const session = getMediaSession()
