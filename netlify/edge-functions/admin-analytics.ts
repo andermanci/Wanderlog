@@ -10,8 +10,8 @@
 // no bajar los datos en primer lugar es el diseño.)
 
 import { resumirVistas } from '../../src/lib/analytics/aggregate.ts'
-import { usuarioDeToken } from './_jwt.ts'
-import { readPageViews, esAdmin, hayBD } from './_db.ts'
+import { usuarioDeToken } from '../lib/jwt.ts'
+import { readPageViews, esAdmin, hayBD } from '../lib/db.ts'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {

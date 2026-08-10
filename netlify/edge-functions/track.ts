@@ -14,8 +14,8 @@
 
 import { parseEvento, esBot, MAX_CUERPO } from '../../src/lib/analytics/track.ts'
 import { geoDeContexto, geoDeCabeceras, type ContextoGeo } from '../../src/lib/analytics/geo.ts'
-import { usuarioDeToken } from './_jwt.ts'
-import { writePageView, hayBD } from './_db.ts'
+import { usuarioDeToken } from '../lib/jwt.ts'
+import { writePageView, hayBD } from '../lib/db.ts'
 
 interface Contexto {
   geo?: ContextoGeo
