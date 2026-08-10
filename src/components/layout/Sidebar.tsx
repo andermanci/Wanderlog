@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Map, FileText, Calendar,
   Bell, Package, Receipt, Settings, LogOut,
-  Compass, ChevronLeft, ChevronRight, BookOpen, Bookmark,
+  Compass, ChevronLeft, ChevronRight, BookOpen, Bookmark, Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useIsAdmin } from '@/lib/queries/admin'
 import { useAuthStore } from '@/store/authStore'
 import { useSignOut } from '@/hooks/useAuth'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -58,8 +59,14 @@ export function Sidebar({ tripId }: SidebarProps) {
   const email = profile?.email ?? user?.email ?? ''
   const displayName = profile?.full_name?.trim() || null
   const [collapsed, setCollapsed] = useState(false)
+  const { data: soyAdmin } = useIsAdmin()
 
-  const navItems = tripId ? getTripNav(tripId) : globalNav
+  const navItems = tripId
+    ? getTripNav(tripId)
+    : [
+        ...globalNav,
+        ...(soyAdmin ? [{ to: '/admin', icon: <Shield size={18} />, label: 'Admin' }] : []),
+      ]
 
   return (
     <motion.aside

@@ -8,7 +8,32 @@
   # Las variables VITE_ se incrustan en el bundle del cliente por diseño
   # (anon key protegida por RLS; Maps key restringida por referrer). Sin
   # esto, el escáner de secretos de Netlify las marca como filtración.
-  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_GOOGLE_MAPS_BROWSER_KEY"
+  # SUPABASE_URL está en la lista porque su valor es EXACTAMENTE el mismo que
+  # el de VITE_SUPABASE_URL, que sí va incrustado en el bundle por diseño: sin
+  # omitirlo, el escáner lo encontraría en dist/ y tumbaría el build por una
+  # filtración que no existe.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_GOOGLE_MAPS_BROWSER_KEY,SUPABASE_URL"
+  #
+  # SUPABASE_SERVICE_ROLE_KEY **NO** está en esa lista, y es deliberado.
+  #
+  # El plan gratuito de Netlify no deja acotar el scope de una variable ("Upgrade
+  # your Netlify account to set specific scopes"), así que las dos existen
+  # también durante `npm run build`. Eso NO es un problema: Vite solo incrusta
+  # en el bundle lo que empieza por VITE_, así que la service role nunca llega
+  # a dist/. Y dejarla dentro del escáner es justo lo que se quiere: si algún
+  # día alguien la incrusta por error, el build FALLA en vez de publicarla.
+  # Es la red de seguridad, no un descuido.
+
+# Analítica propia. Estas declaraciones se resuelven ANTES que los redirects,
+# así que /api/track no cae en el index.html de la regla SPA de abajo.
+[[edge_functions]]
+  path = "/api/track"
+  function = "track"
+
+# Lectura agregada para el panel: verifica el JWT y app_admins por dentro.
+[[edge_functions]]
+  path = "/api/admin/analytics"
+  function = "admin-analytics"
 
 # El Atajo de iOS (firmado) se sirve tal cual: la regla SPA de abajo no lo
 # pisa porque el archivo existe en dist y el redirect no es `force`. El

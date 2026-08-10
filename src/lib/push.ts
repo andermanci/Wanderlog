@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { emitirUso } from '@/lib/usage'
 
 // La clave PÚBLICA VAPID no es secreta (el navegador la necesita). Se puede
 // sobreescribir con VITE_VAPID_PUBLIC_KEY; si no, usa la del proyecto.
@@ -55,6 +56,9 @@ export async function enablePush(userId: string): Promise<PushStatus> {
     { user_id: userId, endpoint, p256dh, auth },
     { onConflict: 'endpoint' },
   )
+  // La fila de push_subscriptions se sobrescribe (upsert por endpoint), así
+  // que su fecha no sirve para saber CUÁNDO alguien activó los avisos.
+  emitirUso('push.subscribed')
   return 'enabled'
 }
 

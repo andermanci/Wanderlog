@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Calendar, Settings, Map, Receipt, FileText, Home,
-  MoreHorizontal, Bookmark, BookOpen, Package, Bell, Heart, type LucideIcon,
+  MoreHorizontal, Bookmark, BookOpen, Package, Bell, Heart, Shield, type LucideIcon,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import { useIsAdmin } from '@/lib/queries/admin'
 
 interface BottomNavProps {
   tripId?: string
@@ -29,6 +30,7 @@ export function BottomNav({ tripId }: BottomNavProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const [moreOpen, setMoreOpen] = useState(false)
+  const { data: soyAdmin } = useIsAdmin()
 
   const items = tripId
     ? [
@@ -41,6 +43,9 @@ export function BottomNav({ tripId }: BottomNavProps) {
         { to: '/dashboard', icon: LayoutDashboard, label: 'Viajes', exact: true },
         { to: '/calendar', icon: Calendar, label: 'Calendario' },
         { to: '/settings', icon: Settings, label: 'Ajustes' },
+        // Los ítems son flex-1, así que pasar de tres a cuatro reparte el
+        // ancho sin romper nada.
+        ...(soyAdmin ? [{ to: '/admin', icon: Shield, label: 'Admin' }] : []),
       ]
 
   // "Más" queda activo cuando la ruta actual es una de sus secciones.

@@ -1,6 +1,6 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, useQueryClient } from '@tanstack/react-query'
+import { QueryClient, useQueryClient, defaultShouldDehydrateQuery } from '@tanstack/react-query'
 import { PersistQueryClientProvider, removeOldestQuery } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { MotionConfig } from 'framer-motion'
@@ -9,10 +9,15 @@ import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Skeleton } from '@/components/ui/skeleton'
 import { flushOutbox } from '@/lib/offline'
+import { Analytics } from '@/components/Analytics'
 
 import { useAuthListener } from '@/hooks/useAuth'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
+// El guard del admin NO va diferido: son cuatro líneas, y hasta que devuelve
+// <Outlet/> React Router no monta lo que envuelve, así que quien no
+// administra no llega a descargar ningún chunk del panel.
+import { AdminRoute } from '@/components/admin/AdminRoute'
 
 // El login es la pantalla de arranque en frío: va en el bundle principal.
 import { LoginPage } from '@/pages/Login'
@@ -20,6 +25,7 @@ import { AuthCallback } from '@/pages/AuthCallback'
 
 // El resto, por ruta. Sin esto, quien abre /login se descarga FullCalendar,
 // Recharts y Google Maps antes de poder escribir su email.
+const PrivacidadPage = lazy(() => import('@/pages/Privacidad').then(m => ({ default: m.PrivacidadPage })))
 const InvitePage = lazy(() => import('@/pages/InvitePage').then(m => ({ default: m.InvitePage })))
 const RevolutCallback = lazy(() => import('@/pages/RevolutCallback').then(m => ({ default: m.RevolutCallback })))
 const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })))
@@ -40,6 +46,17 @@ const ExpensesPage = lazy(() => import('@/pages/ExpensesPage').then(m => ({ defa
 const GuidePage = lazy(() => import('@/pages/GuidePage').then(m => ({ default: m.GuidePage })))
 const TripSettingsPage = lazy(() => import('@/pages/TripSettingsPage').then(m => ({ default: m.TripSettingsPage })))
 const SettingsPage = lazy(() => import('@/pages/Settings').then(m => ({ default: m.SettingsPage })))
+
+// Panel de administración: otra aplicación dentro de esta, con layout propio.
+const AdminLayout = lazy(() => import('@/components/admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
+const AdminOverviewPage = lazy(() => import('@/pages/admin/AdminOverview').then(m => ({ default: m.AdminOverviewPage })))
+const AdminUsersPage = lazy(() => import('@/pages/admin/AdminUsers').then(m => ({ default: m.AdminUsersPage })))
+const AdminUserDetailPage = lazy(() => import('@/pages/admin/AdminUserDetail').then(m => ({ default: m.AdminUserDetailPage })))
+const AdminTripsPage = lazy(() => import('@/pages/admin/AdminTrips').then(m => ({ default: m.AdminTripsPage })))
+const AdminTripDetailPage = lazy(() => import('@/pages/admin/AdminTripDetail').then(m => ({ default: m.AdminTripDetailPage })))
+const AdminVisitsPage = lazy(() => import('@/pages/admin/AdminVisits').then(m => ({ default: m.AdminVisitsPage })))
+const AdminEventsPage = lazy(() => import('@/pages/admin/AdminEvents').then(m => ({ default: m.AdminEventsPage })))
+const AdminAuditPage = lazy(() => import('@/pages/admin/AdminAudit').then(m => ({ default: m.AdminAuditPage })))
 
 declare const __APP_VERSION__: string
 
@@ -103,7 +120,21 @@ export default function App() {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 * 60, buster: __APP_VERSION__ }}
+      persistOptions={{
+        persister,
+        maxAge: 1000 * 60 * 60 * 24 * 60,
+        buster: __APP_VERSION__,
+        // Nada del panel de administración se escribe en localStorage. El
+        // resto de la caché se persiste 60 días porque son TUS viajes y los
+        // quieres sin conexión; los del panel son datos de otras personas y
+        // no tienen por qué sobrevivir a la pestaña.
+        // El `defaultShouldDehydrateQuery` se compone, no se sustituye: es el
+        // que descarta las queries que fallaron o siguen cargando. Sin él,
+        // errores y estados a medias también acabarían en localStorage.
+        dehydrateOptions: {
+          shouldDehydrateQuery: q => defaultShouldDehydrateQuery(q) && q.queryKey[0] !== 'admin',
+        },
+      }}
     >
       {/* framer-motion anima con estilos en línea, así que el bloque
           @media (prefers-reduced-motion) de index.css no lo frena: hay que
@@ -112,6 +143,10 @@ export default function App() {
       <BrowserRouter>
         <AuthListener />
         <OfflineSync />
+        {/* Analítica propia: sin cookies, sin IP. Va DENTRO del router porque
+            necesita useLocation, y fuera del ErrorBoundary porque no pinta
+            nada y no debe reiniciarse si una pantalla falla. */}
+        <Analytics />
         <ErrorBoundary>
         <Suspense fallback={<PageFallback />}>
         <Routes>
@@ -121,11 +156,28 @@ export default function App() {
           {/* Invitación a un viaje: pública a propósito, para que quien
               todavía no tiene cuenta vea a qué le invitan antes de crearla. */}
           <Route path="/invite/:token" element={<InvitePage />} />
+          {/* Pública: a quien todavía no tiene cuenta también se le mide en la
+              pantalla de acceso y en las invitaciones. */}
+          <Route path="/privacidad" element={<PrivacidadPage />} />
 
           {/* Protegidas */}
           <Route element={<ProtectedRoute />}>
             {/* Callback de importación bancaria (pantalla completa, sin sidebar) */}
             <Route path="/import/revolut/callback" element={<RevolutCallback />} />
+
+            {/* Administración: fuera de AppLayout, con su propio layout. */}
+            <Route element={<AdminRoute />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminOverviewPage />} />
+                <Route path="usuarios" element={<AdminUsersPage />} />
+                <Route path="usuarios/:userId" element={<AdminUserDetailPage />} />
+                <Route path="viajes" element={<AdminTripsPage />} />
+                <Route path="viajes/:tripId" element={<AdminTripDetailPage />} />
+                <Route path="visitas" element={<AdminVisitsPage />} />
+                <Route path="eventos" element={<AdminEventsPage />} />
+                <Route path="auditoria" element={<AdminAuditPage />} />
+              </Route>
+            </Route>
 
             <Route element={<AppLayout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />

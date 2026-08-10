@@ -3,6 +3,7 @@ import { Outlet, useParams, useLocation, useSearchParams } from 'react-router-do
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { OfflineBanner } from '@/components/OfflineBanner'
+import { CuentaSuspendidaBanner } from '@/components/CuentaSuspendidaBanner'
 import { TripSearchCommand } from '@/components/trips/TripSearchCommand'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useWalletPassStore } from '@/store/walletPassStore'
@@ -49,6 +50,7 @@ export function AppLayout() {
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <OfflineBanner />
+        <CuentaSuspendidaBanner />
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar solo en escritorio */}
           <div className="hidden md:flex h-full">

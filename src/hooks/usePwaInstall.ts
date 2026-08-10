@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { emitirUso } from '@/lib/usage'
 
 // beforeinstallprompt no está en los tipos del DOM (API solo de Chromium).
 interface BeforeInstallPromptEvent extends Event {
@@ -22,6 +23,7 @@ if (typeof window !== 'undefined') {
   })
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null
+    emitirUso('pwa.installed')
     listeners.forEach(fn => fn())
   })
 }

@@ -21,8 +21,15 @@ precacheAndRoute(self.__WB_MANIFEST)
 // SW respondía index.html a la navegación y la app te devolvía al inicio en vez
 // de descargar el archivo.
 registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html'), {
-  denylist: [/^\/auth\//, /supabase/, /\.shortcut$/],
+  denylist: [/^\/auth\//, /supabase/, /\.shortcut$/, /^\/api\//],
 }))
+
+// AVISO PARA QUIEN TOQUE ESTE FICHERO: `/api/track` (la analítica) NO debe
+// pasar nunca por el service worker. Hoy no pasa —es un POST, no una
+// navegación, y no casa con ninguna ruta de abajo—, pero el día que alguien
+// añada una regla genérica del mismo origen o un handler offline
+// catch-all, los avisos de visita se encolarían y se subirían días después,
+// ensuciando todas las series temporales sin que nadie se entere.
 
 // ---- Cachés en tiempo de ejecución (réplica de la config anterior) ----
 const cacheFirst = (cacheName: string, maxEntries: number, days: number) =>

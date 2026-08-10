@@ -14,9 +14,11 @@ interface TripCardProps {
   onDelete: (trip: Trip) => void
   onDuplicate: (trip: Trip) => void
   index?: number
+  /** Cuenta suspendida: se ocultan las acciones de escritura. */
+  soloLectura?: boolean
 }
 
-export function TripCard({ trip, onEdit, onDelete, onDuplicate, index = 0 }: TripCardProps) {
+export function TripCard({ trip, onEdit, onDelete, onDuplicate, index = 0, soloLectura = false }: TripCardProps) {
   const { user } = useAuthStore()
   const imageUrl = trip.cover_image_url || fallbackCover(trip.id)
   const days = daysUntil(trip.start_date)
@@ -110,7 +112,14 @@ export function TripCard({ trip, onEdit, onDelete, onDuplicate, index = 0 }: Tri
 
       {/* Acciones: siempre pulsables. En táctil no existe hover, así que nada
           de pointer-events-none — con eso los taps atravesaban al Link y era
-          imposible editar/duplicar/borrar desde el móvil. */}
+          imposible editar/duplicar/borrar desde el móvil.
+
+          Con la cuenta suspendida NO se enseñan, en vez de dejarlas
+          deshabilitadas: RLS filtra la escritura silenciosamente (devuelve 204
+          sin tocar ninguna fila), así que un botón visible daría la impresión
+          de haber funcionado. El motivo ya está escrito en el banner de
+          arriba. */}
+      {!soloLectura && (
       <div className="absolute top-2 right-2 flex gap-1.5 sm:gap-1 opacity-100 sm:opacity-60 sm:hover:opacity-100 transition-opacity">
         <Button
           size="icon"
@@ -146,6 +155,7 @@ export function TripCard({ trip, onEdit, onDelete, onDuplicate, index = 0 }: Tri
           </Button>
         )}
       </div>
+      )}
     </motion.div>
   )
 }

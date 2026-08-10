@@ -19,6 +19,8 @@ import { OnboardingWelcome } from '@/components/OnboardingWelcome'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
 import { usePendingReminders } from '@/lib/queries/reminders'
 import { useTodayActivities } from '@/lib/queries/itinerary'
+import { useMyLimits } from '@/lib/queries/limits'
+import { bloqueoParaCrearViaje } from '@/lib/limits'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate, STATUS_LABELS, ACTIVITY_COLORS, ACTIVITY_LABELS, effectiveStatus } from '@/lib/utils'
 import { loadAudioguideDraft } from '@/lib/audioguide/draft'
@@ -39,6 +41,11 @@ export function Dashboard() {
   const deleteTrip = useDeleteTrip()
   const createTrip = useCreateTrip()
   const duplicateTrip = useDuplicateTrip()
+
+  // Los permisos de la cuenta. Adelantarse aquí es lo que permite explicar el
+  // motivo; quien de verdad lo impide es la política RLS de `trips`.
+  const { data: limites } = useMyLimits()
+  const bloqueoCrear = bloqueoParaCrearViaje(limites, trips?.length ?? 0)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -240,15 +247,23 @@ export function Dashboard() {
                 className="pl-9"
               />
             </div>
+            {/* El motivo va en el title y debajo del botón, no solo
+                deshabilitado: un botón gris sin explicación se lee como avería. */}
             <Button
               onClick={() => { setEditTrip(null); setFormOpen(true) }}
               variant="brand"
               className="gap-2 font-medium"
+              disabled={!!bloqueoCrear}
+              title={bloqueoCrear ?? undefined}
             >
               <Plus size={16} />
               Nuevo viaje
             </Button>
           </div>
+
+          {bloqueoCrear && (
+            <p className="text-sm text-muted-foreground mb-4">{bloqueoCrear}</p>
+          )}
 
           {/* Filtro por estado. Antes esto convivía con un desplegable que hacía
               exactamente lo mismo: dos controles para un único filtro, y el
@@ -314,6 +329,8 @@ export function Dashboard() {
                     className="gap-2"
                     onClick={() => { setEditTrip(null); setFormOpen(true) }}
                     variant="brand"
+                    disabled={!!bloqueoCrear}
+                    title={bloqueoCrear ?? undefined}
                   >
                     <Plus size={16} aria-hidden="true" />
                     Crear primer viaje
@@ -332,6 +349,7 @@ export function Dashboard() {
                   key={trip.id}
                   trip={trip}
                   index={i}
+                  soloLectura={!!limites?.is_suspended}
                   onEdit={(t) => { setEditTrip(t); setFormOpen(true) }}
                   onDelete={setDeleteTarget}
                   onDuplicate={(t) => duplicateTrip.mutate(t.id)}

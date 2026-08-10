@@ -3,6 +3,8 @@ import { eachDayOfInterval, parseISO, format, addDays, differenceInCalendarDays 
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { itineraryKeys } from '@/lib/queries/itinerary'
+import { limitKeys } from '@/lib/queries/limits'
+import { bloqueoParaCrearViaje, type UserLimits } from '@/lib/limits'
 import type { Trip } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -136,6 +138,19 @@ export function useCreateTrip() {
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : ''
       const code = (err as { code?: string })?.code
+
+      // Desde la migración 050, un 42501 al crear un viaje significa DOS cosas
+      // distintas: la sesión caducó, o la cuenta tiene un límite. Sin esto, a
+      // quien ha llegado a su tope se le diría que vuelva a iniciar sesión, y
+      // volvería a fallar igual. Los límites mandan porque son la única causa
+      // que sabemos nombrar; si no hay ninguno, es la sesión.
+      if (code === '42501') {
+        const limites = qc.getQueryData<UserLimits>(limitKeys.mine())
+        const viajes = qc.getQueryData<Trip[]>(tripKeys.lists())?.length ?? 0
+        const bloqueo = bloqueoParaCrearViaje(limites, viajes)
+        if (bloqueo) { toast.error(bloqueo); return }
+      }
+
       if (msg === 'SESSION_EXPIRED' || code === '42501') {
         toast.error('Tu sesión ha caducado. Recarga la página o vuelve a iniciar sesión.')
       } else if (msg === 'TIMEOUT') {

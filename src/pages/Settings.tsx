@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -357,7 +358,10 @@ export function SettingsPage() {
           <div className="p-6 rounded-xl surface">
             <p className="text-xs text-muted-foreground text-center">
               Wanderlog · Tu diario de viajes personal<br />
-              Todos tus datos son privados y protegidos con RLS en Supabase
+              Todos tus datos son privados y protegidos con RLS en Supabase<br />
+              <Link to="/privacidad" className="underline underline-offset-2 hover:text-foreground">
+                Qué se guarda de ti
+              </Link>
             </p>
           </div>
         </section>

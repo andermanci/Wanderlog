@@ -812,6 +812,77 @@ export type Database = {
         }
         Relationships: []
       }
+      // Eventos de uso (ver 052). Se insertan desde el cliente para los
+      // hechos que no dejan huella en la base; el resto los emiten triggers y
+      // edge functions. No se leen nunca desde el navegador: la política solo
+      // permite INSERT, y el panel los consulta por RPC.
+      usage_events: {
+        Row: {
+          id: string
+          user_id: string | null
+          trip_id: string | null
+          event: string
+          props: Record<string, unknown>
+          source: 'web' | 'edge' | 'db'
+          at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          trip_id?: string | null
+          event: string
+          props?: Record<string, unknown>
+          source?: 'web' | 'edge' | 'db'
+          at?: string
+        }
+        Update: never
+        Relationships: []
+      }
+      // Analítica de visitas (ver 051). El navegador NUNCA la toca: la escribe
+      // la edge function de Netlify con el service_role y la lee el panel
+      // agregada. Está declarada solo para que el esquema quede documentado.
+      page_views: {
+        Row: {
+          id: string
+          session_id: string
+          user_id: string | null
+          path: string
+          section: string
+          referrer_host: string | null
+          utm_source: string | null
+          utm_medium: string | null
+          utm_campaign: string | null
+          device: string
+          country: string | null
+          region: string | null
+          ms: number | null
+          at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      // Permisos por usuario (ver 050). Que no haya fila es lo normal y
+      // significa "todo permitido"; solo existe para quien tiene algún límite.
+      user_limits: {
+        Row: {
+          user_id: string
+          can_create_trips: boolean
+          max_trips: number | null
+          can_use_ai: boolean
+          can_share_trips: boolean
+          is_suspended: boolean
+          notes: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        // La tabla no tiene políticas de escritura: solo la tocan las RPC de
+        // administración y el service_role. Escribirla desde el cliente es un
+        // error, y aquí queda declarado como tal.
+        Insert: never
+        Update: never
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -846,6 +917,67 @@ export type Database = {
       set_activity_done: {
         Args: { p_activity_id: string; p_done: boolean }
         Returns: Database['public']['Tables']['activities']['Row']
+      }
+
+      // --- Administración de la plataforma (048+) ---
+      // Sin argumentos a propósito: solo puedes preguntar por ti, así que la
+      // función no sirve para enumerar quién administra.
+      is_platform_admin: {
+        Args: Record<string, never>
+        Returns: boolean
+      }
+      admin_audit_list: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: AdminAuditRow[]
+      }
+      admin_users: {
+        Args: { p_q?: string | null; p_limit?: number; p_offset?: number; p_user?: string }
+        Returns: AdminUserRow[]
+      }
+      admin_user_trips: {
+        Args: { p_user: string }
+        Returns: AdminUserTripRow[]
+      }
+      admin_trips: {
+        Args: { p_q?: string | null; p_limit?: number; p_offset?: number }
+        Returns: AdminTripRow[]
+      }
+      admin_trip_overview: {
+        Args: { p_trip: string }
+        Returns: AdminTripOverview | null
+      }
+      admin_trip_itinerary: {
+        Args: { p_trip: string }
+        Returns: AdminItineraryRow[]
+      }
+      admin_metrics: {
+        Args: { p_days?: number }
+        Returns: AdminMetrics
+      }
+      admin_events: {
+        Args: { p_days?: number }
+        Returns: AdminEvents
+      }
+      admin_last_view: {
+        Args: Record<string, never>
+        Returns: string | null
+      }
+      admin_delete_user_preview: {
+        Args: { p_user: string }
+        Returns: DeleteUserPreviewRow
+      }
+      admin_set_limits: {
+        Args: {
+          p_user: string
+          p_can_create_trips?: boolean
+          p_max_trips?: number | null
+          p_clear_max_trips?: boolean
+          p_can_use_ai?: boolean
+          p_can_share_trips?: boolean
+          p_is_suspended?: boolean
+          p_notes?: string | null
+        }
+        Returns: UserLimitsRow
       }
     }
     Enums: Record<string, never>
@@ -917,3 +1049,194 @@ export type DocumentCategory = Document['category']
 export type PlaceCategory = FavoritePlace['category']
 export type ReminderType = Reminder['type']
 export type DayAlertLevel = DayAlert['level']
+
+// --- Administración de la plataforma ---
+
+// Fila de admin_audit_list. `total_count` viaja repetido en cada fila
+// (count(*) over ()) para poder paginar sin una segunda consulta.
+export interface AdminAuditRow {
+  id: string
+  admin_email: string | null
+  action: string
+  target_user: string | null
+  target_email: string | null
+  target_trip: string | null
+  detail: Record<string, unknown>
+  at: string
+  total_count: number
+}
+
+export interface AdminUserRow {
+  user_id: string
+  email: string
+  full_name: string | null
+  avatar_url: string | null
+  created_at: string
+  trips: number
+  collaborations: number
+  activities: number
+  expenses: number
+  documents: number
+  storage_bytes: number
+  is_admin: boolean
+  can_create_trips: boolean
+  max_trips: number | null
+  can_use_ai: boolean
+  can_share_trips: boolean
+  is_suspended: boolean
+  notes: string | null
+  total_count: number
+}
+
+export interface AdminUserTripRow {
+  trip_id: string
+  name: string
+  destination: string
+  start_date: string
+  end_date: string
+  status: string
+  created_at: string
+  default_currency: string
+  has_cover: boolean
+  tags: string[]
+  is_owner: boolean
+  role: string | null
+  days: number
+  activities: number
+  expenses: number
+  documents: number
+  photos: number
+  collaborators: number
+}
+
+export interface AdminTripRow {
+  trip_id: string
+  name: string
+  destination: string
+  start_date: string
+  end_date: string
+  status: string
+  created_at: string
+  owner_id: string
+  owner_email: string | null
+  activities: number
+  collaborators: number
+  total_count: number
+}
+
+// Ficha de un viaje para el panel. De los gastos solo hay recuentos,
+// categorías y monedas: nunca importes.
+export interface AdminTripOverview {
+  trip_id: string
+  name: string
+  destination: string
+  start_date: string
+  end_date: string
+  status: string
+  created_at: string
+  default_currency: string
+  tags: string[]
+  has_cover: boolean
+  owner_id: string
+  owner_email: string | null
+  days: number
+  activities: number
+  activities_done: number
+  expenses: number
+  expense_categories: string[]
+  expense_currencies: string[]
+  documents: number
+  photos: number
+  travelers: number
+  places: number
+  guides: number
+  audioguides: number
+  audio_stops_ready: number
+  journal_days: number
+  collaborators: { email: string; role: string; accepted: boolean }[]
+  storage_bytes: number
+}
+
+// Una fila = una actividad, o un día sin actividades (con los campos de
+// actividad a null). Esta lista de campos ES la política de privacidad del
+// panel: del diario y las notas solo sale su LONGITUD, nunca el texto.
+export interface AdminItineraryRow {
+  day_id: string
+  day_date: string
+  day_cities: number
+  has_journal: boolean
+  journal_chars: number
+  notes_chars: number
+  activity_id: string | null
+  activity_type: string | null
+  title: string | null
+  address: string | null
+  start_time: string | null
+  end_time: string | null
+  has_coords: boolean | null
+  has_cover: boolean | null
+  attachments: number | null
+  done: boolean | null
+  order_index: number | null
+}
+
+export interface AdminMetrics {
+  dias: number
+  usuarios: number
+  usuarios_nuevos: number
+  usuarios_con_viaje: number
+  viajes: number
+  viajes_nuevos: number
+  viajes_por_estado: Record<string, number>
+  altas_por_semana: { semana: string; n: number }[]
+  actividades: number
+  gastos: number
+  documentos: number
+  fotos: number
+  audioguias: number
+  colaboraciones: number
+  invitaciones_pendientes: number
+  top_destinos: { destino: string; n: number }[]
+  almacenamiento: Record<string, number>
+}
+
+// Fila de `user_limits`. No existir es lo normal: sin fila, todo permitido.
+export interface UserLimitsRow {
+  user_id: string
+  can_create_trips: boolean
+  max_trips: number | null
+  can_use_ai: boolean
+  can_share_trips: boolean
+  is_suspended: boolean
+  notes: string | null
+  updated_at: string
+  updated_by: string | null
+}
+
+export interface AdminEvents {
+  dias: number
+  total: number
+  personas: number
+  porEvento: { evento: string; n: number; personas: number }[]
+  porDia: { dia: string; n: number }[]
+  /** Quién consume lo que se paga. `unidades` son caracteres en el TTS y
+   *  llamadas en el resto: por eso la columna se etiqueta según el evento. */
+  gastoIA: { user_id: string; email: string | null; usos: number; unidades: number }[]
+  ultimo: string | null
+}
+
+// Lo que devuelve admin_delete_user_preview. Se declara aquí para que el
+// diálogo no invente campos que la RPC no da.
+export interface DeleteUserPreviewRow {
+  user_id: string
+  email: string | null
+  es_admin: boolean
+  viajes_propios: { id: string; name: string; destination: string; colaboradores: number }[]
+  colaboradores_afectados: string[]
+  viajes_ajenos: { id: string; name: string; owner: string | null }[]
+  invitaciones_a_reasignar: number
+  ficheros: number
+  bytes: number
+  visitas: number
+  eventos: number
+}

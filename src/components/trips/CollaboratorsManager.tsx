@@ -12,6 +12,8 @@ import { useAuthStore } from '@/store/authStore'
 import { formatDate } from '@/lib/utils'
 import type { TripCollaborator } from '@/types/database'
 import { toast } from 'sonner'
+import { useMyLimits } from '@/lib/queries/limits'
+import { bloqueoParaCompartir } from '@/lib/limits'
 
 // Invitar y gestionar colaboradores con su nivel de permiso.
 // Reutilizado por el dialog de compartir y por Ajustes del viaje.
@@ -28,6 +30,11 @@ export function CollaboratorsManager({ tripId }: { tripId: string }) {
 
   const isOwner = !!trip && trip.user_id === user?.id
   const canInvite = canShareRole(myRole)
+  // El permiso del VIAJE (canInvite) y el de la CUENTA son cosas distintas:
+  // puedes ser dueño y aun así tener las invitaciones desactivadas. Sin esto,
+  // el botón manda la petición y RLS la rechaza con un error crudo.
+  const { data: limites } = useMyLimits()
+  const bloqueoCuenta = bloqueoParaCompartir(limites)
   // Mismas reglas que la RLS: el dueño quita a cualquiera; un colaborador
   // solo las invitaciones que hizo él, y a sí mismo (salir del viaje).
   const canRemove = (c: TripCollaborator) =>
@@ -76,10 +83,14 @@ export function CollaboratorsManager({ tripId }: { tripId: string }) {
               className="pl-9"
             />
           </div>
-          <Button type="submit" disabled={share.isPending}>
+          <Button type="submit" disabled={share.isPending || !!bloqueoCuenta} title={bloqueoCuenta ?? undefined}>
             {share.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Invitar'}
           </Button>
         </form>
+      )}
+
+      {canInvite && bloqueoCuenta && (
+        <p className="text-sm text-muted-foreground">{bloqueoCuenta}</p>
       )}
 
       <div className="space-y-2">

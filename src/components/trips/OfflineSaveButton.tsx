@@ -13,6 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
+import { emitirUso } from '@/lib/usage'
 
 function percent(p: PrefetchProgress | null): number {
   if (!p || p.total === 0) return 0
@@ -71,7 +72,12 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
     setSaving(true)
     try {
       await prefetchTripOffline(qc, tripId, { includePhotos, includeAudio, onProgress: setProgress })
-      setIndex(readOfflineIndex(tripId))
+      const idx = readOfflineIndex(tripId)
+      setIndex(idx)
+      // Descargar un viaje entero no deja ninguna fila en la base: es el tipo
+      // de hecho que solo existe aquí.
+      emitirUso('trip.offline_downloaded',
+        { fotos: includePhotos, audios: includeAudio, bytes: idx?.bytes ?? 0 }, tripId)
       toast.success('Viaje disponible sin conexión', {
         description: 'Consejo: descarga también el área del destino en Google Maps (Mapas sin conexión) para navegar sin datos.',
         duration: 8000,
@@ -89,6 +95,7 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
     setConfirmDelete(false)
     await deleteTripOffline(qc, tripId).catch(() => {})
     setIndex(null)
+    emitirUso('trip.offline_deleted', {}, tripId)
     toast.success('Copia sin conexión eliminada')
   }
 

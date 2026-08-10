@@ -18,6 +18,8 @@
 //   secreto: supabase secrets set GEMINI_API_KEY=...  (gratis en aistudio.google.com)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { bloqueoIA } from '../_shared/limits.ts'
+import { registrarUso } from '../_shared/usage.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -219,6 +221,11 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userErr } = await userClient.auth.getUser()
     if (userErr || !user) return json({ error: 'No autenticado' }, 401)
 
+    // Cada importación consume cuota de Gemini. `can_use_ai` no puede
+    // aplicarse por RLS (no hay ninguna fila que insertar): se comprueba aquí.
+    const bloqueo = await bloqueoIA(userClient, user.id)
+    if (bloqueo) return json({ error: bloqueo }, 403)
+
     const { url, manualText } = await req.json().catch(() => ({}))
     if (!url && !manualText) return json({ error: 'Falta url o manualText' }, 400)
 
@@ -287,6 +294,12 @@ Deno.serve(async (req) => {
     }
     // Solo se sugiere pegar el texto a mano si de verdad no salió un sitio y no
     // había texto legible (típico de Instagram con muro de login).
+    registrarUso(user.id, null, 'ai.import', {
+      plataforma: platform,
+      conImagen: !!image,
+      acerto: !!place.placeName,
+    })
+
     return json({ ...place, platform, needsManualText: needsManualText && !place.placeName, thumbnailUrl, sourceText })
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : 'Error desconocido' }, 500)

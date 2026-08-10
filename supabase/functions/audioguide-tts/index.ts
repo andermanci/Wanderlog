@@ -6,6 +6,8 @@
 // Deploy: supabase functions deploy audioguide-tts
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { bloqueoIA } from '../_shared/limits.ts'
+import { registrarUso } from '../_shared/usage.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -173,6 +175,12 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userErr } = await userClient.auth.getUser()
     if (userErr || !user) return json({ error: 'No autenticado' }, 401)
 
+    // Cada llamada a Google TTS se factura por carácter. `can_use_ai` no puede
+    // aplicarse por RLS (no hay ninguna fila que insertar), así que se
+    // comprueba aquí, que es por donde pasa de verdad el gasto.
+    const bloqueo = await bloqueoIA(userClient, user.id)
+    if (bloqueo) return json({ error: bloqueo }, 403)
+
     const { stopId, text, path } = await req.json().catch(() => ({}))
     if (!stopId || !text || !path) return json({ error: 'Faltan stopId, text o path' }, 400)
     if (!path.startsWith(`${user.id}/`)) return json({ error: 'Ruta no autorizada' }, 403)
@@ -248,6 +256,14 @@ Deno.serve(async (req) => {
     // estima por nº de palabras (~150 palabras/min de narración).
     const wordCount = text.trim().split(/\s+/).filter(Boolean).length
     const duration = mp3DurationSeconds(rawBytes) ?? Math.round((wordCount / 150) * 60)
+
+    // Google TTS factura por CARÁCTER: esa es la unidad que hay que guardar,
+    // no "una audioguía". Sin `await`: la respuesta no espera a la métrica.
+    registrarUso(user.id, null, 'ai.audioguide_tts', {
+      caracteres: text.length,
+      frases: sentences.length,
+      segundos: duration,
+    })
 
     return json({ stopId, audioUrl: pub.publicUrl, durationSeconds: duration, sentenceTimings })
   } catch (err) {

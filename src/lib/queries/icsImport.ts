@@ -6,6 +6,7 @@ import { activityTypeFor, type IcsBooking } from '@/lib/ics/parseIcs'
 import { timeOf, dateOf } from '@/lib/reservationLink'
 import type { ItineraryDay } from '@/types/database'
 import { toast } from 'sonner'
+import { emitirUso } from '@/lib/usage'
 
 // Crea, por cada reserva del .ics, el DOCUMENTO (con su localizador y su
 // proveedor) y, si la fecha cae dentro del viaje, también la ACTIVIDAD del
@@ -84,6 +85,9 @@ export function useImportIcsBookings(tripId: string) {
     },
 
     onSuccess: ({ created, outside }) => {
+      // Los documentos y actividades creados ya los cuenta un trigger; esto
+      // registra que vinieron de un .ics, que es lo que no se puede deducir.
+      emitirUso('ics.imported', { reservas: created, fuera: outside }, tripId)
       qc.invalidateQueries({ queryKey: docKeys.all(tripId) })
       qc.invalidateQueries({ queryKey: itineraryKeys.activities(tripId) })
       const suffix = outside > 0
