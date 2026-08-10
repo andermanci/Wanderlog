@@ -7,11 +7,17 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useAudioguideGroupPlayback, type AudioguideSyncState } from '@/lib/realtime/useAudioguideGroupPlayback'
 import { useAudioUrl } from '@/lib/audioCache'
+import { useMediaSession } from '@/hooks/useMediaSession'
 import { AudioguideTranscript } from './AudioguideTranscript'
+import { emitirUso } from '@/lib/usage'
 
 interface Props {
   stops: AudioguideStop[]
   audioguideId: string
+  /** Para el «álbum» de la ficha del reproductor del sistema. */
+  activityTitle: string
+  /** Portada de la pantalla de bloqueo. */
+  coverUrl?: string | null
 }
 
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2]
@@ -28,8 +34,9 @@ function formatTime(seconds: number): string {
 // su dirección, un reproductor con play/pausa grande y salto ±15s, y un
 // índice plegable para saltar a cualquier parada. Si te unes al grupo, tus
 // acciones (play/pausa/salto) se emiten a los demás dispositivos del viaje
-// y las suyas se aplican aquí.
-export function AudioguidePlayer({ stops, audioguideId }: Props) {
+// y las suyas se aplican aquí. Además, la parada que suena se publica en el
+// reproductor del sistema (pantalla de bloqueo, auriculares, CarPlay).
+export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl }: Props) {
   const { user } = useAuthStore()
   const [index, setIndex] = useState(0)
   const [showIndex, setShowIndex] = useState(false)
@@ -41,6 +48,12 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const applyingRemoteRef = useRef(false)
   const pendingRemoteRef = useRef<AudioguideSyncState | null>(null)
+  // ¿La parada que llega tiene que arrancar sola? (venías escuchando y has
+  // pulsado siguiente, aquí o en el reproductor del móvil).
+  const shouldAutoPlayRef = useRef(false)
+  // El pause() del cambio de parada no es un gesto del usuario: no debe salir
+  // hacia el grupo como si alguien hubiera dado a la pausa.
+  const changingStopRef = useRef(false)
 
   const group = useAudioguideGroupPlayback({ audioguideId, userId: user?.id ?? '' })
   const stop = stops[index]
@@ -48,20 +61,45 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
   // URL pública de siempre.
   const audioSrc = useAudioUrl(stop?.audio_url)
 
-  // Al cambiar de parada, el <audio> se remonta (key={stop.id}): reinicia
-  // tiempos/estado de la anterior, pero mantiene la velocidad elegida.
+  // Al cambiar de parada hay que reiniciar a mano tiempos y estado: antes lo
+  // hacía el remontaje del <audio> (key={stop.id}), pero ahora el elemento es
+  // uno solo y sobrevive a todas las paradas (ver el comentario del <audio>).
+  // No se toca el src aquí: dejar cargado el audio anterior, en pausa, mantiene
+  // viva la ficha del reproductor del móvil en el hueco entre paradas.
   useEffect(() => {
+    const el = audioRef.current
+    if (!el) return
+    changingStopRef.current = true
+    el.pause()
     setIsPlaying(false)
     setCurrentTime(0)
     setDuration(0)
-    if (audioRef.current) audioRef.current.playbackRate = playbackRate
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const timer = setTimeout(() => { changingStopRef.current = false }, 300)
+    return () => clearTimeout(timer)
   }, [stop?.id])
+
+  // La URL reproducible llega con retraso (hay que mirar antes si la parada
+  // está descargada). Cuando llega, se asigna aquí y no como prop de React:
+  // si audioSrc fuese null, React quitaría el atributo src, y quitarlo no
+  // recarga nada — te quedarías oyendo la parada anterior.
+  useEffect(() => {
+    const el = audioRef.current
+    if (!el || !audioSrc || el.src === audioSrc) return
+    el.src = audioSrc
+    el.load()
+    // load() devuelve playbackRate a defaultPlaybackRate: hay que fijar los dos
+    // o la velocidad elegida se pierde en cada parada.
+    el.defaultPlaybackRate = playbackRate
+    el.playbackRate = playbackRate
+    if (shouldAutoPlayRef.current) el.play().catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioSrc])
 
   function applyRemote(state: AudioguideSyncState) {
     const el = audioRef.current
     if (!el) return
     applyingRemoteRef.current = true
+    el.defaultPlaybackRate = state.playbackRate
     el.playbackRate = state.playbackRate
     setPlaybackRate(state.playbackRate)
     const elapsed = state.isPlaying ? ((Date.now() - state.sentAt) / 1000) * state.playbackRate : 0
@@ -88,10 +126,9 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group.remoteState, group.joined])
 
-  if (!stop) return null
-
   const broadcastIfJoined = (playing: boolean) => {
-    if (!group.joined || applyingRemoteRef.current || !audioRef.current) return
+    if (!stop || !group.joined || applyingRemoteRef.current || changingStopRef.current) return
+    if (!audioRef.current) return
     group.sendState({
       stopId: stop.id,
       positionSeconds: audioRef.current.currentTime,
@@ -100,25 +137,44 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
     })
   }
 
-  const goTo = (i: number) => {
+  // Ojo con !audioRef.current?.paused: da true cuando el ref todavía es null.
+  const isActuallyPlaying = () => !!audioRef.current && !audioRef.current.paused
+
+  // Si venías escuchando, la parada que llega arranca sola; si estabas en
+  // pausa, se queda en pausa. Vale igual para los botones de aquí abajo y para
+  // el «siguiente» del reproductor del móvil.
+  const goTo = (i: number, options?: { autoPlay?: boolean }) => {
     const target = stops[i]
     if (!target) return
+    const autoPlay = options?.autoPlay ?? false
+    shouldAutoPlayRef.current = autoPlay
     setIndex(i)
     setShowIndex(false)
     if (group.joined) {
       const state: AudioguideSyncState = {
-        stopId: target.id, positionSeconds: 0, isPlaying: true, playbackRate, sentAt: Date.now(),
+        stopId: target.id, positionSeconds: 0, isPlaying: autoPlay, playbackRate, sentAt: Date.now(),
       }
       pendingRemoteRef.current = state
       group.sendState(state)
     }
   }
 
+  // Solo la PRIMERA reproducción de la sesión: lo que interesa es «esta
+  // audioguía se escuchó», no cuántas veces se pausó y se reanudó.
+  const yaContado = useRef(false)
+
   const togglePlay = () => {
     const el = audioRef.current
     if (!el) return
-    if (el.paused) el.play().catch(() => {})
-    else el.pause()
+    if (el.paused) {
+      if (!yaContado.current) {
+        yaContado.current = true
+        emitirUso('audioguide.played', { paradas: stops.length })
+      }
+      el.play().catch(() => {})
+    } else {
+      el.pause()
+    }
   }
 
   const skip = (deltaSeconds: number) => {
@@ -128,9 +184,13 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
   }
 
   const cycleRate = () => {
+    if (!stop) return
     const nextRate = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(playbackRate) + 1) % PLAYBACK_RATES.length]
     setPlaybackRate(nextRate)
-    if (audioRef.current) audioRef.current.playbackRate = nextRate
+    if (audioRef.current) {
+      audioRef.current.defaultPlaybackRate = nextRate
+      audioRef.current.playbackRate = nextRate
+    }
     if (group.joined && audioRef.current) {
       group.sendState({
         stopId: stop.id,
@@ -151,8 +211,80 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
     await group.join()
   }
 
+  useMediaSession({
+    // A propósito no depende de audioSrc, que se queda en null mientras se
+    // resuelve la parada nueva: si apagáramos la ficha en ese hueco, el
+    // reproductor del móvil desaparecería justo al pulsar «siguiente».
+    enabled: !!stop?.audio_url,
+    title: stop?.title ?? '',
+    artist: `Parada ${index + 1} de ${stops.length}`,
+    album: `Audioguía · ${activityTitle}`,
+    coverUrl,
+    isPlaying,
+    position: currentTime,
+    duration,
+    playbackRate,
+    onPlay: () => { audioRef.current?.play().catch(() => {}) },
+    onPause: () => audioRef.current?.pause(),
+    onNext: index < stops.length - 1
+      ? () => goTo(index + 1, { autoPlay: isActuallyPlaying() })
+      : null,
+    onPrevious: index > 0
+      ? () => goTo(index - 1, { autoPlay: isActuallyPlaying() })
+      : null,
+    onSeek: skip,
+    onSeekTo: (seconds) => {
+      const el = audioRef.current
+      if (!el) return
+      el.currentTime = seconds
+      setCurrentTime(seconds)
+    },
+    onStop: () => {
+      const el = audioRef.current
+      if (!el) return
+      el.pause()
+      el.currentTime = 0
+      setCurrentTime(0)
+    },
+  })
+
+  if (!stop) return null
+
   return (
     <div className="space-y-3">
+      {/* UN SOLO <audio> para toda la audioguía, fuera de cualquier condicional
+          y sin key: no puede desmontarse nunca. En el iPhone, un elemento
+          recién creado no está «desbloqueado» por un gesto del usuario y su
+          play() sale rechazado — justo lo que pasaría al pulsar «siguiente»
+          desde la pantalla de bloqueo. Y cambiar de elemento reinicia la ficha
+          del reproductor del sistema en cada parada. El src se asigna en un
+          efecto, no aquí. */}
+      <audio
+        ref={audioRef}
+        className="sr-only"
+        preload="metadata"
+        onPlay={() => { shouldAutoPlayRef.current = false; setIsPlaying(true); broadcastIfJoined(true) }}
+        onPause={() => { setIsPlaying(false); broadcastIfJoined(false) }}
+        onEnded={() => setIsPlaying(false)}
+        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+        onSeeked={() => broadcastIfJoined(!!audioRef.current && !audioRef.current.paused)}
+        onCanPlay={() => {
+          // Red de seguridad: si el play() del efecto salió antes de que
+          // hubiera datos y se quedó por el camino, se reintenta aquí.
+          const el = audioRef.current
+          if (shouldAutoPlayRef.current && el?.paused) el.play().catch(() => {})
+        }}
+        onLoadedMetadata={() => {
+          setDuration(audioRef.current?.duration ?? 0)
+          if (pendingRemoteRef.current) {
+            // En grupo manda lo que diga el resto, no lo que quisiéramos aquí.
+            shouldAutoPlayRef.current = false
+            applyRemote(pendingRemoteRef.current)
+            pendingRemoteRef.current = null
+          }
+        }}
+      />
+
       <div className="rounded-lg px-3 py-2 flex items-center justify-between gap-2" style={{ background: 'var(--secondary)' }}>
         <div className="flex items-center gap-1.5 text-xs">
           <Users size={13} />
@@ -211,26 +343,6 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
 
         {stop.audio_url ? (
           <div className="space-y-3">
-            <audio
-              key={stop.id}
-              ref={audioRef}
-              className="sr-only"
-              preload="metadata"
-              src={audioSrc ?? undefined}
-              onPlay={() => { setIsPlaying(true); broadcastIfJoined(true) }}
-              onPause={() => { setIsPlaying(false); broadcastIfJoined(false) }}
-              onEnded={() => setIsPlaying(false)}
-              onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
-              onSeeked={() => broadcastIfJoined(!!audioRef.current && !audioRef.current.paused)}
-              onLoadedMetadata={() => {
-                setDuration(audioRef.current?.duration ?? 0)
-                if (pendingRemoteRef.current) {
-                  applyRemote(pendingRemoteRef.current)
-                  pendingRemoteRef.current = null
-                }
-              }}
-            />
-
             <div className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
               <span className="w-8 text-right flex-shrink-0">{formatTime(currentTime)}</span>
               <input
@@ -306,7 +418,7 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
         <div className="flex items-center gap-2 pt-1">
           <button
             type="button"
-            onClick={() => goTo(Math.max(0, index - 1))}
+            onClick={() => goTo(Math.max(0, index - 1), { autoPlay: isActuallyPlaying() })}
             disabled={index === 0}
             className="flex-1 inline-flex items-center justify-center gap-1.5 text-sm py-2.5 rounded-md border border-border disabled:opacity-40"
           >
@@ -314,7 +426,7 @@ export function AudioguidePlayer({ stops, audioguideId }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => goTo(Math.min(stops.length - 1, index + 1))}
+            onClick={() => goTo(Math.min(stops.length - 1, index + 1), { autoPlay: isActuallyPlaying() })}
             disabled={index === stops.length - 1}
             className="flex-1 inline-flex items-center justify-center gap-1.5 text-sm py-2.5 rounded-md border border-border disabled:opacity-40"
           >

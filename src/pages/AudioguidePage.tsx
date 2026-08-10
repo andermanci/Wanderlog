@@ -14,6 +14,7 @@ import { useActivities } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
 import { useAuthStore } from '@/store/authStore'
 import { cn, ACTIVITY_COLORS } from '@/lib/utils'
+import { fallbackCover } from '@/lib/coverFallbacks'
 import {
   AUDIOGUIDE_DETAIL_LEVELS, buildAudioguidePrompt, type AudioguideDetailLevel,
 } from '@/lib/audioguide/buildPrompt'
@@ -195,7 +196,16 @@ export function AudioguidePage() {
   // con fallos; formulario de pegado; o el punto de partida.
   let body: React.ReactNode
   if (allReady && audioguide) {
-    body = <AudioguidePlayer stops={stops} audioguideId={audioguide.id} />
+    body = (
+      <AudioguidePlayer
+        stops={stops}
+        audioguideId={audioguide.id}
+        activityTitle={activity.title}
+        // La foto del sitio en la pantalla de bloqueo. La portada de reserva va
+        // empaquetada en el build, así que también se ve sin conexión.
+        coverUrl={activity.cover_image_url ?? trip.cover_image_url ?? fallbackCover(trip.id)}
+      />
+    )
   } else if (processing) {
     body = loaderBlock
   } else if (audioguide) {
