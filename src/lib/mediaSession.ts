@@ -23,9 +23,12 @@ export interface MediaSessionLike {
  *
  * NO ESTÁN 'seekbackward' NI 'seekforward', Y ES DELIBERADO. En iOS la
  * pantalla de bloqueo (y el centro de control) tienen solo DOS huecos a los
- * lados del play. Cuando hay manejadores de avance/retroceso registrados,
- * WebKit pone ahí los botones de ±15 s y ESCONDE los de anterior/siguiente.
- * No hay forma de pedir los cuatro ni de elegir: es uno u otro par.
+ * lados del play, y WebKit los llena por su cuenta con los saltos de ±10 s
+ * salvo que se le diga lo contrario. No hay forma de pedir los cuatro.
+ *
+ * OJO: quitarlas de esta lista NO basta para que desaparezcan. «No registrar»
+ * no es lo mismo que «rechazar»: hay que asignarles null EXPLÍCITAMENTE, y por
+ * eso el hook recorre MEDIA_SESSION_ACTIONS (todas) y no solo esta lista.
  *
  * En una audioguía, moverse entre paradas vale mucho más que saltar 15
  * segundos —para eso están los botones de dentro de la aplicación—, así que se
@@ -39,9 +42,9 @@ export const ACCIONES_REGISTRADAS: readonly MediaSessionAction[] = [
 ]
 
 /**
- * Las que se limpian al salir. Incluye las que ya no registramos a propósito:
- * una pestaña abierta desde antes de este cambio puede tenerlas puestas, y sin
- * limpiarlas seguiría enseñando los botones equivocados hasta recargar.
+ * TODAS las acciones que tocamos: las que registramos y las que rechazamos
+ * poniéndolas a null. El hook recorre esta lista, no la de arriba, justo para
+ * que el rechazo sea explícito. También es la que se usa al limpiar.
  */
 export const MEDIA_SESSION_ACTIONS: readonly MediaSessionAction[] = [
   ...ACCIONES_REGISTRADAS, 'seekbackward', 'seekforward',

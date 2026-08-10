@@ -138,3 +138,15 @@ describe('qué acciones se registran', () => {
     expect(MEDIA_SESSION_ACTIONS).toContain('seekforward')
   })
 })
+
+describe('rechazo explícito de los saltos', () => {
+  it('SE ASIGNA null A seekbackward/seekforward, no basta con no registrarlas', () => {
+    // WebKit pone los ±10 s por su cuenta en cualquier <audio>. Omitirlas no
+    // las quita; hay que decirle que no las queremos. Este test comprueba que
+    // siguen en la lista que el hook recorre, que es lo que garantiza el null.
+    expect(MEDIA_SESSION_ACTIONS).toContain('seekbackward')
+    expect(MEDIA_SESSION_ACTIONS).toContain('seekforward')
+    expect(ACCIONES_REGISTRADAS).not.toContain('seekbackward')
+    expect(ACCIONES_REGISTRADAS).not.toContain('seekforward')
+  })
+})

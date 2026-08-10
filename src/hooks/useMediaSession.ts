@@ -90,7 +90,16 @@ export function useMediaSession(options: Options) {
       previoustrack: () => handlersRef.current.onPrevious?.(),
     }
 
-    for (const accion of ACCIONES_REGISTRADAS) {
+    // SE RECORREN TODAS, no solo las que queremos: las que no están en el mapa
+    // se ponen a null EXPLÍCITAMENTE.
+    //
+    // Esa es la clave de los ±10 s. Esos botones no los pone este código: los
+    // pone WebKit por su cuenta para cualquier <audio>. Dejar de registrar
+    // 'seekbackward'/'seekforward' no los quita —no registrar no es lo mismo
+    // que rechazar—; hay que asignarles null a propósito para decirle a Safari
+    // que no los queremos. Solo entonces libera los dos huecos y pone en ellos
+    // anterior y siguiente.
+    for (const accion of MEDIA_SESSION_ACTIONS) {
       setActionHandlerSafe(session, accion, manejadores[accion] ?? null)
     }
 
