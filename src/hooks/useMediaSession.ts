@@ -55,7 +55,14 @@ export function useMediaSession(options: Options) {
 
   useEffect(() => {
     const session = getMediaSession()
-    if (!session || !enabled) return
+    if (!session) return
+    if (!enabled) {
+      // Ya no hay cleanup por pasada, así que apagar la ficha se hace aquí de
+      // forma explícita: si no, los manejadores se quedarían puestos apuntando
+      // a un reproductor que ya no está.
+      for (const accion of MEDIA_SESSION_ACTIONS) setActionHandlerSafe(session, accion, null)
+      return
+    }
 
     // Se recorre ACCIONES_REGISTRADAS en vez de llamar ocho veces a mano, y no
     // es cosmético: así la lista de acciones es la ÚNICA fuente de verdad y no
@@ -87,14 +94,24 @@ export function useMediaSession(options: Options) {
       setActionHandlerSafe(session, accion, manejadores[accion] ?? null)
     }
 
-    return () => {
-      for (const action of MEDIA_SESSION_ACTIONS) setActionHandlerSafe(session, action, null)
-    }
-    // Sin `hasNext`/`hasPrevious` en las dependencias: los manejadores ya no
-    // cambian al movernos entre paradas —leen del ref—, así que registrarlos
-    // una sola vez basta. Antes se volvían a registrar en cada cambio de
-    // parada, y ese re-registro es justo lo que hacía parpadear los botones.
-  }, [enabled])
+    // SIN cleanup que anule los manejadores en cada pasada. Anularlos y
+    // volver a ponerlos deja un instante sin ninguno, y si iOS mira justo ahí
+    // se queda con sus botones por defecto. La limpieza de verdad va al
+    // desmontar, en el efecto del final.
+
+    // POR QUÉ SE VUELVE A REGISTRAR AL EMPEZAR A SONAR (`isPlaying`):
+    //
+    // iOS no crea la ficha de «reproduciendo ahora» hasta que hay audio de
+    // verdad sonando, y los manejadores puestos ANTES de ese momento no los
+    // recoge. Registrarlos solo al montar bastaba para la parada 2 en
+    // adelante —al cambiar de parada cambia el título, se reescribe la ficha
+    // y iOS vuelve a mirar—, pero en la PRIMERA parada eso no llega a pasar
+    // nunca: se registraban antes del primer play y ahí se quedaban,
+    // ignorados, con los saltos de ±10 s ocupando los dos huecos.
+    //
+    // Volver a registrarlos cuando arranca la reproducción y cuando cambia la
+    // parada cuesta cuatro llamadas y quita la asimetría.
+  }, [enabled, title, isPlaying])
 
   useEffect(() => {
     const session = getMediaSession()
