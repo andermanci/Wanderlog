@@ -99,6 +99,19 @@ describe('flushOutbox', () => {
     expect(readOutbox()).toHaveLength(0)
   })
 
+  it('con el token caducado la operación espera, no se tira', async () => {
+    // Al recuperar la conexión, el token de acceso puede llevar horas caducado
+    // y todavía no haberse renovado. Si eso contara como error definitivo, los
+    // cambios hechos sin cobertura se perderían justo al volver la red.
+    enqueue(doneOp('a1', true))
+    mock.error = { code: 'PGRST301', message: 'JWT expired' }
+
+    const n = await flushOutbox(qc)
+
+    expect(n).toBe(0)
+    expect(readOutbox()).toHaveLength(1)
+  })
+
   it('vacía una cola mixta y refresca una query por cada tipo tocado', async () => {
     enqueue(doneOp('a1', true))
     enqueue(packingOp('i1', false))

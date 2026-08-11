@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { isAuthRetryableFetchError, type Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { readStoredSession } from '@/lib/storedSession'
 import { useAuthStore } from '@/store/authStore'
 import { tripKeys } from '@/lib/queries/trips'
 import { reminderKeys } from '@/lib/queries/reminders'
@@ -16,37 +18,72 @@ export function useAuthListener() {
   // Evita cargar el perfil varias veces en paralelo (getSession + eventos de auth).
   const profileFetchedFor = useRef<string | null>(null)
 
+  /**
+   * Renueva el token y devuelve la sesión nueva, o null si no se ha podido.
+   *
+   * Solo cerramos sesión cuando el servidor dice que el refresh token ya no
+   * vale. Si el fallo es de red (sin conexión, o el servidor no responde) la
+   * sesión se queda como está: echar al login a quien está sin cobertura le
+   * deja fuera de su viaje descargado, y además `qc.clear()` borraría de
+   * localStorage justo los datos que se bajó para el viaje.
+   */
+  async function refreshOrSignOut(): Promise<Session | null> {
+    const { data, error } = await supabase.auth.refreshSession()
+      .catch((err) => ({ data: { session: null }, error: err as unknown }))
+    if (data.session) return data.session
+
+    if (isAuthRetryableFetchError(error) || !navigator.onLine) {
+      console.warn('[useAuth] sin red para refrescar el token; seguimos con la sesión guardada')
+      return null
+    }
+
+    console.error('[useAuth] refresh token rechazado; cerrando sesión:', error)
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+    setSession(null)
+    setProfile(null)
+    qc.clear()
+    return null
+  }
+
   useEffect(() => {
     const fallback = setTimeout(() => setLoading(false), 10000)
+
+    // Entramos con la sesión del dispositivo ANTES de tocar la red. Sin
+    // cobertura y con el token caducado, getSession() se pasa ~20 s
+    // intentando renovarlo: sin esto, quien abre la app en el avión con su
+    // viaje descargado se come el spinner y acaba en el login.
+    const stored = readStoredSession()
+    if (stored) {
+      clearTimeout(fallback)
+      setSession(stored)
+      setLoading(false)
+    }
 
     supabase.auth.getSession()
       .then(async ({ data: { session }, error }) => {
         if (error) console.error('[useAuth] getSession error:', error)
 
-        // Si el token de acceso está caducado o a punto de caducar, lo
-        // refrescamos antes de seguir, para no enviar peticiones anónimas.
-        if (session?.expires_at && session.expires_at * 1000 < Date.now() + 30_000) {
-          const { data: refreshed, error: refErr } = await supabase.auth.refreshSession()
-          if (refErr || !refreshed.session) {
-            console.error('[useAuth] no se pudo refrescar; cerrando sesión:', refErr)
-            await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
-            clearTimeout(fallback)
-            setSession(null)
-            setProfile(null)
-            qc.clear()
-            setLoading(false)
-            return
-          }
-          session = refreshed.session
-        }
+        // Sin red, getSession() devuelve null aunque la sesión siga guardada
+        // (no ha podido renovar el token, pero no la ha borrado). Nos
+        // quedamos con la guardada: quien cierra sesión de verdad no la tiene.
+        if (!session) session = readStoredSession()
 
         clearTimeout(fallback)
         setSession(session)
-        if (session?.user) {
-          fetchProfile(session.user)
-          prefetchDashboard(session.user.id)
-        }
         setLoading(false)
+        if (!session?.user) return
+
+        // Si el token de acceso está caducado o a punto de caducar, lo
+        // refrescamos antes de seguir, para no enviar peticiones anónimas.
+        if (session.expires_at && session.expires_at * 1000 < Date.now() + 30_000) {
+          const refreshed = await refreshOrSignOut()
+          if (!refreshed) return
+          session = refreshed
+          setSession(session)
+        }
+
+        fetchProfile(session.user)
+        prefetchDashboard(session.user.id)
       })
       .catch((err) => {
         clearTimeout(fallback)
@@ -54,9 +91,27 @@ export function useAuthListener() {
         setLoading(false)
       })
 
+    // Al recuperar la conexión con el token ya caducado, lo renovamos en el
+    // acto: si no, hasta el siguiente latido de supabase-js todo respondería
+    // 401 (incluida la subida de la cola offline).
+    const onOnline = () => {
+      const session = useAuthStore.getState().session
+      if (!session?.user) return
+      if (session.expires_at && session.expires_at * 1000 > Date.now() + 30_000) return
+      refreshOrSignOut().then(s => { if (s) setSession(s) })
+    }
+    window.addEventListener('online', onOnline)
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // getSession() ya gestiona la sesión inicial; ignoramos su evento duplicado.
       if (event === 'INITIAL_SESSION') return
+      // Evento sin sesión pero con sesión todavía guardada: no es un cierre de
+      // sesión, es que no se ha podido renovar el token. Ni vaciamos la caché
+      // (son los datos descargados para el viaje) ni mandamos al login.
+      if (!session) {
+        const stored = readStoredSession()
+        if (stored) { setSession(stored); return }
+      }
       setSession(session)
       if (event === 'SIGNED_OUT' || !session?.user) {
         profileFetchedFor.current = null
@@ -68,7 +123,11 @@ export function useAuthListener() {
       // TOKEN_REFRESHED / USER_UPDATED: solo actualizamos la sesión.
     })
 
-    return () => { clearTimeout(fallback); subscription.unsubscribe() }
+    return () => {
+      clearTimeout(fallback)
+      window.removeEventListener('online', onOnline)
+      subscription.unsubscribe()
+    }
   }, [setSession, setProfile, setLoading, qc])
 
   async function fetchProfile(user: { id: string; email?: string; user_metadata?: Record<string, string> }) {

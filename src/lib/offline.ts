@@ -77,12 +77,21 @@ export function isNetworkError(e: unknown): boolean {
   return /failed to fetch|networkerror|load failed|fetch failed|network request failed/i.test(msg)
 }
 
+// El token había caducado mientras estábamos sin conexión y todavía no se ha
+// renovado. No es culpa de la operación: se reintenta cuando haya token bueno.
+function isExpiredTokenError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const { code, message } = e as { code?: string; message?: string }
+  // PGRST301 = PostgREST rechaza el JWT (caducado o inválido).
+  return code === 'PGRST301' || /jwt expired/i.test(message ?? '')
+}
+
 // Clasifica el resultado de una operación: true = sacar de la cola, false =
 // reintentar más tarde. Solo los fallos de red se reintentan; un error de datos
 // o de permiso se descarta con un log para no dejar la cola atascada para siempre.
 function settle(kind: OutboxOp['kind'], error: unknown): boolean {
   if (!error) return true
-  if (isNetworkError(error)) return false
+  if (isNetworkError(error) || isExpiredTokenError(error)) return false
   console.error(`[offline] ${kind} falló definitivamente:`, error)
   return true
 }
@@ -136,7 +145,7 @@ export async function flushOutbox(qc: QueryClient): Promise<number> {
       try {
         done = await run(op)
       } catch (e) {
-        done = !isNetworkError(e)
+        done = !isNetworkError(e) && !isExpiredTokenError(e)
         if (done) console.error('[offline] operación descartada:', e)
       }
       if (done) {
