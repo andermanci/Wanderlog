@@ -12,7 +12,7 @@ import { attachmentKeys } from '@/lib/queries/attachments'
 import { guideKeys } from '@/lib/queries/guide'
 import { audioguideKeys } from '@/lib/queries/audioguides'
 import { removeDocs, clearDocCache } from '@/lib/docCache'
-import { removeAudios, clearAudioCache, formatBytes } from '@/lib/audioCache'
+import { removeTripAudios, clearAudioCache, formatBytes } from '@/lib/audioCache'
 import { removePhotos, clearPhotoCache } from '@/lib/photoCache'
 import type { Activity } from '@/types/database'
 
@@ -21,7 +21,13 @@ import type { Activity } from '@/types/database'
 // aunque el viaje haya cambiado desde entonces.
 export interface OfflineIndex {
   photos: string[]
-  audios: string[]
+  /**
+   * CUÁNTOS audios se descargaron, no cuáles: se borran por la ruta del bucket,
+   * que ya lleva el id del viaje. Antes se guardaba la lista entera de URLs y
+   * en un viaje con 487 paradas ocupaba unos 80 KB que no cabían en
+   * localStorage: la descarga terminaba bien y moría al anotarla.
+   */
+  audios: number
   docs: string[]
   bytes: number
 }
@@ -35,12 +41,14 @@ export function readOfflineIndex(tripId: string): OfflineIndex | null {
   const raw = localStorage.getItem(KEY(tripId))
   if (!raw) return null
   // Copias guardadas antes de que existiera el índice: solo sabemos que existen.
-  if (raw === '1') return { photos: [], audios: [], docs: [], bytes: 0 }
+  if (raw === '1') return { photos: [], audios: 0, docs: [], bytes: 0 }
   try {
-    const parsed = JSON.parse(raw) as Partial<OfflineIndex>
+    const parsed = JSON.parse(raw) as Partial<OfflineIndex> & { audios?: number | string[] }
     return {
       photos: parsed.photos ?? [],
-      audios: parsed.audios ?? [],
+      // Copias hechas cuando se guardaba la lista de URLs: nos quedamos con
+      // cuántas eran, que es lo único que se usa.
+      audios: Array.isArray(parsed.audios) ? parsed.audios.length : parsed.audios ?? 0,
       docs: parsed.docs ?? [],
       bytes: parsed.bytes ?? 0,
     }
@@ -53,7 +61,7 @@ export function readOfflineIndex(tripId: string): OfflineIndex | null {
 export function describeOfflineIndex(index: OfflineIndex): string {
   const extras = [
     index.photos.length > 0 ? 'fotos' : null,
-    index.audios.length > 0 ? 'audios' : null,
+    index.audios > 0 ? 'audios' : null,
   ].filter(Boolean)
   return [
     index.bytes > 0 ? formatBytes(index.bytes) : null,
@@ -61,8 +69,18 @@ export function describeOfflineIndex(index: OfflineIndex): string {
   ].filter(Boolean).join(' · ')
 }
 
+/**
+ * Anota lo descargado. NUNCA lanza: la descarga ya ha terminado bien y quedarse
+ * sin sitio para la anotación no puede convertirse en «no se pudo guardar todo
+ * sin conexión». Si el índice completo no cabe, se deja al menos la marca
+ * mínima («1»), que readOfflineIndex entiende desde siempre.
+ */
 export function writeOfflineIndex(tripId: string, index: OfflineIndex) {
-  localStorage.setItem(KEY(tripId), JSON.stringify(index))
+  try {
+    localStorage.setItem(KEY(tripId), JSON.stringify(index))
+  } catch {
+    try { localStorage.setItem(KEY(tripId), '1') } catch { /* almacenamiento lleno del todo */ }
+  }
 }
 
 /**
@@ -74,7 +92,9 @@ export async function deleteTripOffline(qc: QueryClient, tripId: string): Promis
   if (index) {
     await Promise.all([
       removePhotos(index.photos).catch(() => {}),
-      removeAudios(index.audios).catch(() => {}),
+      // Por ruta, no por lista: así también se limpian las copias antiguas y
+      // las que se guardaron sin poder anotar el índice.
+      removeTripAudios(tripId).catch(() => {}),
       removeDocs(index.docs).catch(() => {}),
     ])
   }

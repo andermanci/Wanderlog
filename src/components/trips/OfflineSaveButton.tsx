@@ -62,7 +62,7 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
       return
     }
     setWithPhotos(summary.photos.count > 0)
-    setWithAudio(index !== null && index.audios.length > 0)
+    setWithAudio(index !== null && index.audios > 0)
     setAsk(summary)
   }
 

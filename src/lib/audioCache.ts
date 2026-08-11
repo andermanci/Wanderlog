@@ -92,6 +92,20 @@ export async function removeAudios(urls: string[]): Promise<void> {
   await Promise.all(urls.map((u) => cache.delete(cacheKey(u)).catch(() => false)))
 }
 
+/**
+ * Borra todos los audios descargados de un viaje. Va por la ruta guardada
+ * (`usuario/viaje/actividad/parada.mp3`) en vez de por una lista de URLs: en un
+ * viaje con cientos de paradas esa lista no cabía en localStorage.
+ */
+export async function removeTripAudios(tripId: string): Promise<void> {
+  const cache = await openCache()
+  if (!cache) return
+  const keys = await cache.keys().catch(() => [])
+  await Promise.all(keys
+    .filter((req) => req.url.includes(`/${tripId}/`))
+    .map((req) => cache.delete(req).catch(() => false)))
+}
+
 /** Se llama al cerrar sesión, igual que con los documentos. */
 export async function clearAudioCache(): Promise<void> {
   if (!('caches' in globalThis)) return

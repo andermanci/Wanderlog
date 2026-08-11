@@ -241,7 +241,7 @@ export async function prefetchTripOffline(
   const previous = readOfflineIndex(tripId)
   writeOfflineIndex(tripId, {
     photos: [...new Set([...(previous?.photos ?? []), ...photos])],
-    audios: [...new Set([...(previous?.audios ?? []), ...audios])],
+    audios: Math.max(previous?.audios ?? 0, audios.length),
     docs: [...new Set([...(previous?.docs ?? []), ...docs])],
     bytes: (previous?.bytes ?? 0) + bytes,
   })
