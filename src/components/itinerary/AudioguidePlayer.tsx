@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  BookOpen, ChevronDown, ChevronLeft, ChevronRight, Navigation, Pause, Play, RotateCcw, RotateCw, Users,
+  BookOpen, ChevronDown, ChevronLeft, ChevronRight, Loader2, Map as MapIcon, MapPin,
+  Navigation, Pause, Play, RotateCcw, RotateCw, Users,
 } from 'lucide-react'
 import type { AudioguideStop } from '@/types/database'
 import { cn } from '@/lib/utils'
+import { haversineKm } from '@/lib/travelTime'
+import { stopPoint } from '@/lib/queries/audioguideStopLocations'
+import { AudioguideMapDialog } from './AudioguideMapDialog'
 import { useAuthStore } from '@/store/authStore'
 import { useAudioguideGroupPlayback, type AudioguideSyncState } from '@/lib/realtime/useAudioguideGroupPlayback'
 import { useAudioUrl } from '@/lib/audioCache'
@@ -18,9 +22,15 @@ interface Props {
   activityTitle: string
   /** Portada de la pantalla de bloqueo. */
   coverUrl?: string | null
+  /** Se están localizando las paradas en segundo plano. */
+  locatingStops?: boolean
 }
 
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2]
+
+// Por debajo de esta separación entre paradas, la audioguía transcurre dentro
+// de un mismo edificio o recinto: el mapa no aporta nada y no se ofrece.
+const MIN_DISPERSION_KM = 0.15
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return '0:00'
@@ -36,10 +46,12 @@ function formatTime(seconds: number): string {
 // acciones (play/pausa/salto) se emiten a los demás dispositivos del viaje
 // y las suyas se aplican aquí. Además, la parada que suena se publica en el
 // reproductor del sistema (pantalla de bloqueo, auriculares, CarPlay).
-export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl }: Props) {
+export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl, locatingStops }: Props) {
   const { user } = useAuthStore()
   const [index, setIndex] = useState(0)
   const [showIndex, setShowIndex] = useState(false)
+  // Parada sobre la que centrar el mapa; null = mapa cerrado.
+  const [mapFocusIndex, setMapFocusIndex] = useState<number | null>(null)
   const [showTranscript, setShowTranscript] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -57,6 +69,15 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl 
 
   const group = useAudioguideGroupPlayback({ audioguideId, userId: user?.id ?? '' })
   const stop = stops[index]
+
+  // El mapa solo tiene sentido si la audioguía recorre sitios distintos: al
+  // menos dos paradas localizadas y separadas de verdad entre sí. En una
+  // audioguía de un único museo la pantalla se queda como estaba.
+  const hasMap = useMemo(() => {
+    const puntos = stops.map(stopPoint).filter((p): p is NonNullable<typeof p> => !!p)
+    if (puntos.length < 2) return false
+    return puntos.some((a, i) => puntos.slice(i + 1).some(b => haversineKm(a, b) > MIN_DISPERSION_KM))
+  }, [stops])
   // blob: local si la parada está descargada (suena sin conexión), y si no la
   // URL pública de siempre.
   const audioSrc = useAudioUrl(stop?.audio_url)
@@ -181,6 +202,13 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl 
     const el = audioRef.current
     if (!el) return
     el.currentTime = Math.min(Math.max(0, el.currentTime + deltaSeconds), el.duration || Infinity)
+  }
+
+  // Abrir el mapa no toca el audio: el diálogo se pinta en un portal y este
+  // componente (con su <audio>) sigue montado, así que se sigue oyendo.
+  const openMap = (focus: number) => {
+    setMapFocusIndex(focus)
+    emitirUso('audioguide.map_opened', { paradas: stops.filter(s => stopPoint(s)).length })
   }
 
   const cycleRate = () => {
@@ -346,6 +374,21 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl 
               <span>{stop.direction_text}</span>
             </p>
           )}
+          {hasMap && stopPoint(stop) && (
+            <button
+              type="button"
+              onClick={() => openMap(index)}
+              className="mt-2.5 inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-border hover:border-primary/50 transition-colors"
+            >
+              <MapPin size={14} style={{ color: 'var(--primary)' }} />
+              Mostrar en mapa
+            </button>
+          )}
+          {locatingStops && (
+            <p className="mt-2.5 text-xs text-muted-foreground flex items-center gap-1.5">
+              <Loader2 size={12} className="animate-spin" /> Localizando paradas…
+            </p>
+          )}
         </div>
 
         {stop.audio_url ? (
@@ -443,14 +486,27 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl 
       </div>
 
       <div className="rounded-xl overflow-hidden surface">
-        <button
-          type="button"
-          onClick={() => setShowIndex((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 text-xs text-muted-foreground uppercase tracking-widest"
-        >
-          <span>Índice de paradas ({stops.length})</span>
-          <ChevronDown size={14} className={cn('transition-transform', showIndex && 'rotate-180')} />
-        </button>
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => setShowIndex((v) => !v)}
+            className="flex-1 flex items-center justify-between px-4 py-3 text-xs text-muted-foreground uppercase tracking-widest"
+          >
+            <span>Índice de paradas ({stops.length})</span>
+            <ChevronDown size={14} className={cn('transition-transform', showIndex && 'rotate-180')} />
+          </button>
+          {hasMap && (
+            <button
+              type="button"
+              onClick={() => openMap(index)}
+              title="Ver el recorrido en el mapa"
+              className="flex items-center gap-1.5 mr-3 px-2.5 py-1.5 rounded-md border border-border text-xs hover:border-primary/50 transition-colors flex-shrink-0"
+            >
+              <MapIcon size={14} style={{ color: 'var(--primary)' }} />
+              Mapa
+            </button>
+          )}
+        </div>
 
         {/* La lista crece entera y scrolla la página. Con su propio scroll
             (max-h + overflow-y-auto) el gesto se lo quedaba el contenedor de
@@ -458,24 +514,50 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl 
             ir pasándolas una a una con "Siguiente". */}
         {showIndex && (
           <div className="space-y-1 px-3 pb-3">
+            {/* Fila = contenedor con DOS botones hermanos (ir a la parada y
+                verla en el mapa): un botón dentro de otro no es HTML válido. */}
             {stops.map((s, i) => (
-              <button
+              <div
                 key={s.id}
-                type="button"
-                onClick={() => goTo(i)}
                 className={cn(
-                  'w-full text-left rounded-md p-2.5 border transition-colors',
+                  'flex items-stretch rounded-md border transition-colors',
                   i === index ? 'border-primary' : 'border-border hover:border-primary/50',
                 )}
                 style={{ background: i === index ? 'var(--secondary)' : 'transparent' }}
               >
-                <p className="text-sm font-medium">{i + 1}. {s.title}</p>
-                {s.summary && <p className="text-xs text-muted-foreground mt-0.5">{s.summary}</p>}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => goTo(i)}
+                  className="flex-1 text-left p-2.5 min-w-0"
+                >
+                  <p className="text-sm font-medium">{i + 1}. {s.title}</p>
+                  {s.summary && <p className="text-xs text-muted-foreground mt-0.5">{s.summary}</p>}
+                </button>
+                {hasMap && stopPoint(s) && (
+                  <button
+                    type="button"
+                    onClick={() => openMap(i)}
+                    aria-label={`Ver «${s.title}» en el mapa`}
+                    title="Ver en el mapa"
+                    className="px-3 flex items-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                  >
+                    <MapPin size={16} />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
       </div>
+
+      <AudioguideMapDialog
+        open={mapFocusIndex !== null}
+        onOpenChange={(o) => { if (!o) setMapFocusIndex(null) }}
+        stops={stops}
+        activeIndex={index}
+        focusIndex={mapFocusIndex ?? index}
+        onSelectStop={(i) => goTo(i, { autoPlay: isActuallyPlaying() })}
+      />
     </div>
   )
 }

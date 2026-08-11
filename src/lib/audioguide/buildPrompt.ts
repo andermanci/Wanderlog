@@ -67,6 +67,7 @@ Para cada parada incluye:
 - Un título corto que identifique la parada (por ejemplo el nombre de la obra, sala o elemento).
 - Un resumen de una sola frase (máximo 25 palabras) que diga de qué trata esa parada, para poder decidir de un vistazo si escucharla o saltarla.
 - Una indicación clara de hacia dónde dirigirse desde la parada anterior (en la primera parada, cómo llegar o por dónde empezar la visita).
+- La ubicación de la parada, para poder situarla en un mapa: el nombre del sitio tal y como se buscaría en Google Maps (con la ciudad incluida) y sus coordenadas en grados decimales con 5 decimales. Si la parada NO es un sitio propio —está dentro del mismo edificio o recinto que la anterior (una sala, una obra, un detalle), o no es un lugar físico (consejos, horarios, dónde comer)—, escribe NINGUNO en las dos líneas.
 - Un guion narrado de ${cfg.palabras} palabras, con tono cercano y profesional; ${cfg.profundidad}.
 
 Devuelve EXCLUSIVAMENTE el resultado en este formato exacto, sin ningún texto antes o después, sin markdown, una parada tras otra:
@@ -75,6 +76,8 @@ Devuelve EXCLUSIVAMENTE el resultado en este formato exacto, sin ningún texto a
 TITULO: <título corto de la parada>
 RESUMEN: <una frase que resuma de qué trata esta parada>
 DIRECCION: <cómo dirigirse hasta aquí desde la parada anterior>
+LUGAR: <nombre buscable en Google Maps con la ciudad, o NINGUNO>
+COORDENADAS: <latitud, longitud> (por ejemplo 43.77313, 11.25596), o NINGUNO
 GUION: <texto narrado>
 ###FIN###`
 }

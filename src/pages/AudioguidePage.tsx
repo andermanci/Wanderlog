@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { APIProvider, useApiIsLoaded } from '@vis.gl/react-google-maps'
 import { Copy, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/ui/back-button'
@@ -25,13 +26,26 @@ import { isStandalonePwa } from '@/hooks/usePwaInstall'
 import {
   useAudioguide, useCreateAudioguide, useGenerateStopAudio, useDeleteAudioguide,
 } from '@/lib/queries/audioguides'
+import { useBackfillStopLocations } from '@/lib/queries/audioguideStopLocations'
 import { AudioguidePlayer } from '@/components/itinerary/AudioguidePlayer'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { toast } from 'sonner'
 
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ?? ''
+
+// Situar las paradas en el mapa necesita el Geocoder de Google Maps, que a su
+// vez necesita un <APIProvider> ancestro: de ahí este envoltorio.
+export function AudioguidePage() {
+  return (
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+      <AudioguidePageInner />
+    </APIProvider>
+  )
+}
+
 // Pantalla propia de la audioguía: solo se llega aquí desde el botón dentro
 // del detalle de la actividad (no hay ningún enlace de navegación general).
-export function AudioguidePage() {
+function AudioguidePageInner() {
   const { tripId, activityId } = useParams<{ tripId: string; activityId: string }>()
   const { user } = useAuthStore()
   const { data: activities, isLoading: loadingActivity } = useActivities(tripId!)
@@ -57,6 +71,13 @@ export function AudioguidePage() {
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Las paradas sin coordenadas (las audioguías creadas antes de que existiera
+  // el mapa) se geocodifican una vez y se guardan; a partir de ahí llegan ya
+  // localizadas desde la base de datos.
+  const rawStops = useMemo(() => audioguide?.stops ?? [], [audioguide])
+  const mapsReady = useApiIsLoaded()
+  const { stops, locating } = useBackfillStopLocations(activityId, rawStops, activity, trip, mapsReady)
 
   if (loadingActivity || isLoading) {
     return (
@@ -158,7 +179,6 @@ export function AudioguidePage() {
     }
   }
 
-  const stops = audioguide?.stops ?? []
   const allReady = stops.length > 0 && stops.every((s) => s.status === 'ready')
   const anyError = stops.some((s) => s.status === 'error')
 
@@ -204,6 +224,7 @@ export function AudioguidePage() {
         // La foto del sitio en la pantalla de bloqueo. La portada de reserva va
         // empaquetada en el build, así que también se ve sin conexión.
         coverUrl={activity.cover_image_url ?? trip.cover_image_url ?? fallbackCover(trip.id)}
+        locatingStops={locating}
       />
     )
   } else if (processing) {

@@ -728,6 +728,10 @@ export type Database = {
           summary: string | null
           direction_text: string | null
           script_text: string
+          place_query: string | null
+          lat: number | null
+          lng: number | null
+          geo_status: 'pending' | 'located' | 'unlocated'
           audio_url: string | null
           audio_duration_seconds: number | null
           sentence_timings: { text: string; start: number }[] | null
@@ -744,6 +748,10 @@ export type Database = {
           summary?: string | null
           direction_text?: string | null
           script_text: string
+          place_query?: string | null
+          lat?: number | null
+          lng?: number | null
+          geo_status?: 'pending' | 'located' | 'unlocated'
           audio_url?: string | null
           audio_duration_seconds?: number | null
           sentence_timings?: { text: string; start: number }[] | null
@@ -760,6 +768,10 @@ export type Database = {
           summary?: string | null
           direction_text?: string | null
           script_text?: string
+          place_query?: string | null
+          lat?: number | null
+          lng?: number | null
+          geo_status?: 'pending' | 'located' | 'unlocated'
           audio_url?: string | null
           audio_duration_seconds?: number | null
           sentence_timings?: { text: string; start: number }[] | null

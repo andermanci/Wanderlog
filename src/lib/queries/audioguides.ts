@@ -97,6 +97,12 @@ export function useCreateAudioguide(tripId: string, activityId: string) {
         .single()
       if (error) throw error
 
+      // ¿El guion trae los campos de ubicación? Si los trae, un NINGUNO es una
+      // respuesta deliberada («esta parada no es un sitio») y se marca como no
+      // localizable. Si no los trae (guion de formato antiguo), se deja
+      // pendiente para que la app lo intente con el geocodificador.
+      const traeUbicacion = parsedStops.some((s) => s.coords || s.placeQuery)
+
       const { data: stops, error: stopsErr } = await supabase
         .from('audioguide_stops')
         .insert(parsedStops.map((s, i) => ({
@@ -107,6 +113,16 @@ export function useCreateAudioguide(tripId: string, activityId: string) {
           summary: s.summary,
           direction_text: s.directionText,
           script_text: s.scriptText,
+          place_query: s.placeQuery,
+          // Coordenadas dadas por la IA que escribe el guion: si vienen, la
+          // parada nace situada y no hace falta preguntarle a Google.
+          lat: s.coords?.lat ?? null,
+          lng: s.coords?.lng ?? null,
+          // Con coordenadas ya está situada; con solo el nombre del sitio queda
+          // pendiente de geocodificar; y si el guion traía los campos y esta
+          // parada respondió NINGUNO, es que no es un sitio: no se localizará.
+          geo_status: (s.coords ? 'located' : s.placeQuery || !traeUbicacion ? 'pending' : 'unlocated') as
+            'located' | 'unlocated' | 'pending',
           status: 'pending' as const,
         })))
         .select()

@@ -26,6 +26,7 @@ const NOMBRES: Record<string, string> = {
   'pwa.installed': 'Instalaron la aplicación',
   'push.subscribed': 'Activaron los avisos',
   'audioguide.played': 'Escucharon una audioguía',
+  'audioguide.map_opened': 'Abrieron el mapa de una audioguía',
   'ai.audioguide_tts': 'Generaron audio (Google TTS)',
   'ai.import': 'Importaron un sitio (Gemini)',
 }

@@ -27,6 +27,7 @@ export const EVENTOS = [
   'pwa.installed',
   'push.subscribed',
   'audioguide.played',
+  'audioguide.map_opened',
 ] as const
 
 export type EventoUso = typeof EVENTOS[number]
