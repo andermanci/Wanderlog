@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent,
@@ -9,7 +9,7 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   BookOpen, Users, Languages, Utensils, ShieldCheck, Bus, FileText, Coins, CalendarClock, Wifi,
   Loader2, Plus, Pencil, Trash2, RefreshCw, ExternalLink, Check, X, ChevronDown, MapPin,
-  GripVertical, CalendarDays, Phone, Plug, Zap, Hash, Wand2,
+  GripVertical, CalendarDays, Phone, Plug, Zap, Hash, Wand2, Headphones,
 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,7 @@ import { MarkdownView } from '@/components/MarkdownView'
 import { useTrip } from '@/lib/queries/trips'
 import { useItineraryDays, useActivities, useUpdateDayCities } from '@/lib/queries/itinerary'
 import { addCity, dayCities, hasGuide, removeGuide } from '@/lib/cities'
+import { useTripAudioguidesReadiness } from '@/lib/queries/audioguides'
 import {
   useDestinationGuides, useAddDestinationGuide, useUpdateDestinationGuide, useDeleteDestinationGuide, useReorderGuides,
 } from '@/lib/queries/guide'
@@ -276,6 +277,12 @@ function DestinationGuideBlock({ guide, tripId, days, activities, defaultOpen, o
   const filled = sections.filter(s => s.body.trim()).length
   const busy = update.isPending || importing
   const assignedDays = (days ?? []).filter(d => hasGuide(d, guide.id))
+  // Misma consulta que usa el itinerario: React Query la comparte, así que
+  // tenerla en cada tarjeta no supone una petición por destino.
+  const { data: audioguideReadiness } = useTripAudioguidesReadiness(tripId)
+  const audioguideReadyDayIds = new Set(
+    Array.isArray(audioguideReadiness) ? [] : audioguideReadiness?.dayIds ?? [],
+  )
   const facts = guide.facts ?? {}
   const factEntries = (Object.keys(FACT_LABELS) as (keyof typeof FACT_LABELS)[])
     .filter(k => facts[k]).map(k => ({ k, label: FACT_LABELS[k], Icon: FACT_ICONS[k], value: facts[k]! }))
@@ -403,6 +410,38 @@ function DestinationGuideBlock({ guide, tripId, days, activities, defaultOpen, o
                       <span className="font-medium">{value}</span>
                     </span>
                   ))}
+                </div>
+              )}
+
+              {/* Audioguía de la ciudad. La audioguía cuelga del DÍA (ver 056),
+                  no de la guía, así que aquí se ofrece una por cada día que
+                  pase por este destino: un mismo sitio en dos días distintos
+                  tiene dos paseos distintos. */}
+              {assignedDays.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3">
+                  <Headphones size={13} style={{ color: 'var(--primary)' }} className="flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground mr-0.5">Audioguía:</span>
+                  {assignedDays.map(d => {
+                    const lista = audioguideReadyDayIds.has(d.id)
+                    return (
+                      <Link
+                        key={d.id}
+                        to={`/trips/${tripId}/dias/${d.id}/audioguide`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-colors hover:border-primary/60"
+                        style={{
+                          background: lista ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--secondary)',
+                          borderColor: lista ? 'var(--primary)' : 'var(--border)',
+                          color: lista ? 'var(--primary)' : undefined,
+                        }}
+                        title={lista ? 'Audioguía lista para escuchar' : 'Generar la audioguía de este día'}
+                      >
+                        <span className="font-medium capitalize">
+                          {format(parseISO(d.date), "EEE d MMM", { locale: es })}
+                        </span>
+                        {lista && <Check size={11} className="flex-shrink-0" aria-label="lista" />}
+                      </Link>
+                    )
+                  })}
                 </div>
               )}
 
