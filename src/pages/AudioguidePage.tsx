@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { format, parseISO } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { APIProvider, useApiIsLoaded } from '@vis.gl/react-google-maps'
-import { Copy, Loader2, RefreshCw, Sparkles } from 'lucide-react'
+import { Copy, Landmark, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/ui/back-button'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,22 +13,27 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { TripHeader } from '@/components/trips/TripHeader'
-import { useActivities } from '@/lib/queries/itinerary'
+import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
 import { useTrip } from '@/lib/queries/trips'
 import { useAuthStore } from '@/store/authStore'
 import { cn, ACTIVITY_COLORS } from '@/lib/utils'
 import { fallbackCover } from '@/lib/coverFallbacks'
+import { citiesLabel } from '@/lib/cities'
 import {
-  AUDIOGUIDE_DETAIL_LEVELS, buildAudioguidePrompt, type AudioguideDetailLevel,
+  buildAudioguidePrompt, buildDayAudioguidePrompt, detailLevelsFor,
+  type AudioguideDetailLevel,
 } from '@/lib/audioguide/buildPrompt'
 import { AUDIOGUIDE_AI_PROVIDERS, type AudioguideAiProvider } from '@/lib/audioguide/aiProviders'
 import { parseAudioguideText } from '@/lib/audioguide/parseAudioguideText'
 import { loadAudioguideDraft, saveAudioguideDraft, clearAudioguideDraft } from '@/lib/audioguide/draft'
+import { scopeKey, type AudioguideScope } from '@/lib/audioguide/scope'
 import { isStandalonePwa } from '@/hooks/usePwaInstall'
 import {
   useAudioguide, useCreateAudioguide, useGenerateStopAudio, useDeleteAudioguide,
 } from '@/lib/queries/audioguides'
-import { useBackfillStopLocations } from '@/lib/queries/audioguideStopLocations'
+import {
+  useBackfillStopLocations, activityGeocodeContext, dayGeocodeContext,
+} from '@/lib/queries/audioguideStopLocations'
 import { AudioguidePlayer } from '@/components/itinerary/AudioguidePlayer'
 import { ActivityIcon } from '@/components/icons/ActivityIcon'
 import { toast } from 'sonner'
@@ -43,26 +50,42 @@ export function AudioguidePage() {
   )
 }
 
-// Pantalla propia de la audioguía: solo se llega aquí desde el botón dentro
-// del detalle de la actividad (no hay ningún enlace de navegación general).
+// Pantalla propia de la audioguía. Sirve para los dos ámbitos (ver 056): la
+// audioguía de una actividad, a la que se llega desde su detalle, y la de la
+// ciudad de un día, a la que se llega desde la cabecera del día. Todo lo que
+// cambia entre uno y otro se resuelve una vez en `sujeto`; de ahí para abajo
+// la pantalla es la misma.
 function AudioguidePageInner() {
-  const { tripId, activityId } = useParams<{ tripId: string; activityId: string }>()
+  const { tripId, activityId, dayId } = useParams<{ tripId: string; activityId?: string; dayId?: string }>()
   const { user } = useAuthStore()
-  const { data: activities, isLoading: loadingActivity } = useActivities(tripId!)
+  const { data: activities, isLoading: loadingActivities } = useActivities(tripId!)
+  const { data: days, isLoading: loadingDays } = useItineraryDays(tripId!)
   const { data: trip } = useTrip(tripId!)
-  const activity = activities?.find((a) => a.id === activityId)
 
-  const { data: audioguide, isLoading } = useAudioguide(activityId!)
-  const createAudioguide = useCreateAudioguide(tripId!, activityId!)
-  const generateStopAudio = useGenerateStopAudio(tripId!, activityId!)
-  const deleteAudioguide = useDeleteAudioguide(tripId!, activityId!)
+  // Memoizado porque va en las dependencias del efecto de useBackfillStopLocations.
+  const scope = useMemo<AudioguideScope | null>(
+    () => (activityId ? { kind: 'activity', id: activityId } : dayId ? { kind: 'day', id: dayId } : null),
+    [activityId, dayId],
+  )
+
+  const activity = activityId ? activities?.find((a) => a.id === activityId) : undefined
+  const day = dayId ? days?.find((d) => d.id === dayId) : undefined
+  const dayActivities = useMemo(
+    () => (dayId ? (activities ?? []).filter((a) => a.day_id === dayId) : []),
+    [activities, dayId],
+  )
+
+  const { data: audioguide, isLoading } = useAudioguide(scope)
+  const createAudioguide = useCreateAudioguide(tripId!, scope!)
+  const generateStopAudio = useGenerateStopAudio(tripId!, scope!)
+  const deleteAudioguide = useDeleteAudioguide(tripId!, scope!)
 
   // Si iOS mató la PWA mientras estabas en la app de la IA, el borrador
   // devuelve el flujo al punto exacto (cuadro de pegado y texto incluidos).
   const draft = useMemo(() => {
     const d = loadAudioguideDraft()
-    return d && d.activityId === activityId ? d : null
-  }, [activityId])
+    return d && scope && scopeKey(d.scope) === scopeKey(scope) ? d : null
+  }, [scope])
 
   const [detailLevel, setDetailLevel] = useState<AudioguideDetailLevel>(draft?.detailLevel ?? 'estandar')
   const [aiProvider, setAiProvider] = useState<AudioguideAiProvider>(draft?.provider ?? 'claude')
@@ -72,14 +95,58 @@ function AudioguidePageInner() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // Todo lo que distingue una audioguía de sitio de una de ciudad, en un sitio.
+  const sujeto = useMemo(() => {
+    if (!trip) return null
+    if (scope?.kind === 'day') {
+      if (!day) return null
+      const ciudades = citiesLabel(day)
+      const fecha = format(parseISO(day.date), "EEEE d 'de' MMMM", { locale: es })
+      return {
+        kind: 'day' as const,
+        // Sin ciudades escritas, el destino del viaje es el mejor título posible.
+        title: ciudades ?? trip.destination,
+        subtitle: fecha,
+        color: 'var(--primary)',
+        icon: <Landmark size={20} style={{ color: 'var(--primary)' }} />,
+        backTo: `/trips/${tripId}/itinerary`,
+        backLabel: 'Itinerario',
+        intro: 'Genera una audioguía para pasear por la ciudad: su historia, sus barrios y por qué es como es.',
+        coverUrl: trip.cover_image_url ?? fallbackCover(trip.id),
+        prompt: () => buildDayAudioguidePrompt(day, trip, dayActivities, detailLevel),
+        geo: dayGeocodeContext(day, trip),
+      }
+    }
+    if (!activity) return null
+    const color = ACTIVITY_COLORS[activity.type]
+    return {
+      kind: 'activity' as const,
+      title: activity.title,
+      subtitle: null,
+      color,
+      icon: <ActivityIcon type={activity.type} size={20} style={{ color }} />,
+      backTo: `/trips/${tripId}/itinerary/${activity.id}`,
+      backLabel: 'Actividad',
+      intro: 'Genera una audioguía con paradas y narración para visitar este lugar.',
+      // La foto del sitio en la pantalla de bloqueo. La portada de reserva va
+      // empaquetada en el build, así que también se ve sin conexión.
+      coverUrl: activity.cover_image_url ?? trip.cover_image_url ?? fallbackCover(trip.id),
+      prompt: () => buildAudioguidePrompt(activity, trip, detailLevel),
+      geo: activityGeocodeContext(activity, trip),
+    }
+  }, [scope, trip, day, activity, dayActivities, detailLevel, tripId])
+
   // Las paradas sin coordenadas (las audioguías creadas antes de que existiera
   // el mapa) se geocodifican una vez y se guardan; a partir de ahí llegan ya
   // localizadas desde la base de datos.
   const rawStops = useMemo(() => audioguide?.stops ?? [], [audioguide])
   const mapsReady = useApiIsLoaded()
-  const { stops, locating } = useBackfillStopLocations(activityId, rawStops, activity, trip, mapsReady)
+  const ancla = useMemo(() => sujeto?.geo.punto ?? null, [sujeto])
+  const { stops, locating } = useBackfillStopLocations(
+    scope, rawStops, sujeto?.geo.contexto ?? '', ancla, mapsReady,
+  )
 
-  if (loadingActivity || isLoading) {
+  if (loadingActivities || loadingDays || isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-4">
         <Skeleton className="h-10 w-2/3" style={{ background: 'var(--secondary)' }} />
@@ -88,22 +155,23 @@ function AudioguidePageInner() {
     )
   }
 
-  if (!activity || !trip || !user) {
+  if (!sujeto || !scope || !trip || !user) {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
         <TripHeader tripId={tripId!} section="Audioguía" />
-        <p className="text-muted-foreground py-12 text-center">Actividad no encontrada.</p>
+        <p className="text-muted-foreground py-12 text-center">
+          {scope?.kind === 'day' ? 'Día no encontrado.' : 'Actividad no encontrada.'}
+        </p>
       </div>
     )
   }
 
-  const color = ACTIVITY_COLORS[activity.type]
   const provider = AUDIOGUIDE_AI_PROVIDERS.find((p) => p.id === aiProvider) ?? AUDIOGUIDE_AI_PROVIDERS[0]
+  const detailLevels = detailLevelsFor(sujeto.kind)
 
   const copyPrompt = async () => {
-    const prompt = buildAudioguidePrompt(activity, trip, detailLevel)
     try {
-      await navigator.clipboard.writeText(prompt)
+      await navigator.clipboard.writeText(sujeto.prompt())
       toast.success(`Prompt copiado ✓ — pégalo (Cmd/Ctrl+V) en el cuadro de mensaje de ${provider.label} y envíalo.`)
     } catch {
       toast.error('No se pudo copiar automáticamente. Pulsa "Copiar prompt de nuevo" para reintentarlo.')
@@ -117,7 +185,7 @@ function AudioguidePageInner() {
 
   const persistDraft = (pasted: string) => {
     saveAudioguideDraft({
-      tripId: tripId!, activityId: activityId!, activityTitle: activity.title,
+      tripId: tripId!, scope, title: sujeto.title,
       provider: aiProvider, detailLevel, pastedText: pasted,
     })
   }
@@ -220,10 +288,8 @@ function AudioguidePageInner() {
       <AudioguidePlayer
         stops={stops}
         audioguideId={audioguide.id}
-        activityTitle={activity.title}
-        // La foto del sitio en la pantalla de bloqueo. La portada de reserva va
-        // empaquetada en el build, así que también se ve sin conexión.
-        coverUrl={activity.cover_image_url ?? trip.cover_image_url ?? fallbackCover(trip.id)}
+        activityTitle={sujeto.title}
+        coverUrl={sujeto.coverUrl}
         locatingStops={locating}
       />
     )
@@ -271,9 +337,7 @@ function AudioguidePageInner() {
   } else {
     body = (
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          Genera una audioguía con paradas y narración para visitar este lugar.
-        </p>
+        <p className="text-sm text-muted-foreground">{sujeto.intro}</p>
         <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground uppercase tracking-widest">Generar con</p>
           <div className="flex flex-wrap gap-1.5">
@@ -295,7 +359,7 @@ function AudioguidePageInner() {
         </div>
         <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground uppercase tracking-widest">Nivel de detalle</p>
-          {AUDIOGUIDE_DETAIL_LEVELS.map((lvl) => (
+          {detailLevels.map((lvl) => (
             <button
               key={lvl.id}
               type="button"
@@ -327,7 +391,7 @@ function AudioguidePageInner() {
 
       <div className="mb-6">
         <div className="flex items-center justify-between gap-2 mb-3">
-          <BackButton to={`/trips/${tripId}/itinerary/${activityId}`}>Actividad</BackButton>
+          <BackButton to={sujeto.backTo}>{sujeto.backLabel}</BackButton>
           {audioguide && !processing && (
             <button
               type="button"
@@ -341,11 +405,14 @@ function AudioguidePageInner() {
 
         <h1 className="font-serif text-2xl sm:text-3xl font-medium flex items-start gap-2.5 break-words leading-tight">
           <span className="flex-shrink-0 mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center"
-            style={{ background: `${color}1f` }}>
-            <ActivityIcon type={activity.type} size={20} style={{ color }} />
+            style={{ background: `color-mix(in srgb, ${sujeto.color} 12%, transparent)` }}>
+            {sujeto.icon}
           </span>
-          <span className="min-w-0">Audioguía · {activity.title}</span>
+          <span className="min-w-0">Audioguía · {sujeto.title}</span>
         </h1>
+        {sujeto.subtitle && (
+          <p className="text-sm text-muted-foreground mt-1 capitalize">{sujeto.subtitle}</p>
+        )}
       </div>
 
       {body}

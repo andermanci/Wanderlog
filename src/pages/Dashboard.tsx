@@ -24,6 +24,7 @@ import { bloqueoParaCrearViaje } from '@/lib/limits'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate, STATUS_LABELS, ACTIVITY_COLORS, ACTIVITY_LABELS, effectiveStatus } from '@/lib/utils'
 import { loadAudioguideDraft } from '@/lib/audioguide/draft'
+import { scopeRoute } from '@/lib/audioguide/scope'
 import type { Trip } from '@/types/database'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -69,12 +70,12 @@ export function Dashboard() {
     const draft = loadAudioguideDraft()
     if (!draft) return
     draftNotified = true
-    toast(`Audioguía a medias: ${draft.activityTitle}`, {
+    toast(`Audioguía a medias: ${draft.title}`, {
       description: 'Puedes continuar donde lo dejaste.',
       duration: 12000,
       action: {
         label: 'Continuar',
-        onClick: () => navigate(`/trips/${draft.tripId}/itinerary/${draft.activityId}/audioguide`),
+        onClick: () => navigate(scopeRoute(draft.tripId, draft.scope)),
       },
     })
   }, [navigate])

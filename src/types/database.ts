@@ -679,7 +679,10 @@ export type Database = {
       audioguides: {
         Row: {
           id: string
-          activity_id: string
+          /** Excluyente con day_id: exactamente uno de los dos (ver 056). */
+          activity_id: string | null
+          /** Audioguía de la ciudad de ese día del itinerario (ver 056). */
+          day_id: string | null
           trip_id: string
           raw_text: string
           status: 'draft' | 'generating' | 'ready' | 'error'
@@ -692,7 +695,8 @@ export type Database = {
         }
         Insert: {
           id?: string
-          activity_id: string
+          activity_id?: string | null
+          day_id?: string | null
           trip_id: string
           raw_text: string
           status?: 'draft' | 'generating' | 'ready' | 'error'
@@ -705,7 +709,8 @@ export type Database = {
         }
         Update: {
           id?: string
-          activity_id?: string
+          activity_id?: string | null
+          day_id?: string | null
           trip_id?: string
           raw_text?: string
           status?: 'draft' | 'generating' | 'ready' | 'error'

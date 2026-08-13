@@ -191,6 +191,9 @@ export default function App() {
               <Route path="/trips/:tripId/itinerary/:activityId" element={<ActivityDetailPage />} />
               <Route path="/trips/:tripId/itinerary/:activityId/edit" element={<ActivityFormPage />} />
               <Route path="/trips/:tripId/itinerary/:activityId/audioguide" element={<AudioguidePage />} />
+              {/* Audioguía de la ciudad del día. Cuelga de /dias y no de
+                  /itinerary/:dayId/... para que no compita con :activityId. */}
+              <Route path="/trips/:tripId/dias/:dayId/audioguide" element={<AudioguidePage />} />
               <Route path="/trips/:tripId/memory" element={<TripMemoryPage />} />
               <Route path="/trips/:tripId/map" element={<MapViewPage />} />
               <Route path="/trips/:tripId/places" element={<SavedPlacesPage />} />

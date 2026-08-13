@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { Audioguide, AudioguideStop } from '@/types/database'
 import type { ParsedAudioguideStop } from '@/lib/audioguide/parseAudioguideText'
+import {
+  scopeColumn, scopeKey, stopStoragePath, stopStoragePrefix, type AudioguideScope,
+} from '@/lib/audioguide/scope'
 import { removeAudios } from '@/lib/audioCache'
 import { toast } from 'sonner'
 
@@ -9,25 +12,27 @@ export interface AudioguideWithStops extends Audioguide {
   stops: AudioguideStop[]
 }
 
+/** Qué actividades y qué días del viaje ya tienen la audioguía lista. */
+export interface TripAudioguideReadiness {
+  activityIds: string[]
+  dayIds: string[]
+}
+
 export const audioguideKeys = {
-  byActivity: (activityId: string) => ['audioguide', 'activity', activityId] as const,
+  byScope: (scope: AudioguideScope) => ['audioguide', 'scope', scopeKey(scope)] as const,
   readinessByTrip: (tripId: string) => ['audioguide', 'trip-readiness', tripId] as const,
 }
 
-function storagePath(userId: string, tripId: string, activityId: string, stopId: string) {
-  return `${userId}/${tripId}/${activityId}/${stopId}.mp3`
-}
-
-// Audioguía de la actividad (si existe) con sus paradas ordenadas.
-export function useAudioguide(activityId: string) {
+// Audioguía del ámbito (si existe) con sus paradas ordenadas.
+export function useAudioguide(scope: AudioguideScope | null) {
   return useQuery({
-    queryKey: audioguideKeys.byActivity(activityId),
-    enabled: !!activityId,
+    queryKey: audioguideKeys.byScope(scope ?? { kind: 'activity', id: '' }),
+    enabled: !!scope?.id,
     queryFn: async (): Promise<AudioguideWithStops | null> => {
       const { data: audioguide, error } = await supabase
         .from('audioguides')
         .select('*')
-        .eq('activity_id', activityId)
+        .eq(scopeColumn(scope!), scope!.id)
         .maybeSingle()
       if (error) throw error
       if (!audioguide) return null
@@ -44,21 +49,23 @@ export function useAudioguide(activityId: string) {
   })
 }
 
-// Ids de actividad del viaje que ya tienen una audioguía con todas sus
+// Actividades y días del viaje que ya tienen una audioguía con todas sus
 // paradas listas (para pintar un icono en el listado del itinerario).
-// Devuelve un array (no un Set) porque la caché de React Query se persiste
-// en localStorage vía JSON.stringify, que no conserva instancias de Set.
+// Devuelve arrays (no Sets) porque la caché de React Query se persiste en
+// localStorage vía JSON.stringify, que no conserva instancias de Set.
 export function useTripAudioguidesReadiness(tripId: string) {
   return useQuery({
     queryKey: audioguideKeys.readinessByTrip(tripId),
     enabled: !!tripId,
-    queryFn: async (): Promise<string[]> => {
+    queryFn: async (): Promise<TripAudioguideReadiness> => {
+      const vacio: TripAudioguideReadiness = { activityIds: [], dayIds: [] }
+
       const { data: guides, error } = await supabase
         .from('audioguides')
-        .select('id, activity_id')
+        .select('id, activity_id, day_id')
         .eq('trip_id', tripId)
       if (error) throw error
-      if (!guides || guides.length === 0) return []
+      if (!guides || guides.length === 0) return vacio
 
       const { data: stops, error: stopsErr } = await supabase
         .from('audioguide_stops')
@@ -73,26 +80,35 @@ export function useTripAudioguidesReadiness(tripId: string) {
         statusesByGuide.set(s.audioguide_id, arr)
       }
 
-      const readyActivityIds: string[] = []
+      const readiness: TripAudioguideReadiness = { activityIds: [], dayIds: [] }
       for (const g of guides) {
         const statuses = statusesByGuide.get(g.id) ?? []
-        if (statuses.length > 0 && statuses.every((s) => s === 'ready')) {
-          readyActivityIds.push(g.activity_id)
-        }
+        if (statuses.length === 0 || !statuses.every((s) => s === 'ready')) continue
+        // Exactamente una de las dos está puesta (audioguides_scope_chk, ver 056).
+        if (g.activity_id) readiness.activityIds.push(g.activity_id)
+        else if (g.day_id) readiness.dayIds.push(g.day_id)
       }
-      return readyActivityIds
+      return readiness
     },
   })
 }
 
 // Crea la audioguía (estado 'generating') junto con sus paradas (estado 'pending').
-export function useCreateAudioguide(tripId: string, activityId: string) {
+export function useCreateAudioguide(tripId: string, scope: AudioguideScope) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ rawText, parsedStops }: { rawText: string; parsedStops: ParsedAudioguideStop[] }) => {
       const { data: audioguide, error } = await supabase
         .from('audioguides')
-        .insert({ activity_id: activityId, trip_id: tripId, raw_text: rawText, status: 'generating' })
+        // Las dos columnas explícitas (y no una clave calculada) para que
+        // TypeScript siga comprobando el insert contra el esquema.
+        .insert({
+          activity_id: scope.kind === 'activity' ? scope.id : null,
+          day_id: scope.kind === 'day' ? scope.id : null,
+          trip_id: tripId,
+          raw_text: rawText,
+          status: 'generating',
+        })
         .select()
         .single()
       if (error) throw error
@@ -131,21 +147,21 @@ export function useCreateAudioguide(tripId: string, activityId: string) {
       return { ...audioguide, stops: stops ?? [] } as AudioguideWithStops
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: audioguideKeys.byActivity(activityId) })
+      qc.invalidateQueries({ queryKey: audioguideKeys.byScope(scope) })
     },
     onError: () => toast.error('No se pudo guardar el guion de la audioguía'),
   })
 }
 
 // Sintetiza el audio de una parada (llama a la edge function) y guarda el resultado.
-export function useGenerateStopAudio(tripId: string, activityId: string) {
+export function useGenerateStopAudio(tripId: string, scope: AudioguideScope) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ stop, userId }: { stop: AudioguideStop; userId: string }) => {
       await supabase.from('audioguide_stops').update({ status: 'generating' }).eq('id', stop.id)
-      qc.invalidateQueries({ queryKey: audioguideKeys.byActivity(activityId) })
+      qc.invalidateQueries({ queryKey: audioguideKeys.byScope(scope) })
 
-      const path = storagePath(userId, tripId, activityId, stop.id)
+      const path = stopStoragePath(userId, tripId, scope, stop.id)
       const { data, error } = await supabase.functions.invoke('audioguide-tts', {
         body: { stopId: stop.id, text: stop.script_text, path },
       })
@@ -166,34 +182,34 @@ export function useGenerateStopAudio(tripId: string, activityId: string) {
         .eq('id', stop.id)
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: audioguideKeys.byActivity(activityId) })
+      qc.invalidateQueries({ queryKey: audioguideKeys.byScope(scope) })
     },
   })
 }
 
 // Marca la audioguía como lista (todas las paradas generadas) o con error.
-export function useSetAudioguideStatus(activityId: string) {
+export function useSetAudioguideStatus(scope: AudioguideScope) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ audioguideId, status }: { audioguideId: string; status: Audioguide['status'] }) => {
       const { error } = await supabase.from('audioguides').update({ status }).eq('id', audioguideId)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: audioguideKeys.byActivity(activityId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: audioguideKeys.byScope(scope) }),
   })
 }
 
 // Borra la audioguía (y sus paradas por cascade) más los MP3 del storage, para regenerar desde cero.
-export function useDeleteAudioguide(tripId: string, activityId: string) {
+export function useDeleteAudioguide(tripId: string, scope: AudioguideScope) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ audioguideId, userId }: { audioguideId: string; userId: string }) => {
       // Los MP3 descargados para escucharlos sin conexión también sobran.
-      const cached = qc.getQueryData<AudioguideWithStops | null>(audioguideKeys.byActivity(activityId))
+      const cached = qc.getQueryData<AudioguideWithStops | null>(audioguideKeys.byScope(scope))
       const cachedUrls = (cached?.stops ?? []).map((s) => s.audio_url).filter((u): u is string => !!u)
       if (cachedUrls.length > 0) await removeAudios(cachedUrls).catch(() => {})
 
-      const prefix = `${userId}/${tripId}/${activityId}`
+      const prefix = stopStoragePrefix(userId, tripId, scope)
       const { data: files } = await supabase.storage.from('audioguides').list(prefix)
       if (files && files.length > 0) {
         await supabase.storage.from('audioguides').remove(files.map((f) => `${prefix}/${f.name}`))
@@ -202,7 +218,7 @@ export function useDeleteAudioguide(tripId: string, activityId: string) {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: audioguideKeys.byActivity(activityId) })
+      qc.invalidateQueries({ queryKey: audioguideKeys.byScope(scope) })
       toast.success('Audioguía eliminada')
     },
     onError: () => toast.error('No se pudo eliminar la audioguía'),

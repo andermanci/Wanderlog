@@ -5,7 +5,9 @@ import { audioguideKeys } from '@/lib/queries/audioguides'
 import { geocodeQueryOptions } from '@/lib/geocode'
 import { haversineKm, type GeoPoint } from '@/lib/travelTime'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
-import type { Activity, AudioguideStop, Trip } from '@/types/database'
+import type { AudioguideScope } from '@/lib/audioguide/scope'
+import type { Activity, AudioguideStop, ItineraryDay, Trip } from '@/types/database'
+import { cityNames } from '@/lib/cities'
 
 // Una parada geocodificada más lejos que esto del lugar de la actividad no es
 // esa parada: el Geocoder casi siempre devuelve ALGO, y un título narrativo
@@ -67,16 +69,45 @@ export function stopPoint(stop: AudioguideStop): GeoPoint | null {
   return stop.lat != null && stop.lng != null ? { lat: stop.lat, lng: stop.lng } : null
 }
 
+// El ancla de una audioguía de sitio es el propio sitio; la de una audioguía de
+// ciudad, la ciudad. Estas dos funciones son lo único que sabe de esa
+// diferencia: el backfill de abajo ya solo ve "un texto y quizá un punto".
+export function activityGeocodeContext(activity: Activity | undefined, trip: Trip | undefined) {
+  return {
+    contexto: activity?.address || trip?.destination || '',
+    punto: activity?.lat != null && activity?.lng != null
+      ? { lat: activity.lat, lng: activity.lng }
+      : null,
+  }
+}
+
+export function dayGeocodeContext(day: ItineraryDay | undefined, trip: Trip | undefined) {
+  const ciudades = cityNames(day)
+  return {
+    // "Venecia, Italia" acota muchísimo mejor que "Venecia" a secas: el
+    // Geocoder resuelve homónimos (hay una Venecia en Florida) con el país.
+    contexto: ciudades.length > 0
+      ? [ciudades.join(', '), trip?.destination].filter(Boolean).join(', ')
+      : trip?.destination || '',
+    // Un día no tiene coordenadas guardadas: el ancla sale de geocodificar el
+    // contexto una sola vez, igual que ya se hacía con las actividades sin lat/lng.
+    punto: null as GeoPoint | null,
+  }
+}
+
 // Localiza UNA vez las paradas que aún no tienen coordenadas y guarda el
 // resultado en la base de datos, igual que hace useBackfillRoutePoints con las
 // paradas del itinerario. Así las audioguías creadas antes de que existiera el
 // mapa se sitúan solas con abrirlas, y el intento no se repite nunca más:
 // también se guarda el fallo (geo_status = 'unlocated').
 export function useBackfillStopLocations(
-  activityId: string | undefined,
+  /** Ámbito de la audioguía. El llamante debe memoizarlo: va en las dependencias del efecto. */
+  scope: AudioguideScope | null,
   stops: AudioguideStop[],
-  activity: Activity | undefined,
-  trip: Trip | undefined,
+  /** Texto que sitúa la audioguía (dirección del sitio o ciudad del día). */
+  contexto: string,
+  /** Punto ya conocido, si lo hay. El llamante debe memoizarlo. */
+  anclaGuardada: GeoPoint | null,
   ready: boolean,
 ): StopLocationsState {
   const qc = useQueryClient()
@@ -92,19 +123,8 @@ export function useBackfillStopLocations(
     [stops],
   )
 
-  // El sitio al que pertenece la audioguía: ancla de la búsqueda y del filtro
-  // de distancia. Si la actividad no tiene coordenadas guardadas se geocodifica
-  // su dirección (o, en último término, el destino del viaje).
-  const contexto = activity?.address || trip?.destination || ''
-  const activityLat = activity?.lat ?? null
-  const activityLng = activity?.lng ?? null
-  const anclaGuardada = useMemo(
-    () => (activityLat != null && activityLng != null ? { lat: activityLat, lng: activityLng } : null),
-    [activityLat, activityLng],
-  )
-
   useEffect(() => {
-    if (!activityId || !ready || !online || pending.length === 0) return
+    if (!scope || !ready || !online || pending.length === 0) return
     let cancelled = false
 
     ;(async () => {
@@ -150,11 +170,11 @@ export function useBackfillStopLocations(
 
       if (cancelled) return
       setLocating(false)
-      if (algunaGuardada) qc.invalidateQueries({ queryKey: audioguideKeys.byActivity(activityId) })
+      if (algunaGuardada) qc.invalidateQueries({ queryKey: audioguideKeys.byScope(scope) })
     })()
 
     return () => { cancelled = true }
-  }, [activityId, ready, online, pending, anclaGuardada, contexto, qc])
+  }, [scope, ready, online, pending, anclaGuardada, contexto, qc])
 
   // Mientras la escritura no vuelve de la BD, el mapa ya usa lo recién resuelto.
   const conCoordenadas = useMemo(

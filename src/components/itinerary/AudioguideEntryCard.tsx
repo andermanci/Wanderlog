@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Headphones, Loader2 } from 'lucide-react'
 import { useAudioguide } from '@/lib/queries/audioguides'
+import { scopeRoute, type AudioguideScope } from '@/lib/audioguide/scope'
 import type { Activity } from '@/types/database'
 
 interface Props {
@@ -12,7 +14,8 @@ interface Props {
 // generación, el pegado del guion y el reproductor viven en su propia
 // página (AudioguidePage), a la que solo se llega desde aquí.
 export function AudioguideEntryCard({ activity, tripId }: Props) {
-  const { data: audioguide, isLoading } = useAudioguide(activity.id)
+  const scope = useMemo<AudioguideScope>(() => ({ kind: 'activity', id: activity.id }), [activity.id])
+  const { data: audioguide, isLoading } = useAudioguide(scope)
   if (isLoading) return null
 
   const stops = audioguide?.stops ?? []
@@ -21,7 +24,7 @@ export function AudioguideEntryCard({ activity, tripId }: Props) {
 
   return (
     <Link
-      to={`/trips/${tripId}/itinerary/${activity.id}/audioguide`}
+      to={scopeRoute(tripId, scope)}
       className="rounded-xl p-4 flex items-center justify-between gap-2 transition-colors hover:border-primary/50 surface"
     >
       <div className="flex items-center gap-2.5 min-w-0">

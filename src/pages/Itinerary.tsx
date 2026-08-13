@@ -10,7 +10,7 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, MapPin, Pencil, Eye } from 'lucide-react'
+import { Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, Headphones, MapPin, Pencil, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -74,12 +74,19 @@ function ItineraryPageInner() {
   const { data: activities, isLoading: loadingActs } = useActivities(tripId!)
   const { data: tripAttachments } = useTripAttachments(tripId!)
   const { data: documents } = useDocuments(tripId!)
-  const { data: audioguideReadyIdList } = useTripAudioguidesReadiness(tripId!)
-  // Array.isArray como defensa: la caché persistida en localStorage puede
-  // traer todavía un valor viejo (de antes de este cambio) con otra forma.
+  const { data: audioguideReadiness } = useTripAudioguidesReadiness(tripId!)
+  // Defensa contra la caché persistida en localStorage: puede traer todavía la
+  // forma vieja (un array suelto de ids de actividad, de antes de que las
+  // audioguías pudieran ser de un día).
   const audioguideReadyIds = useMemo(
-    () => new Set(Array.isArray(audioguideReadyIdList) ? audioguideReadyIdList : []),
-    [audioguideReadyIdList],
+    () => new Set(Array.isArray(audioguideReadiness)
+      ? audioguideReadiness
+      : audioguideReadiness?.activityIds ?? []),
+    [audioguideReadiness],
+  )
+  const audioguideReadyDayIds = useMemo(
+    () => new Set(Array.isArray(audioguideReadiness) ? [] : audioguideReadiness?.dayIds ?? []),
+    [audioguideReadiness],
   )
   const upsertDays = useUpsertDays()
   const deleteActivity = useDeleteActivity()
@@ -385,6 +392,7 @@ function ItineraryPageInner() {
                 const isToday = day.date === todayStr
                 const isPast = day.date < todayStr
                 const hasJournal = !!day.journal || !!journalPhotos?.some(p => p.day_id === day.id)
+                const hasDayAudioguide = audioguideReadyDayIds.has(day.id)
                 // "Dónde estoy" ese día: las ciudades en orden ("Roma · Tívoli").
                 // El nombre lo manda la guía cuando la ciudad viene de una.
                 const dayCityList = resolveNames(dayCities(day), guides)
@@ -489,6 +497,21 @@ function ItineraryPageInner() {
                         </span>
                       )}
                       <div className="flex items-center gap-0.5 flex-shrink-0">
+                        {/* Audioguía de la ciudad del día: el sujeto es la
+                            ciudad, no ninguna de las actividades, así que vive
+                            en la cabecera y no dentro de una tarjeta. */}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="w-7 h-7 relative"
+                          aria-label="Audioguía de la ciudad" title="Audioguía de la ciudad"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/trips/${tripId}/dias/${day.id}/audioguide`) }}
+                        >
+                          <Headphones size={14} style={hasDayAudioguide ? { color: 'var(--primary)' } : undefined} />
+                          {hasDayAudioguide && (
+                            <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--primary)' }} />
+                          )}
+                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"

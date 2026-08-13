@@ -11,7 +11,8 @@ import { placeKeys } from '@/lib/queries/places'
 import { journalKeys } from '@/lib/queries/journal'
 import { attachmentKeys } from '@/lib/queries/attachments'
 import { guideKeys } from '@/lib/queries/guide'
-import { audioguideKeys } from '@/lib/queries/audioguides'
+import { audioguideKeys, type TripAudioguideReadiness } from '@/lib/queries/audioguides'
+import { audioguideScope } from '@/lib/audioguide/scope'
 import { cacheDoc } from '@/lib/docCache'
 import { audioSize, cacheAudio } from '@/lib/audioCache'
 import { cachePhoto, photosSize } from '@/lib/photoCache'
@@ -149,23 +150,27 @@ export async function prefetchTripOffline(
     onProgress?.({ phase: 'data', done: ++done, total })
   }))
 
-  // Las audioguías se cachean por actividad (audioguideKeys.byActivity), no por
+  // Las audioguías se cachean por ámbito (audioguideKeys.byScope), no por
   // viaje: se traen enteras de una vez y se reparten a mano en la caché, con la
-  // misma forma que devuelve useAudioguide.
+  // misma forma que devuelve useAudioguide. Cada una cuelga de una actividad o
+  // de un día, nunca de las dos (audioguides_scope_chk, ver 056).
   const audioguides: Audioguide[] = results.audioguides ?? []
   const audioStops: AudioguideStop[] = results.audioStops ?? []
-  const readyActivityIds: string[] = []
+  const readiness: TripAudioguideReadiness = { activityIds: [], dayIds: [] }
   for (const guide of audioguides) {
+    const scope = audioguideScope(guide)
+    if (!scope) continue
     const stops = audioStops
       .filter((s) => s.audioguide_id === guide.id)
       .sort((a, b) => a.order_index - b.order_index)
-    qc.setQueryData(audioguideKeys.byActivity(guide.activity_id), { ...guide, stops })
+    qc.setQueryData(audioguideKeys.byScope(scope), { ...guide, stops })
     if (stops.length > 0 && stops.every((s) => s.status === 'ready')) {
-      readyActivityIds.push(guide.activity_id)
+      if (scope.kind === 'activity') readiness.activityIds.push(scope.id)
+      else readiness.dayIds.push(scope.id)
     }
   }
   if (audioguides.length > 0) {
-    qc.setQueryData(audioguideKeys.readinessByTrip(tripId), readyActivityIds)
+    qc.setQueryData(audioguideKeys.readinessByTrip(tripId), readiness)
   }
 
   // 2) Fotos: portada, diario, adjuntos y portadas de las guías.

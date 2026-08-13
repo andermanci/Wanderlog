@@ -14,7 +14,7 @@ import { audioguideKeys } from '@/lib/queries/audioguides'
 import { removeDocs, clearDocCache } from '@/lib/docCache'
 import { removeTripAudios, clearAudioCache, formatBytes } from '@/lib/audioCache'
 import { removePhotos, clearPhotoCache } from '@/lib/photoCache'
-import type { Activity } from '@/types/database'
+import type { Activity, ItineraryDay } from '@/types/database'
 
 // Qué se descargó de cada viaje. Guardar la lista exacta de ficheros (y no
 // deducirla luego de los datos) es lo que permite borrar la copia sin conexión
@@ -99,9 +99,10 @@ export async function deleteTripOffline(qc: QueryClient, tripId: string): Promis
     ])
   }
 
-  // Las audioguías se cachean por actividad, así que hay que saber cuáles son
-  // antes de tirar la lista de actividades.
+  // Las audioguías se cachean por ámbito (actividad o día del itinerario), así
+  // que hay que saber cuáles son antes de tirar esas dos listas.
   const activities = qc.getQueryData<Activity[]>(itineraryKeys.activities(tripId)) ?? []
+  const days = qc.getQueryData<ItineraryDay[]>(itineraryKeys.days(tripId)) ?? []
 
   const keys: readonly (readonly unknown[])[] = [
     tripKeys.detail(tripId),
@@ -117,7 +118,8 @@ export async function deleteTripOffline(qc: QueryClient, tripId: string): Promis
     attachmentKeys.byTrip(tripId),
     guideKeys.all(tripId),
     audioguideKeys.readinessByTrip(tripId),
-    ...activities.map((a) => audioguideKeys.byActivity(a.id)),
+    ...activities.map((a) => audioguideKeys.byScope({ kind: 'activity', id: a.id })),
+    ...days.map((d) => audioguideKeys.byScope({ kind: 'day', id: d.id })),
   ]
   for (const queryKey of keys) qc.removeQueries({ queryKey })
 

@@ -80,9 +80,10 @@ export function seccionDe(path: string): string {
 
   if (path.startsWith('/trips/')) {
     const seg = path.split('/')   // ['', 'trips', ':id', <seccion>, ...]
-    // La audioguía cuelga del detalle de una actividad
-    // (/trips/:id/itinerary/:id/audioguide) y merece contarse aparte: es la
-    // función que cuesta dinero.
+    // La audioguía cuelga de una actividad (/trips/:id/itinerary/:id/audioguide)
+    // o de un día (/trips/:id/dias/:id/audioguide) y merece contarse aparte:
+    // es la función que cuesta dinero. Los dos caminos tienen la misma
+    // profundidad, así que basta con mirar el último segmento.
     if (seg[5] === 'audioguide') return 'audioguia'
     if (!seg[3]) return 'viaje'
     return SECCION_VIAJE[seg[3]] ?? 'viaje'
