@@ -1,10 +1,15 @@
 import { useEffect, useReducer, useRef } from 'react'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
 // Los MP3 de las audioguías NO pueden cachearse en el service worker: interceptar
 // las peticiones Range de un <audio> desde un SW es poco fiable en Safari/WebKit
 // (por eso src/sw.ts excluye request.destination === 'audio'). Así que la caché la
-// lleva la app con la Cache API y la reproducción va contra un blob: URL, donde el
-// Range lo gestiona el navegador de forma nativa. Mismo patrón que src/lib/docCache.ts.
+// lleva la app con la Cache API. Mismo patrón que src/lib/docCache.ts.
+//
+// Ojo: la copia local SOLO se reproduce (como blob:) cuando no hay cobertura. Con
+// red se usa la URL pública aunque el audio esté descargado, porque en iOS un
+// blob: no suena con la pantalla bloqueada. El razonamiento entero está en
+// useAudioUrls, aquí abajo.
 const CACHE_NAME = 'wanderlog-audio-v1'
 
 // Bitrate del MP3 que devuelve Google TTS (MPEG-2 Layer III, 32 kbps): sirve para
@@ -145,8 +150,25 @@ export interface AudioUrls {
 
 /**
  * URLs reproducibles para varias paradas a la vez: la que suena y sus vecinas.
- * Si la parada está descargada suena desde el móvil —ni un byte de MP3 por la
- * red— y si no, en streaming con la URL pública.
+ *
+ * POR QUÉ CON COBERTURA SE PREFIERE LA URL PÚBLICA AUNQUE ESTÉ DESCARGADA:
+ *
+ * En iOS, un `blob:` NO SUENA CON LA PANTALLA BLOQUEADA. WebKit deja correr el
+ * reloj del medio —el marcador avanza— pero no entrega el audio al reproductor
+ * del sistema hasta que la página vuelve a ser visible; al desbloquear, arranca
+ * justo donde marcaba. Solo un recurso de red de verdad (http/https) recibe
+ * sesión de audio en segundo plano. Como la copia local se servía siempre como
+ * `blob:`, descargar el viaje rompía la escucha con el móvil en el bolsillo,
+ * que es justo cuando se usa una audioguía.
+ *
+ * Así que con cobertura se reproduce la URL pública y sin cobertura el `blob:`,
+ * que es mejor que nada aunque solo suene con la pantalla encendida. La copia
+ * descargada se sigue guardando: es la que salva el día cuando no hay red.
+ *
+ * ESTO ES UN APAÑO, NO EL ARREGLO BUENO. El definitivo es que el service worker
+ * sirva el MP3 desde la caché respondiendo a las peticiones Range, de modo que
+ * la URL siga siendo https:// y no gaste datos. src/sw.ts excluye hoy
+ * `request.destination === 'audio'` justo porque eso es delicado en Safari.
  *
  * POR QUÉ RESUELVE VARIAS Y NO SOLO LA ACTUAL:
  *
@@ -166,42 +188,62 @@ export interface AudioUrls {
 export function useAudioUrls(urls: (string | null | undefined)[]): AudioUrls {
   const resueltas = useRef(new Map<string, string>())
   const [, avisarDeCambio] = useReducer((n: number) => n + 1, 0)
+  const online = useOnlineStatus()
+  const modo = online ? 'red' : 'sinred'
+
+  // La entrada se guarda bajo «modo|url», no bajo «url» a secas: al perder o
+  // recuperar la cobertura cambia la FORMA de la URL reproducible (pública o
+  // blob:), y con la clave compuesta ese cambio se resuelve solo — las
+  // entradas del modo anterior dejan de pedirse y la poda las suelta.
+  const claveDe = (url: string) => `${modo}|${url}`
+  const urlDe = (clave: string) => clave.slice(clave.indexOf('|') + 1)
 
   // Clave estable: el array llega nuevo en cada render, pero su contenido no.
-  const clave = urls.filter((u): u is string => !!u).join('\n')
+  const clave = urls.filter((u): u is string => !!u).map(claveDe).join('\n')
 
   useEffect(() => {
     const quiero = new Set(clave ? clave.split('\n') : [])
     let cancelado = false
 
-    // Suelta las que se han salido de la ventana. Un blob: vivo retiene el MP3
-    // entero en memoria, y una audioguía exhaustiva pasa de veinte paradas.
-    // La que suena nunca se suelta: siempre está dentro de la ventana.
-    for (const [url, objectUrl] of resueltas.current) {
-      if (quiero.has(url)) continue
-      if (objectUrl !== url) URL.revokeObjectURL(objectUrl)
-      resueltas.current.delete(url)
+    // Suelta lo que ya no se pide: las paradas que se han salido de la ventana
+    // y las del modo de red anterior. Un blob: vivo retiene el MP3 entero en
+    // memoria, y una audioguía exhaustiva pasa de veinte paradas. La que suena
+    // nunca se suelta: siempre está dentro de la ventana y en el modo actual.
+    for (const [k, src] of resueltas.current) {
+      if (quiero.has(k)) continue
+      if (src !== urlDe(k)) URL.revokeObjectURL(src)
+      resueltas.current.delete(k)
     }
 
     void (async () => {
-      for (const url of quiero) {
+      for (const k of quiero) {
         if (cancelado) return
-        if (!resueltas.current.has(url)) {
-          const blob = await getAudio(url).catch(() => null)
-          if (cancelado) return
-          resueltas.current.set(url, blob ? URL.createObjectURL(blob) : url)
+        const url = urlDe(k)
+        const hayRed = k.startsWith('red|')
+
+        if (!resueltas.current.has(k)) {
+          // Con cobertura, la URL pública tal cual: es la única forma que iOS
+          // reproduce con la pantalla bloqueada. Sin cobertura, el blob: de la
+          // copia descargada, que suena aunque solo sea con la pantalla dada.
+          if (hayRed) {
+            resueltas.current.set(k, url)
+          } else {
+            const blob = await getAudio(url).catch(() => null)
+            if (cancelado) return
+            resueltas.current.set(k, blob ? URL.createObjectURL(blob) : url)
+          }
           avisarDeCambio()
         }
 
-        // Ya se puede reproducir. Solo entonces, y solo con cobertura, se mira
-        // si el audio se regeneró desde que se descargó (una petición HEAD).
+        // La copia descargada se mantiene al día aunque ahora mismo se esté
+        // reproduciendo por red: es la que salva el día cuando no haya.
         const cambiado = await refreshAudioIfChanged(url).catch(() => false)
-        if (cancelado || !cambiado) continue
+        if (cancelado || !cambiado || hayRed) continue
         const fresco = await getAudio(url).catch(() => null)
         if (cancelado || !fresco) continue
-        const anterior = resueltas.current.get(url)
+        const anterior = resueltas.current.get(k)
         if (anterior && anterior !== url) URL.revokeObjectURL(anterior)
-        resueltas.current.set(url, URL.createObjectURL(fresco))
+        resueltas.current.set(k, URL.createObjectURL(fresco))
         avisarDeCambio()
       }
     })()
@@ -213,14 +255,14 @@ export function useAudioUrls(urls: (string | null | undefined)[]): AudioUrls {
   useEffect(() => {
     const mapa = resueltas.current
     return () => {
-      for (const [url, objectUrl] of mapa) {
-        if (objectUrl !== url) URL.revokeObjectURL(objectUrl)
+      for (const [k, src] of mapa) {
+        if (src !== k.slice(k.indexOf('|') + 1)) URL.revokeObjectURL(src)
       }
       mapa.clear()
     }
   }, [])
 
   return {
-    resolve: (url) => (url ? resueltas.current.get(url) ?? null : null),
+    resolve: (url) => (url ? resueltas.current.get(claveDe(url)) ?? null : null),
   }
 }
