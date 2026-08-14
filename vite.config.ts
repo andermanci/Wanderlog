@@ -16,9 +16,12 @@ export default defineConfig({
       injectRegister: 'auto',
       injectManifest: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-        // Incluye .webp para precachear las portadas fallback empaquetadas y
-        // .mjs para el worker de pdf.js (detección de códigos del wallet offline).
-        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,webp}'],
+        // Incluye .webp para precachear las portadas fallback empaquetadas,
+        // .mjs para el worker de pdf.js (detección de códigos del wallet
+        // offline) y .wav para silencio.wav, el ancla de sesión de audio del
+        // reproductor de audioguías: si no estuviera sin conexión, cambiar de
+        // parada dejaría de sonar justo cuando no hay cobertura.
+        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,webp,wav}'],
       },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {

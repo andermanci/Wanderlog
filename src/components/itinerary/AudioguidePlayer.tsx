@@ -66,6 +66,9 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
   // La parada nueva ya se ha arrancado desde el propio gesto, así que el efecto
   // del cambio de parada no debe pausarla (ver goTo).
   const arrancadaEnGestoRef = useRef(false)
+  // Ancla de sesión de audio para el relevo entre paradas (ver goTo).
+  const silencioRef = useRef<HTMLAudioElement>(null)
+  const silencioDesbloqueadoRef = useRef(false)
   // El pause() del cambio de parada no es un gesto del usuario: no debe salir
   // hacia el grupo como si alguien hubiera dado a la pausa.
   const changingStopRef = useRef(false)
@@ -203,10 +206,30 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
     const src = audio.resolve(target.audio_url)
     if (autoPlay && el && src) {
       arrancadaEnGestoRef.current = true
+
+      // EL ANCLA DE SILENCIO. Sin esto, pasar de parada con la pantalla
+      // bloqueada cambia el título pero no suena nada.
+      //
+      // Comprobado en el iPhone: si bloqueas mientras ya suena, sigue sonando
+      // — iOS mantiene la sesión de audio de una página que ya la tenía. Lo que
+      // no hace es CONCEDERLA de nuevo con la página oculta. Y asignar un src
+      // nuevo descarga el fichero anterior, con lo que la página se queda un
+      // instante sin nada reproduciendo y pierde la sesión: a partir de ahí el
+      // reloj avanza pero no sale audio hasta desbloquear.
+      //
+      // Un audio en silencio sonando DURANTE el relevo tapa ese hueco: la
+      // página nunca se queda a cero, así que no hay sesión que reconceder. Se
+      // para en cuanto la parada nueva ha arrancado de verdad.
+      const silencio = silencioRef.current
+      silencio?.play().catch(() => {})
+      const soltarAncla = () => { try { silencio?.pause() } catch { /* noop */ } }
+
       if (el.src !== src) el.src = src
       el.defaultPlaybackRate = playbackRate
       el.playbackRate = playbackRate
-      el.play().catch(() => { arrancadaEnGestoRef.current = false })
+      el.play()
+        .then(soltarAncla)
+        .catch(() => { soltarAncla(); arrancadaEnGestoRef.current = false })
     }
 
     setIndex(i)
@@ -224,9 +247,23 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
   // audioguía se escuchó», no cuántas veces se pausó y se reanudó.
   const yaContado = useRef(false)
 
+  // El ancla también necesita haber sonado una vez desde un gesto de verdad:
+  // en iOS un elemento que nunca ha reproducido no puede hacerlo por su cuenta,
+  // y entonces no serviría de ancla justo cuando hace falta. Se hace en el play
+  // de la pantalla, que es un toque directo, y una sola vez por sesión.
+  const desbloquearAncla = () => {
+    const s = silencioRef.current
+    if (!s || silencioDesbloqueadoRef.current) return
+    silencioDesbloqueadoRef.current = true
+    s.play()
+      .then(() => s.pause())
+      .catch(() => { silencioDesbloqueadoRef.current = false })
+  }
+
   const togglePlay = () => {
     const el = audioRef.current
     if (!el) return
+    desbloquearAncla()
     if (el.paused) {
       if (!yaContado.current) {
         yaContado.current = true
@@ -334,6 +371,13 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
           desde la pantalla de bloqueo. Y cambiar de elemento reinicia la ficha
           del reproductor del sistema en cada parada. El src se asigna en un
           efecto, no aquí. */}
+      {/* Ancla de sesión de audio. Un segundo de silencio en bucle que solo
+          suena mientras se releva el fichero de una parada a la siguiente, para
+          que la página no se quede ni un instante sin nada reproduciendo. Ver
+          el bloque largo de goTo. Va empaquetado en el build, así que también
+          está disponible sin conexión. */}
+      <audio ref={silencioRef} className="sr-only" src="/silencio.wav" loop preload="auto" />
+
       <audio
         ref={audioRef}
         className="sr-only"
