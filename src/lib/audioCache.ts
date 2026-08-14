@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 
 // Los MP3 de las audioguías NO pueden cachearse en el service worker: interceptar
 // las peticiones Range de un <audio> desde un SW es poco fiable en Safari/WebKit
@@ -135,55 +135,92 @@ export function formatBytes(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
+export interface AudioUrls {
+  /**
+   * URL reproducible YA resuelta, de forma síncrona, o null si todavía no lo
+   * está. Sin await: ese es justo el sentido de este hook.
+   */
+  resolve: (url: string | null | undefined) => string | null
+}
+
 /**
- * URL reproducible para un audio. Si la parada está descargada suena desde el
- * móvil: ni un byte de MP3 por la red, con o sin cobertura. Lo único que se
- * consulta es si ese audio ha cambiado, y solo entonces se baja de nuevo. Lo
- * que no esté descargado se reproduce en streaming, como siempre.
+ * URLs reproducibles para varias paradas a la vez: la que suena y sus vecinas.
+ * Si la parada está descargada suena desde el móvil —ni un byte de MP3 por la
+ * red— y si no, en streaming con la URL pública.
+ *
+ * POR QUÉ RESUELVE VARIAS Y NO SOLO LA ACTUAL:
+ *
+ * Resolver un audio es asíncrono (abrir la caché, buscar, sacar el blob). En
+ * iOS eso llega tarde. Safari solo concede `play()` si la llamada sale en la
+ * MISMA tarea que el gesto del usuario, y al pulsar «siguiente» en la pantalla
+ * de bloqueo la cadena era: gesto → estado de React → render → efecto → await
+ * a la caché → otro render → otro efecto → play(). Para entonces el permiso ha
+ * caducado, `play()` se rechaza con NotAllowedError y —como el rechazo se
+ * ignoraba— la audioguía se quedaba muda sin decir nada. Con la pantalla
+ * bloqueada era peor: Safari congela el JS, la promesa no resolvía hasta
+ * desbloquear, y de ahí el «no suena hasta que entro otra vez al iPhone».
+ *
+ * Adelantando la vecina mientras suena la actual, al pulsar ya está resuelta y
+ * el gesto puede asignar el src y llamar a play() en el acto.
  */
-export function useAudioUrl(url: string | null | undefined): string | null {
-  // Guardamos junto al resultado el valor que lo originó, para no reproducir
-  // nunca el audio de la parada anterior mientras se resuelve el nuevo.
-  const [resolved, setResolved] = useState<{ src: string; url: string } | null>(null)
+export function useAudioUrls(urls: (string | null | undefined)[]): AudioUrls {
+  const resueltas = useRef(new Map<string, string>())
+  const [, avisarDeCambio] = useReducer((n: number) => n + 1, 0)
+
+  // Clave estable: el array llega nuevo en cada render, pero su contenido no.
+  const clave = urls.filter((u): u is string => !!u).join('\n')
 
   useEffect(() => {
-    if (!url) return
+    const quiero = new Set(clave ? clave.split('\n') : [])
+    let cancelado = false
 
-    // Los blob: se liberan todos al final: soltar el anterior en cuanto llega
-    // el nuevo dejaría al <audio> reproduciendo una URL ya revocada.
-    const objectUrls: string[] = []
-    let cancelled = false
-
-    const play = (blob: Blob) => {
-      const objectUrl = URL.createObjectURL(blob)
-      objectUrls.push(objectUrl)
-      setResolved({ src: url, url: objectUrl })
+    // Suelta las que se han salido de la ventana. Un blob: vivo retiene el MP3
+    // entero en memoria, y una audioguía exhaustiva pasa de veinte paradas.
+    // La que suena nunca se suelta: siempre está dentro de la ventana.
+    for (const [url, objectUrl] of resueltas.current) {
+      if (quiero.has(url)) continue
+      if (objectUrl !== url) URL.revokeObjectURL(objectUrl)
+      resueltas.current.delete(url)
     }
 
     void (async () => {
-      const blob = await getAudio(url).catch(() => null)
-      if (cancelled) return
-      if (!blob) {
-        setResolved({ src: url, url })
-        return
-      }
-      play(blob)
+      for (const url of quiero) {
+        if (cancelado) return
+        if (!resueltas.current.has(url)) {
+          const blob = await getAudio(url).catch(() => null)
+          if (cancelado) return
+          resueltas.current.set(url, blob ? URL.createObjectURL(blob) : url)
+          avisarDeCambio()
+        }
 
-      // Ya está sonando desde la copia local. Ahora, y solo si hay cobertura,
-      // se comprueba si el audio se ha regenerado desde que se descargó.
-      const changed = await refreshAudioIfChanged(url).catch(() => false)
-      if (cancelled || !changed) return
-      const fresh = await getAudio(url).catch(() => null)
-      if (cancelled || !fresh) return
-      play(fresh)
+        // Ya se puede reproducir. Solo entonces, y solo con cobertura, se mira
+        // si el audio se regeneró desde que se descargó (una petición HEAD).
+        const cambiado = await refreshAudioIfChanged(url).catch(() => false)
+        if (cancelado || !cambiado) continue
+        const fresco = await getAudio(url).catch(() => null)
+        if (cancelado || !fresco) continue
+        const anterior = resueltas.current.get(url)
+        if (anterior && anterior !== url) URL.revokeObjectURL(anterior)
+        resueltas.current.set(url, URL.createObjectURL(fresco))
+        avisarDeCambio()
+      }
     })()
 
-    return () => {
-      cancelled = true
-      objectUrls.forEach((u) => URL.revokeObjectURL(u))
-    }
-  }, [url])
+    return () => { cancelado = true }
+  }, [clave])
 
-  if (!url) return null
-  return resolved?.src === url ? resolved.url : null
+  // Al desmontar se sueltan todas, incluida la que estuviera sonando.
+  useEffect(() => {
+    const mapa = resueltas.current
+    return () => {
+      for (const [url, objectUrl] of mapa) {
+        if (objectUrl !== url) URL.revokeObjectURL(objectUrl)
+      }
+      mapa.clear()
+    }
+  }, [])
+
+  return {
+    resolve: (url) => (url ? resueltas.current.get(url) ?? null : null),
+  }
 }

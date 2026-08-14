@@ -10,7 +10,7 @@ import { stopPoint } from '@/lib/queries/audioguideStopLocations'
 import { AudioguideMapDialog } from './AudioguideMapDialog'
 import { useAuthStore } from '@/store/authStore'
 import { useAudioguideGroupPlayback, type AudioguideSyncState } from '@/lib/realtime/useAudioguideGroupPlayback'
-import { useAudioUrl } from '@/lib/audioCache'
+import { useAudioUrls } from '@/lib/audioCache'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { AudioguideTranscript } from './AudioguideTranscript'
 import { emitirUso } from '@/lib/usage'
@@ -63,6 +63,9 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
   // ¿La parada que llega tiene que arrancar sola? (venías escuchando y has
   // pulsado siguiente, aquí o en el reproductor del móvil).
   const shouldAutoPlayRef = useRef(false)
+  // La parada nueva ya se ha arrancado desde el propio gesto, así que el efecto
+  // del cambio de parada no debe pausarla (ver goTo).
+  const arrancadaEnGestoRef = useRef(false)
   // El pause() del cambio de parada no es un gesto del usuario: no debe salir
   // hacia el grupo como si alguien hubiera dado a la pausa.
   const changingStopRef = useRef(false)
@@ -79,8 +82,15 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
     return puntos.some((a, i) => puntos.slice(i + 1).some(b => haversineKm(a, b) > MIN_DISPERSION_KM))
   }, [stops])
   // blob: local si la parada está descargada (suena sin conexión), y si no la
-  // URL pública de siempre.
-  const audioSrc = useAudioUrl(stop?.audio_url)
+  // URL pública de siempre. Se resuelven la actual y sus DOS vecinas: al pulsar
+  // «siguiente» hay que poder asignar el src y arrancar sin esperar a nada,
+  // porque iOS solo da permiso dentro del propio gesto (ver useAudioUrls).
+  const ventanaUrls = useMemo(
+    () => [stops[index - 1]?.audio_url, stops[index]?.audio_url, stops[index + 1]?.audio_url],
+    [stops, index],
+  )
+  const audio = useAudioUrls(ventanaUrls)
+  const audioSrc = audio.resolve(stop?.audio_url)
 
   // Al cambiar de parada hay que reiniciar a mano tiempos y estado: antes lo
   // hacía el remontaje del <audio> (key={stop.id}), pero ahora el elemento es
@@ -91,8 +101,14 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
     const el = audioRef.current
     if (!el) return
     changingStopRef.current = true
-    el.pause()
-    setIsPlaying(false)
+    // Si la parada ya la ha arrancado el propio gesto (ver goTo), pausar aquí
+    // mataría justo lo que se acaba de conseguir: este efecto corre DESPUÉS de
+    // pintar, o sea después del play().
+    if (!arrancadaEnGestoRef.current) {
+      el.pause()
+      setIsPlaying(false)
+    }
+    arrancadaEnGestoRef.current = false
     setCurrentTime(0)
     setDuration(0)
     const timer = setTimeout(() => { changingStopRef.current = false }, 300)
@@ -107,9 +123,11 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
     const el = audioRef.current
     if (!el || !audioSrc || el.src === audioSrc) return
     el.src = audioSrc
-    el.load()
-    // load() devuelve playbackRate a defaultPlaybackRate: hay que fijar los dos
-    // o la velocidad elegida se pierde en cada parada.
+    // SIN load(). Asignar src ya dispara la carga, y load() además REINICIA el
+    // elemento: en iOS eso le quita el «desbloqueo» heredado del último gesto y
+    // el play() siguiente sale rechazado. Es camino de respaldo —el caso normal
+    // lo resuelve goTo dentro del gesto—, pero tiene que dejar el elemento en
+    // condiciones de sonar.
     el.defaultPlaybackRate = playbackRate
     el.playbackRate = playbackRate
     if (shouldAutoPlayRef.current) el.play().catch(() => {})
@@ -169,6 +187,28 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
     if (!target) return
     const autoPlay = options?.autoPlay ?? false
     shouldAutoPlayRef.current = autoPlay
+
+    // AQUÍ, EN EL GESTO, Y NO EN UN EFECTO.
+    //
+    // iOS solo concede play() si sale en la misma tarea que el toque del
+    // usuario. Los efectos de React corren después de pintar, así que hacerlo
+    // allí llegaba tarde: play() se rechazaba y, como el rechazo se tragaba, la
+    // parada siguiente se quedaba muda. Con la pantalla bloqueada ni siquiera
+    // resolvía la caché hasta desbloquear el móvil.
+    //
+    // La vecina ya está resuelta (useAudioUrls adelanta ±1), así que aquí solo
+    // hay asignaciones síncronas. Si no lo estuviera —saltar desde el índice a
+    // una parada lejana—, se cae al efecto de audioSrc, que para eso sigue.
+    const el = audioRef.current
+    const src = audio.resolve(target.audio_url)
+    if (autoPlay && el && src) {
+      arrancadaEnGestoRef.current = true
+      if (el.src !== src) el.src = src
+      el.defaultPlaybackRate = playbackRate
+      el.playbackRate = playbackRate
+      el.play().catch(() => { arrancadaEnGestoRef.current = false })
+    }
+
     setIndex(i)
     setShowIndex(false)
     if (group.joined) {
