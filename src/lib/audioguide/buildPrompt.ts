@@ -30,24 +30,25 @@ export const AUDIOGUIDE_DETAIL_LEVELS: AudioguideDetailLevelOption[] = [
   },
 ]
 
-// Las mismas tres intensidades, contadas para un paseo por la ciudad: aquí una
-// parada no es una sala sino una plaza o un puente, así que ni el número ni el
-// criterio para elegirlas se parecen a los de un museo.
+// Las mismas tres intensidades, contadas para la audioguía de una ciudad. Aquí
+// una «parada» no es un sitio sino un CAPÍTULO: un tema del que hablar. Lo que
+// son los sitios ya lo cuenta la audioguía de cada actividad, y repetirlo era
+// justo el problema.
 export const DAY_AUDIOGUIDE_DETAIL_LEVELS: AudioguideDetailLevelOption[] = [
   {
     id: 'rapida',
     label: 'Rápida',
-    description: 'Un paseo corto (5-7 paradas) por lo imprescindible de la ciudad. Para hacerse una idea sin dedicarle la mañana.',
+    description: 'Lo esencial en 5-7 capítulos: de dónde sale la ciudad y qué la hace distinta. Para hacerse una idea de camino.',
   },
   {
     id: 'estandar',
     label: 'Estándar',
-    description: 'Un recorrido de verdad (10-14 paradas) por el centro histórico, con la historia de la ciudad hilada entre parada y parada.',
+    description: '10-14 capítulos con la historia de la ciudad bien contada, sus personajes, sus costumbres y unas cuantas curiosidades.',
   },
   {
     id: 'exhaustiva',
     label: 'Exhaustiva',
-    description: 'La ciudad a fondo (18 o más paradas), incluyendo barrios de fuera del circuito, vida cotidiana y rincones que no salen en las guías.',
+    description: 'La ciudad a fondo en 18 capítulos o más: historia, economía, urbanismo, comida, dichos y rarezas que no salen en las guías.',
   },
 ]
 
@@ -81,19 +82,19 @@ const LEVEL_CONFIG: Record<AudioguideDetailLevel, LevelConfig> = {
 
 const DAY_LEVEL_CONFIG: Record<AudioguideDetailLevel, LevelConfig> = {
   rapida: {
-    paradas: 'entre 5 y 7 paradas con los hitos imprescindibles del centro histórico',
+    paradas: 'entre 5 y 7 capítulos con lo esencial para entender la ciudad',
     palabras: '120 a 180',
-    profundidad: 've al grano: qué estoy viendo y por qué importa en la historia de la ciudad',
+    profundidad: 've al grano: por qué la ciudad es como es y qué la distingue de cualquier otra',
   },
   estandar: {
-    paradas: 'entre 10 y 14 paradas que recorran el centro histórico y algún barrio con carácter propio',
+    paradas: 'entre 10 y 14 capítulos',
     palabras: '200 a 280',
-    profundidad: 'hila la historia de la ciudad de una parada a otra, mezclando arquitectura, vida cotidiana y algún detalle curioso',
+    profundidad: 'hila un relato de un capítulo al siguiente, mezclando historia, vida cotidiana y algún detalle curioso',
   },
   exhaustiva: {
-    paradas: '18 paradas o más, saliendo también del circuito turístico principal: barrios periféricos con interés, mercados, calles concretas y rincones que no salen en las guías (yo decidiré luego qué escuchar y qué saltarme, así que prefiero que te pases a que te quedes corto)',
+    paradas: '18 capítulos o más (yo decidiré luego cuáles escuchar y cuáles saltarme, así que prefiero que te pases a que te quedes corto)',
     palabras: '300 a 450',
-    profundidad: 'profundiza al máximo: historia, urbanismo, economía, arte, costumbres, gastronomía, personajes y anécdotas',
+    profundidad: 'profundiza al máximo: historia, urbanismo, economía, costumbres, gastronomía, dichos, personajes y anécdotas',
   },
 }
 
@@ -146,10 +147,12 @@ ${CAMPOS_COMUNES}
 ${outputFormat()}`
 }
 
-// Audioguía de la ciudad del día, no de un sitio concreto. El sujeto es la
-// ciudad entera: el paseo entre parada y parada, el barrio, por qué la ciudad
-// es como es. Se le pasan las actividades del día para que el recorrido pase
-// por donde ya vas a estar y NO repita lo que ya cuenta la audioguía del sitio.
+// Audioguía de la ciudad del día. NO es un recorrido por sitios: de los sitios
+// ya se encarga la audioguía de cada actividad, y oír dos veces el mismo
+// monumento era justo el problema que resuelve esto. Aquí el sujeto es la
+// ciudad como tal —de dónde sale, cómo creció, de qué vive, qué la hace rara—,
+// contada por capítulos temáticos. Por eso las actividades del día entran como
+// LISTA DE EXCLUSIÓN y no como paradas del camino.
 export function buildDayAudioguidePrompt(
   day: ItineraryDay,
   trip: Trip,
@@ -161,28 +164,28 @@ export function buildDayAudioguidePrompt(
   // hay: más vale una audioguía de "Italia" que ninguna.
   const lugar = ciudades.length > 0 ? ciudades.join(' y ') : trip.destination
 
-  const visitas = dayActivities
+  const excluidos = dayActivities
     .filter((a) => a.title?.trim())
-    .map((a) => `- ${a.title}${a.address ? ` (${a.address})` : ''}`)
+    .map((a) => `- ${a.title}`)
 
   const cfg = DAY_LEVEL_CONFIG[level]
 
-  const bloqueVisitas = visitas.length > 0
-    ? `\nEse día ya tengo previstas estas visitas:\n${visitas.join('\n')}\n\nTenlas en cuenta de dos maneras: haz que el recorrido pase cerca de ellas para que encaje con mi día, y cuando el paseo llegue a una, cuéntala solo por fuera (qué es, por qué está ahí, qué se ve desde la calle) SIN entrar en detalle en su interior ni en sus obras, porque para eso tengo una audioguía aparte de cada sitio.\n`
+  const bloqueExclusion = excluidos.length > 0
+    ? `\nMUY IMPORTANTE — de estos sitios NO debes hablar, porque ya tengo una audioguía dedicada a cada uno y no quiero oír lo mismo dos veces:\n${excluidos.join('\n')}\n\nNo les dediques un capítulo, no los uses de hilo conductor y no cuentes su historia. Puedes nombrarlos de pasada si es inevitable para explicar otra cosa (por ejemplo, al situar un barrio o una época), pero nunca como tema.\n`
     : ''
 
-  return `Eres un guía turístico profesional y experto en historia urbana. Necesito que generes el guion de una audioguía en español sobre la ciudad de ${lugar}${ciudades.length > 1 ? '' : `, en ${trip.destination}`}, para escucharla paseando por la calle durante un día entero de visita.
+  return `Eres un guía turístico profesional y experto en historia urbana. Necesito que generes el guion de una audioguía en español sobre la ciudad de ${lugar}${ciudades.length > 1 ? '' : `, en ${trip.destination}`}, para escucharla el día que la visito: en el transporte, desayunando o andando por la calle.
 
-No es la audioguía de un museo ni de un monumento concreto: el sujeto es la ciudad. Quiero entender por qué esta ciudad es como es —su origen, cómo creció, de qué vivió y vive, qué la hace distinta de cualquier otra— mientras camino por ella.
-${bloqueVisitas}
-Diseña un recorrido a pie con ${cfg.paradas}. Ordénalas siguiendo un itinerario andando que tenga sentido geográfico, sin ir y volver: cada parada debe quedar razonablemente cerca de la anterior.
+No es la audioguía de un monumento ni un recorrido por sus lugares. El sujeto es la CIUDAD: quiero entender por qué es como es —su origen, cómo creció, de qué vivió y vive, quién mandó, qué se come y por qué, qué la hace distinta de cualquier otra— y llevarme unos cuantos datos que no vienen en las guías.
+${bloqueExclusion}
+Divide la audioguía en ${cfg.paradas}. Cada capítulo es un TEMA, no un sitio: el origen de la ciudad, el dinero que la levantó, un personaje que la marcó, una costumbre, un plato y su porqué, una rareza del idioma o del carácter local, un episodio histórico que la cambió. Ordénalos de manera que cuenten una historia, normalmente empezando por el origen y avanzando en el tiempo, y que ninguno repita lo dicho en otro.
 
-Para cada parada incluye:
+Para cada capítulo incluye:
 ${CAMPOS_COMUNES}
-- La ubicación de la parada: el nombre del sitio tal y como se buscaría en Google Maps (con la ciudad incluida) y sus coordenadas en grados decimales con 5 decimales. Aquí casi todas las paradas SÍ son sitios reales de la calle (plazas, puentes, fachadas, mercados, miradores), así que rellena los dos campos siempre que puedas; escribe NINGUNO solo si la parada no es un lugar físico (una introducción general, consejos prácticos).
-- Un guion narrado de ${cfg.palabras} palabras, con tono cercano y profesional, de alguien que conoce bien la ciudad; ${cfg.profundidad}.
+- La ubicación: escribe NINGUNO en las dos líneas. Estos capítulos son temas y no se escuchan delante de un sitio concreto. La única excepción es que el capítulo trate de verdad de un lugar visitable que NO esté en la lista de exclusión de arriba; solo entonces pon su nombre buscable en Google Maps y sus coordenadas con 5 decimales.
+- Un guion narrado de ${cfg.palabras} palabras, con tono cercano y profesional, de alguien que conoce bien la ciudad y sabe contarla; ${cfg.profundidad}.
 
-Empieza por una parada de introducción que resuma en qué ciudad estoy y qué voy a entender durante el paseo. Reparte la historia a lo largo del recorrido en vez de soltarla toda al principio: cada parada debe aportar un trozo del relato, no repetir lo anterior.
+Empieza por un capítulo de introducción que responda a «por qué existe esta ciudad y qué la hace distinta». Prefiere lo concreto a lo genérico: una fecha, una cifra, un nombre o una anécdota valen más que un adjetivo. Y no escribas frases de guía turística del tipo «no puedes perderte»: esto se escucha, no se lee en un folleto.
 
 ${outputFormat()}`
 }

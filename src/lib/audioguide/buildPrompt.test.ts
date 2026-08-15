@@ -31,33 +31,52 @@ describe('buildDayAudioguidePrompt', () => {
     expect(buildDayAudioguidePrompt(dia(), trip, [])).toContain('la ciudad de Italia')
   })
 
-  it('pasa las visitas del día para encajar el recorrido y no repetirlas', () => {
+  // Lo que ya se escucha en la audioguía de cada actividad no debe repetirse en
+  // la del día: por eso las actividades entran PROHIBIDAS, no como recorrido.
+  it('las visitas del día entran como lista de exclusión', () => {
     const prompt = buildDayAudioguidePrompt(dia([{ name: 'Venecia', guide_id: null }]), trip, [
       actividad('Palacio Ducal', 'Piazza San Marco, 1'),
       actividad('Basílica de San Marcos'),
     ])
-    expect(prompt).toContain('- Palacio Ducal (Piazza San Marco, 1)')
+    expect(prompt).toContain('de estos sitios NO debes hablar')
+    expect(prompt).toContain('- Palacio Ducal')
     expect(prompt).toContain('- Basílica de San Marcos')
-    expect(prompt).toContain('SIN entrar en detalle en su interior')
+    expect(prompt).toContain('No les dediques un capítulo')
   })
 
-  it('no menciona visitas si el día está vacío', () => {
+  // La dirección de la actividad sobra en una lista de exclusión y encima
+  // arrastraría nombres de sitios ("Piazza San Marco") que no queremos sugerir.
+  it('en la exclusión va el nombre a secas, sin la dirección', () => {
+    const prompt = buildDayAudioguidePrompt(dia([{ name: 'Venecia', guide_id: null }]), trip, [
+      actividad('Palacio Ducal', 'Piazza San Marco, 1'),
+    ])
+    expect(prompt).not.toContain('Piazza San Marco, 1')
+  })
+
+  it('no habla de exclusiones si el día está vacío', () => {
     const prompt = buildDayAudioguidePrompt(dia([{ name: 'Venecia', guide_id: null }]), trip, [])
-    expect(prompt).not.toContain('ya tengo previstas')
+    expect(prompt).not.toContain('NO debes hablar')
   })
 
-  it('cada nivel de detalle pide un número de paradas distinto', () => {
+  it('cada nivel de detalle pide un número de capítulos distinto', () => {
     const d = dia([{ name: 'Venecia', guide_id: null }])
-    expect(buildDayAudioguidePrompt(d, trip, [], 'rapida')).toContain('entre 5 y 7 paradas')
-    expect(buildDayAudioguidePrompt(d, trip, [], 'estandar')).toContain('entre 10 y 14 paradas')
-    expect(buildDayAudioguidePrompt(d, trip, [], 'exhaustiva')).toContain('18 paradas o más')
+    expect(buildDayAudioguidePrompt(d, trip, [], 'rapida')).toContain('entre 5 y 7 capítulos')
+    expect(buildDayAudioguidePrompt(d, trip, [], 'estandar')).toContain('entre 10 y 14 capítulos')
+    expect(buildDayAudioguidePrompt(d, trip, [], 'exhaustiva')).toContain('18 capítulos o más')
   })
 
-  // El prompt de ciudad recorre la calle: casi toda parada es un sitio real y
-  // debe traer coordenadas, al revés que el de museo (salas sin ubicación).
-  it('pide coordenadas siempre que se pueda, no como excepción', () => {
+  // Al contrario que antes: son temas, no sitios, así que por defecto no hay
+  // ubicación — y sin paradas localizadas el reproductor no ofrece mapa.
+  it('pide NINGUNO en la ubicación salvo excepción', () => {
     const prompt = buildDayAudioguidePrompt(dia([{ name: 'Venecia', guide_id: null }]), trip, [])
-    expect(prompt).toContain('rellena los dos campos siempre que puedas')
+    expect(prompt).toContain('escribe NINGUNO en las dos líneas')
+    expect(prompt).toContain('Cada capítulo es un TEMA, no un sitio')
+  })
+
+  it('ya no encarga un recorrido a pie', () => {
+    const prompt = buildDayAudioguidePrompt(dia([{ name: 'Venecia', guide_id: null }]), trip, [])
+    expect(prompt).not.toContain('recorrido a pie')
+    expect(prompt).not.toContain('sentido geográfico')
   })
 })
 
