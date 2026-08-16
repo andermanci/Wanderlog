@@ -452,6 +452,30 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
           </div>
         </div>
 
+        {/* Qué estás mirando. Dentro de un museo, "la gran tabla horizontal
+            dominada por un jardín" resuelve poco delante de una pared con seis
+            cuadros parecidos; la miniatura lo resuelve de un vistazo.
+            object-contain y no cover: recortar una obra por el centro es
+            justo lo que impide reconocerla. La imagen se sirve ya reducida
+            desde nuestro propio bucket (ver 058), así que la cachea el service
+            worker con el resto del storage y se ve sin conexión. */}
+        {stop.image_url && (
+          <figure className="m-0">
+            <img
+              src={stop.image_url}
+              alt={`Imagen de ${stop.title}`}
+              loading="lazy"
+              className="w-full max-h-56 object-contain rounded-lg"
+              style={{ background: 'var(--secondary)' }}
+            />
+            {stop.image_credit && (
+              <figcaption className="text-[10px] text-muted-foreground mt-1 text-right">
+                {stop.image_credit}
+              </figcaption>
+            )}
+          </figure>
+        )}
+
         <div>
           <p className="font-serif text-lg leading-snug mb-1">{stop.title}</p>
           {stop.summary && <p className="text-sm text-muted-foreground mb-2">{stop.summary}</p>}

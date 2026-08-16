@@ -740,6 +740,9 @@ export type Database = {
           audio_url: string | null
           audio_duration_seconds: number | null
           sentence_timings: { text: string; start: number }[] | null
+          /** Foto de lo que se describe, para identificarlo de un vistazo (ver 057). */
+          image_url: string | null
+          image_credit: string | null
           status: 'pending' | 'generating' | 'ready' | 'error'
           error_message: string | null
           created_at: string
@@ -760,6 +763,8 @@ export type Database = {
           audio_url?: string | null
           audio_duration_seconds?: number | null
           sentence_timings?: { text: string; start: number }[] | null
+          image_url?: string | null
+          image_credit?: string | null
           status?: 'pending' | 'generating' | 'ready' | 'error'
           error_message?: string | null
           created_at?: string
@@ -780,6 +785,8 @@ export type Database = {
           audio_url?: string | null
           audio_duration_seconds?: number | null
           sentence_timings?: { text: string; start: number }[] | null
+          image_url?: string | null
+          image_credit?: string | null
           status?: 'pending' | 'generating' | 'ready' | 'error'
           error_message?: string | null
           created_at?: string

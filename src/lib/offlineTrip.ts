@@ -47,11 +47,12 @@ async function readyAudioStops(tripId: string): Promise<AudioguideStop[]> {
 
 /** Las fotos del viaje: portada, diario, adjuntos y portadas de las guías. */
 async function tripPhotoUrls(tripId: string): Promise<string[]> {
-  const [trip, journal, attachments, guides] = await Promise.all([
+  const [trip, journal, attachments, guides, stopImages] = await Promise.all([
     supabase.from('trips').select('cover_image_url').eq('id', tripId).single(),
     supabase.from('journal_photos').select('file_url').eq('trip_id', tripId),
     supabase.from('activity_attachments').select('file_url, mime').eq('trip_id', tripId),
     supabase.from('destination_guides').select('cover_image_url').eq('trip_id', tripId),
+    supabase.from('audioguide_stops').select('image_url').eq('trip_id', tripId),
   ])
   const urls = new Set<string>()
   const add = (u?: string | null) => { if (u && /^https?:\/\//.test(u)) urls.add(u) }
@@ -62,6 +63,9 @@ async function tripPhotoUrls(tripId: string): Promise<string[]> {
     if (a.mime?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(a.file_url)) add(a.file_url)
   })
   ;(guides.data ?? []).forEach((g) => add(g.cover_image_url))
+  // Las imágenes de las paradas de audioguía (ver 057): son las que permiten
+  // reconocer la obra, y dentro de un museo rara vez hay cobertura.
+  ;(stopImages.data ?? []).forEach((s) => add(s.image_url))
   return [...urls]
 }
 
@@ -185,6 +189,8 @@ export async function prefetchTripOffline(
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(results.guides ?? []).forEach((g: any) => add(g.cover_image_url))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(results.audioStops ?? []).forEach((s: any) => add(s.image_url))
 
   // Los documentos (bucket privado) no pasan por el service worker: se leen con
   // URLs firmadas, que cambian en cada petición y nunca acertarían en su caché.
