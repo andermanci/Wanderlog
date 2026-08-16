@@ -49,7 +49,10 @@ function formatTime(seconds: number): string {
 export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl, locatingStops }: Props) {
   const { user } = useAuthStore()
   const [index, setIndex] = useState(0)
-  const [showIndex, setShowIndex] = useState(false)
+  // Abierto de entrada: lo primero que se quiere ver al abrir una audioguía es
+  // de qué va, y eso son los títulos de las paradas. Se cierra solo al elegir
+  // una (ver goTo), que es cuando estorba.
+  const [showIndex, setShowIndex] = useState(true)
   // Parada sobre la que centrar el mapa; null = mapa cerrado.
   const [mapFocusIndex, setMapFocusIndex] = useState<number | null>(null)
   const [showTranscript, setShowTranscript] = useState(true)

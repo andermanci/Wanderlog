@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore'
 import { DirectionsDialog } from '@/components/DirectionsDialog'
 import { DestinationFacts } from '@/components/trips/DestinationFacts'
 import { TodayDocsRow } from '@/components/trips/TodayDocsRow'
+import { TodayAudioguideRow } from '@/components/trips/TodayAudioguideRow'
 import { TodayTimeline } from '@/components/trips/TodayTimeline'
 import { FlightStatusCard } from '@/components/itinerary/FlightStatusCard'
 import { useDocuments } from '@/lib/queries/documents'
@@ -225,6 +226,10 @@ export function TodayHub({ trip, activities, days }: {
           <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" aria-hidden="true" />
         </Link>
       )}
+
+      {/* Justo debajo del plan del día: lo que toca escuchar ahora, sin tener
+          que entrar al itinerario y buscar la actividad. */}
+      <TodayAudioguideRow tripId={trip.id} todayDay={todayDay} focus={focus} />
 
       {todayFlightNumber && (
         <div className="mb-4">
