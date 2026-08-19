@@ -56,13 +56,6 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  // Invalida la caché de queries persistida (60 días en localStorage) en cada
-  // despliegue: sin esto, un cliente rehidrata la FORMA vieja de un dato después
-  // de que la hayamos cambiado y revienta. Solo llega a este valor quien ya ha
-  // descargado el JS nuevo, o sea, estando online: puede volver a pedir los datos.
-  define: {
-    __APP_VERSION__: JSON.stringify(String(Date.now())),
-  },
   build: {
     rollupOptions: {
       output: {

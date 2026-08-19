@@ -59,7 +59,19 @@ const AdminVisitsPage = lazy(() => import('@/pages/admin/AdminVisits').then(m =>
 const AdminEventsPage = lazy(() => import('@/pages/admin/AdminEvents').then(m => ({ default: m.AdminEventsPage })))
 const AdminAuditPage = lazy(() => import('@/pages/admin/AdminAudit').then(m => ({ default: m.AdminAuditPage })))
 
-declare const __APP_VERSION__: string
+// Versión del FORMATO de la caché persistida, no de la aplicación.
+//
+// PersistQueryClientProvider tira TODA la caché de localStorage cuando este
+// valor no coincide con el que se guardó. Aquí había un Date.now() resuelto en
+// tiempo de compilación, así que cambiaba en cada despliegue: cada vez que se
+// subía cualquier cosa, a quien tuviera un viaje descargado se le borraba
+// entero y se quedaba sin nada en modo avión. El síntoma era exactamente ese:
+// «tengo el viaje descargado y sin conexión no me sale ningún viaje».
+//
+// Solo hay que subir este número cuando cambie la FORMA de lo que se cachea de
+// manera incompatible (una query key que se renombra, un tipo que cambia), no
+// cuando cambie el código.
+const CACHE_SCHEMA = '1' 
 
 function PageFallback() {
   return (
@@ -124,7 +136,7 @@ export default function App() {
       persistOptions={{
         persister,
         maxAge: 1000 * 60 * 60 * 24 * 60,
-        buster: __APP_VERSION__,
+        buster: CACHE_SCHEMA,
         // Nada del panel de administración se escribe en localStorage. El
         // resto de la caché se persiste 60 días porque son TUS viajes y los
         // quieres sin conexión; los del panel son datos de otras personas y

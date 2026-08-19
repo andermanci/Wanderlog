@@ -11,13 +11,13 @@ import { placeKeys } from '@/lib/queries/places'
 import { journalKeys } from '@/lib/queries/journal'
 import { attachmentKeys } from '@/lib/queries/attachments'
 import { guideKeys } from '@/lib/queries/guide'
-import { audioguideKeys, type TripAudioguideReadiness } from '@/lib/queries/audioguides'
+import { audioguideKeys, type TripAudioguideReadiness, type AudioguideCargada } from '@/lib/queries/audioguides'
 import { audioguideScope } from '@/lib/audioguide/scope'
 import { cacheDoc } from '@/lib/docCache'
 import { audioSize, cacheAudio } from '@/lib/audioCache'
 import { cachePhoto, photosSize } from '@/lib/photoCache'
 import { readOfflineIndex, writeOfflineIndex } from '@/lib/offlineIndex'
-import type { Audioguide, AudioguideStop } from '@/types/database'
+import type { AudioguideStop } from '@/types/database'
 
 export type PrefetchProgress = {
   phase: 'data' | 'files' | 'photos' | 'audio'
@@ -138,7 +138,17 @@ export async function prefetchTripOffline(
       if (error) throw error
       return data ?? []
     } },
-    { name: 'audioguides', fn: sel('audioguides') },
+    // Sin raw_text: es el guion en bruto, nadie lo lee, y más de 1 MB de
+    // localStorage en un viaje con muchas audioguías (ver COLUMNAS en
+    // lib/queries/audioguides.ts).
+    { name: 'audioguides', fn: async () => {
+      const { data, error } = await supabase
+        .from('audioguides')
+        .select('id, activity_id, day_id, trip_id, status, playback_stop_id, playback_position_seconds, playback_is_playing, playback_rate, playback_updated_at, created_at')
+        .eq('trip_id', tripId)
+      if (error) throw error
+      return data
+    } },
     { name: 'audioStops', fn: sel('audioguide_stops', { col: 'order_index' }) },
   ]
 
@@ -158,7 +168,7 @@ export async function prefetchTripOffline(
   // viaje: se traen enteras de una vez y se reparten a mano en la caché, con la
   // misma forma que devuelve useAudioguide. Cada una cuelga de una actividad o
   // de un día, nunca de las dos (audioguides_scope_chk, ver 056).
-  const audioguides: Audioguide[] = results.audioguides ?? []
+  const audioguides: AudioguideCargada[] = results.audioguides ?? []
   const audioStops: AudioguideStop[] = results.audioStops ?? []
   const readiness: TripAudioguideReadiness = { activityIds: [], dayIds: [] }
   for (const guide of audioguides) {

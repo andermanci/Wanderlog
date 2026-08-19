@@ -8,7 +8,20 @@ import {
 import { removeAudios } from '@/lib/audioCache'
 import { toast } from 'sonner'
 
-export interface AudioguideWithStops extends Audioguide {
+// Todas las columnas MENOS raw_text.
+//
+// raw_text es el guion entero tal y como se pegó, y solo se ESCRIBE: nadie lo
+// lee en toda la app —las paradas ya llevan su script_text troceado—. Pero
+// entraba por un select('*') y de ahí a la caché que se persiste en
+// localStorage, donde ocupaba más de 1 MB en un viaje con muchas audioguías.
+// Como la cuota ronda los 5 MB, era peso muerto que echaba fuera datos que sí
+// hacen falta sin conexión.
+const COLUMNAS = 'id, activity_id, day_id, trip_id, status, playback_stop_id, playback_position_seconds, playback_is_playing, playback_rate, playback_updated_at, created_at'
+
+/** Una audioguía tal y como la carga la app: sin el guion en bruto. */
+export type AudioguideCargada = Omit<Audioguide, 'raw_text'>
+
+export interface AudioguideWithStops extends AudioguideCargada {
   stops: AudioguideStop[]
 }
 
@@ -31,7 +44,7 @@ export function useAudioguide(scope: AudioguideScope | null) {
     queryFn: async (): Promise<AudioguideWithStops | null> => {
       const { data: audioguide, error } = await supabase
         .from('audioguides')
-        .select('*')
+        .select(COLUMNAS)
         .eq(scopeColumn(scope!), scope!.id)
         .maybeSingle()
       if (error) throw error
