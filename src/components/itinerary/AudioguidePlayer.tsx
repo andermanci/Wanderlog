@@ -14,6 +14,7 @@ import { useAudioUrls } from '@/lib/audioCache'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { AudioguideTranscript } from './AudioguideTranscript'
 import { emitirUso } from '@/lib/usage'
+import { guardarPosicionAudio, leerPosicionAudio } from '@/lib/resumeState'
 
 interface Props {
   stops: AudioguideStop[]
@@ -48,7 +49,14 @@ function formatTime(seconds: number): string {
 // reproductor del sistema (pantalla de bloqueo, auriculares, CarPlay).
 export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl, locatingStops }: Props) {
   const { user } = useAuthStore()
-  const [index, setIndex] = useState(0)
+  // Por dónde ibas de esta audioguía (ver resumeState.ts). Se lee una sola vez,
+  // al montar: si iOS ha matado la app a mitad de una parada, al volver se abre
+  // en esa parada y en ese segundo en lugar de en la primera.
+  const [reanudar] = useState(() => leerPosicionAudio(audioguideId))
+  const [index, setIndex] = useState(() => {
+    const i = reanudar ? stops.findIndex((s) => s.id === reanudar.stopId) : -1
+    return i === -1 ? 0 : i
+  })
   // Abierto de entrada: lo primero que se quiere ver al abrir una audioguía es
   // de qué va, y eso son los títulos de las paradas. Se cierra solo al elegir
   // una (ver goTo), que es cuando estorba.
@@ -75,6 +83,12 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
   // El pause() del cambio de parada no es un gesto del usuario: no debe salir
   // hacia el grupo como si alguien hubiera dado a la pausa.
   const changingStopRef = useRef(false)
+  // Segundo al que hay que saltar en cuanto el audio cargue, una sola vez. Deja
+  // de valer en cuanto cambias de parada a mano: entonces mandas tú.
+  const reanudarRef = useRef(reanudar)
+  // La posición se apunta como mucho cada dos segundos: onTimeUpdate salta
+  // cuatro veces por segundo y no hace falta escribir tanto en disco.
+  const ultimoApunteRef = useRef(0)
 
   const group = useAudioguideGroupPlayback({ audioguideId, userId: user?.id ?? '' })
   const stop = stops[index]
@@ -185,6 +199,13 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
   // Ojo con !audioRef.current?.paused: da true cuando el ref todavía es null.
   const isActuallyPlaying = () => !!audioRef.current && !audioRef.current.paused
 
+  const anotarPosicion = (seconds?: number) => {
+    const el = audioRef.current
+    if (!el || !stop) return
+    ultimoApunteRef.current = Date.now()
+    guardarPosicionAudio(audioguideId, stop.id, seconds ?? el.currentTime)
+  }
+
   // Si venías escuchando, la parada que llega arranca sola; si estabas en
   // pausa, se queda en pausa. Vale igual para los botones de aquí abajo y para
   // el «siguiente» del reproductor del móvil.
@@ -193,6 +214,9 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
     if (!target) return
     const autoPlay = options?.autoPlay ?? false
     shouldAutoPlayRef.current = autoPlay
+    // Has elegido parada: lo que quedara por reanudar ya no vale.
+    reanudarRef.current = null
+    anotarPosicion(0)
 
     // AQUÍ, EN EL GESTO, Y NO EN UN EFECTO.
     //
@@ -386,9 +410,14 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
         className="sr-only"
         preload="metadata"
         onPlay={() => { shouldAutoPlayRef.current = false; setIsPlaying(true); broadcastIfJoined(true) }}
-        onPause={() => { setIsPlaying(false); broadcastIfJoined(false) }}
-        onEnded={() => setIsPlaying(false)}
-        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+        onPause={() => { setIsPlaying(false); broadcastIfJoined(false); anotarPosicion() }}
+        // Parada terminada: se apunta al principio, no al final. Si vuelves a
+        // ella es para oírla otra vez, no para quedarte en el último segundo.
+        onEnded={() => { setIsPlaying(false); anotarPosicion(0) }}
+        onTimeUpdate={() => {
+          setCurrentTime(audioRef.current?.currentTime ?? 0)
+          if (Date.now() - ultimoApunteRef.current > 2000) anotarPosicion()
+        }}
         onSeeked={() => broadcastIfJoined(!!audioRef.current && !audioRef.current.paused)}
         onCanPlay={() => {
           // Red de seguridad: si el play() del efecto salió antes de que
@@ -398,6 +427,15 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
         }}
         onLoadedMetadata={() => {
           setDuration(audioRef.current?.duration ?? 0)
+          // Volver al segundo donde lo dejaste, y en PAUSA: tras un arranque en
+          // frío iOS no concede reproducir sin un gesto tuyo, así que intentarlo
+          // solo dejaría la pantalla mintiendo con un botón de pausa que no suena.
+          const pendiente = reanudarRef.current
+          if (pendiente && pendiente.stopId === stop.id && audioRef.current) {
+            audioRef.current.currentTime = pendiente.seconds
+            setCurrentTime(pendiente.seconds)
+          }
+          reanudarRef.current = null
           if (pendingRemoteRef.current) {
             // En grupo manda lo que diga el resto, no lo que quisiéramos aquí.
             shouldAutoPlayRef.current = false

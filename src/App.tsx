@@ -10,6 +10,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Skeleton } from '@/components/ui/skeleton'
 import { flushOutbox } from '@/lib/offline'
 import { Analytics } from '@/components/Analytics'
+import { RouteMemory, StartRoute } from '@/components/RouteMemory'
 
 import { useAuthListener } from '@/hooks/useAuth'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
@@ -147,6 +148,10 @@ export default function App() {
             necesita useLocation, y fuera del ErrorBoundary porque no pinta
             nada y no debe reiniciarse si una pantalla falla. */}
         <Analytics />
+        {/* Apunta por dónde ibas, para que <StartRoute> pueda devolverte ahí al
+            reabrir la app. Fuera del ErrorBoundary por lo mismo que la
+            analítica: no pinta nada y no debe reiniciarse si una pantalla falla. */}
+        <RouteMemory />
         <ErrorBoundary>
         <Suspense fallback={<PageFallback />}>
         <Routes>
@@ -180,7 +185,9 @@ export default function App() {
             </Route>
 
             <Route element={<AppLayout />}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
+              {/* `/` es donde aterriza el arranque en frío de la PWA: ahí se
+                  decide si toca el dashboard o la pantalla donde te quedaste. */}
+              <Route index element={<StartRoute />} />
               <Route path="/dashboard" element={<Dashboard />} />
               {/* Destino del "Compartir" de TikTok/Instagram y del pegar-enlace. */}
               <Route path="/import/shared" element={<ImportSharedPage />} />

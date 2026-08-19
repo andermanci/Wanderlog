@@ -7,6 +7,7 @@ import { CuentaSuspendidaBanner } from '@/components/CuentaSuspendidaBanner'
 import { TripSearchCommand } from '@/components/trips/TripSearchCommand'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useWalletPassStore } from '@/store/walletPassStore'
+import { guardarScroll, tomarScrollPendiente } from '@/lib/resumeState'
 
 // El modal "cartera" arrastra zxing + pdf.js (~880 KB): carga diferida, y solo
 // tras la primera apertura, para no engordar el bundle principal.
@@ -25,12 +26,57 @@ export function AppLayout() {
   const [mountPassModal, setMountPassModal] = useState(false)
   useEffect(() => { if (passOpen) setMountPassModal(true) }, [passOpen])
 
+  const ruta = location.pathname + location.search
+
   // El contenedor de scroll conserva la posición entre rutas: al navegar
   // (p. ej. dashboard scrolleado → viaje) la página nueva aparecía ya
-  // desplazada, con los breadcrumbs fuera de vista. Reset al cambiar de ruta.
+  // desplazada, con los breadcrumbs fuera de vista. Reset al cambiar de ruta,
+  // salvo si esta es la ruta que se acaba de recuperar al reabrir la app: ahí
+  // lo que toca es dejarte justo donde estabas leyendo.
   useEffect(() => {
-    mainRef.current?.scrollTo({ top: 0 })
-  }, [location.pathname])
+    const el = mainRef.current
+    if (!el) return
+    const pendiente = tomarScrollPendiente(ruta)
+    if (pendiente === null) { el.scrollTo({ top: 0 }); return }
+    // La pantalla no tiene su altura definitiva al montarse (su chunk va
+    // diferido y las listas se rehidratan de la caché), así que hay que
+    // insistir hasta que quepa el scroll guardado. A los dos segundos se deja:
+    // más vale empezar arriba que dar un salto cuando ya estabas leyendo.
+    const limite = Date.now() + 2000
+    let raf = 0
+    const intentar = () => {
+      if (el.scrollHeight - el.clientHeight >= pendiente) { el.scrollTop = pendiente; return }
+      if (Date.now() > limite) return
+      raf = requestAnimationFrame(intentar)
+    }
+    intentar()
+    return () => cancelAnimationFrame(raf)
+  }, [ruta])
+
+  // Apuntar por dónde vas leyendo, sin escribir en localStorage en cada píxel:
+  // basta con un apunte cuando el dedo para. Y uno más al pasar la app a
+  // segundo plano, que es el momento en que iOS puede matarla y también el
+  // único en que el apunte aplazado no llegaría a tiempo.
+  useEffect(() => {
+    const el = mainRef.current
+    if (!el) return
+    let timer: number | undefined
+    const anotar = () => guardarScroll(ruta, el.scrollTop)
+    const alHacerScroll = () => {
+      clearTimeout(timer)
+      timer = window.setTimeout(anotar, 400)
+    }
+    const alOcultar = () => { if (document.visibilityState === 'hidden') anotar() }
+    el.addEventListener('scroll', alHacerScroll, { passive: true })
+    document.addEventListener('visibilitychange', alOcultar)
+    window.addEventListener('pagehide', anotar)
+    return () => {
+      clearTimeout(timer)
+      el.removeEventListener('scroll', alHacerScroll)
+      document.removeEventListener('visibilitychange', alOcultar)
+      window.removeEventListener('pagehide', anotar)
+    }
+  }, [ruta])
 
   // El mapa es a pantalla completa: solo necesita el alto de la barra (sin la
   // holgura extra de las páginas de contenido, que dejaría una franja de fondo).
