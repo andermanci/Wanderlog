@@ -456,16 +456,25 @@ async function comprobarApp(supa: Supa, o: Opciones, publica: string) {
     return
   }
 
+  // Concurrencia baja y reintento ante 429, y no por prudencia abstracta: el
+  // endpoint público r2.dev está limitado a propósito por Cloudflare, y una
+  // ráfaga de mil comprobaciones se gana un 429 que NO significa que la app
+  // esté rota. La primera versión de esto, con la concurrencia normal, devolvió
+  // 58 fallos que al reintentarlos uno a uno respondían 200 tan tranquilos.
   let hechos = 0, ok = 0
   const fallos: string[] = []
-  await enParalelo(paradas, CONCURRENCIA, async (p) => {
+  await enParalelo(paradas, 3, async (p) => {
     const url = `${publica}/${p.audio_url}`
-    try {
-      const res = await fetch(url, { method: 'HEAD' })
-      if (res.ok) ok++
-      else fallos.push(`${res.status} ${url}`)
-    } catch (err) {
-      fallos.push(`${err instanceof Error ? err.message : 'error'} ${url}`)
+    for (let i = 0; i < 4; i++) {
+      try {
+        const res = await fetch(url, { method: 'HEAD' })
+        if (res.ok) { ok++; break }
+        if (res.status !== 429 || i === 3) { fallos.push(`${res.status} ${url}`); break }
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** i))
+      } catch (err) {
+        if (i === 3) fallos.push(`${err instanceof Error ? err.message : 'error'} ${url}`)
+        else await new Promise((r) => setTimeout(r, 1000 * 2 ** i))
+      }
     }
     progreso(++hechos, paradas.length)
   })
