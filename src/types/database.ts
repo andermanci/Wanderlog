@@ -738,6 +738,7 @@ export type Database = {
           lng: number | null
           geo_status: 'pending' | 'located' | 'unlocated'
           audio_url: string | null
+          audio_bytes: number | null
           audio_duration_seconds: number | null
           sentence_timings: { text: string; start: number }[] | null
           /** Foto de lo que se describe, para identificarlo de un vistazo (ver 057). */
@@ -761,6 +762,7 @@ export type Database = {
           lng?: number | null
           geo_status?: 'pending' | 'located' | 'unlocated'
           audio_url?: string | null
+          audio_bytes?: number | null
           audio_duration_seconds?: number | null
           sentence_timings?: { text: string; start: number }[] | null
           image_url?: string | null
@@ -783,6 +785,7 @@ export type Database = {
           lng?: number | null
           geo_status?: 'pending' | 'located' | 'unlocated'
           audio_url?: string | null
+          audio_bytes?: number | null
           audio_duration_seconds?: number | null
           sentence_timings?: { text: string; start: number }[] | null
           image_url?: string | null

@@ -54,6 +54,18 @@ const cacheFirst = (cacheName: string, maxEntries: number, days: number) =>
 // el propio navegador gestiona Range/CORS de forma nativa y fiable.
 // Nombre de caché con sufijo -v2 para descartar entradas viejas cacheadas
 // antes de añadir soporte de Range requests.
+//
+// DESDE LA MUDANZA A R2, esta regla ya no ve los MP3 en absoluto: viven en otro
+// host y el patrón solo casa `.supabase.co`. Eso arregló de paso un derroche
+// que había pasado desapercibido — `cacheAudio` los baja con fetch(), donde
+// `request.destination` es '' y no 'audio', así que la exclusión de arriba no
+// los filtraba y cada MP3 acababa guardado DOS veces: en wanderlog-audio-v1 y
+// aquí, comiéndose entradas del tope de 500 que son de las fotos.
+//
+// NO AÑADIR NUNCA EL HOST DE R2 A ESTE PATRÓN. Reintroduciría exactamente el
+// problema de Range en Safari que explica el párrafo de arriba. El audio lo
+// gestiona la app en src/lib/audioCache.ts, a propósito y con su propia caché.
+// La condición `destination !== 'audio'` se conserva como defensa en fondo.
 registerRoute(
   ({ url, request }) =>
     request.destination !== 'audio' &&

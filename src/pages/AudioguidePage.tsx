@@ -77,8 +77,8 @@ function AudioguidePageInner() {
 
   const { data: audioguide, isLoading } = useAudioguide(scope)
   const createAudioguide = useCreateAudioguide(tripId!, scope!)
-  const generateStopAudio = useGenerateStopAudio(tripId!, scope!)
-  const deleteAudioguide = useDeleteAudioguide(tripId!, scope!)
+  const generateStopAudio = useGenerateStopAudio(scope!)
+  const deleteAudioguide = useDeleteAudioguide(scope!)
 
   // Si iOS mató la PWA mientras estabas en la app de la IA, el borrador
   // devuelve el flujo al punto exacto (cuadro de pegado y texto incluidos).
@@ -222,7 +222,7 @@ function AudioguidePageInner() {
         while (cursor < created.stops.length) {
           const stop = created.stops[cursor++]
           try {
-            await generateStopAudio.mutateAsync({ stop, userId: user.id })
+            await generateStopAudio.mutateAsync({ stop })
           } catch (err) {
             errors.push(err instanceof Error ? err.message : 'Error desconocido')
           }
@@ -430,7 +430,7 @@ function AudioguidePageInner() {
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
               onClick={() => {
-                if (audioguide) deleteAudioguide.mutate({ audioguideId: audioguide.id, userId: user.id })
+                if (audioguide) deleteAudioguide.mutate({ audioguideId: audioguide.id })
                 setConfirmDelete(false)
               }}
             >

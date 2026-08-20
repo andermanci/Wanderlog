@@ -15,6 +15,7 @@ import { audioguideKeys, type TripAudioguideReadiness, type AudioguideCargada } 
 import { audioguideScope } from '@/lib/audioguide/scope'
 import { cacheDoc } from '@/lib/docCache'
 import { audioSize, cacheAudio } from '@/lib/audioCache'
+import { mediaUrl } from '@/lib/mediaUrl'
 import { cachePhoto, photosSize } from '@/lib/photoCache'
 import { readOfflineIndex, writeOfflineIndex } from '@/lib/offlineIndex'
 import type { AudioguideStop } from '@/types/database'
@@ -65,7 +66,10 @@ async function tripPhotoUrls(tripId: string): Promise<string[]> {
   ;(guides.data ?? []).forEach((g) => add(g.cover_image_url))
   // Las imágenes de las paradas de audioguía (ver 057): son las que permiten
   // reconocer la obra, y dentro de un museo rara vez hay cobertura.
-  ;(stopImages.data ?? []).forEach((s) => add(s.image_url))
+  // mediaUrl porque `image_url` puede ser una URL absoluta (Wikimedia, o el
+  // bucket de Supabase, donde siguen viviendo las WebP) o, el día que se
+  // implemente el rehospedaje, una clave de R2. `add` solo acepta URLs.
+  ;(stopImages.data ?? []).forEach((s) => add(mediaUrl(s.image_url)))
   return [...urls]
 }
 
@@ -200,7 +204,7 @@ export async function prefetchTripOffline(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(results.guides ?? []).forEach((g: any) => add(g.cover_image_url))
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(results.audioStops ?? []).forEach((s: any) => add(s.image_url))
+  ;(results.audioStops ?? []).forEach((s: any) => add(mediaUrl(s.image_url)))
 
   // Los documentos (bucket privado) no pasan por el service worker: se leen con
   // URLs firmadas, que cambian en cada petición y nunca acertarían en su caché.

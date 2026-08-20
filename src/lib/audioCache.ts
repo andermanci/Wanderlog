@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef } from 'react'
+import { mediaUrl, mediaUrlOrThrow } from './mediaUrl'
 
 // Los MP3 de las audioguías NO pueden cachearse en el service worker: interceptar
 // las peticiones Range de un <audio> desde un SW es poco fiable en Safari/WebKit
@@ -11,10 +12,26 @@ const CACHE_NAME = 'wanderlog-audio-v1'
 // estimar el tamaño cuando el servidor no nos da el Content-Length.
 const BYTES_PER_SECOND = 4000
 
-/** URL pública → clave estable de caché (el path dentro del bucket, sin query). */
-function cacheKey(url: string): string {
-  const path = url
+/**
+ * Lo guardado en `audio_url` → clave estable de caché.
+ *
+ * Las TRES formas que puede tener ese valor dan la MISMA clave, y eso no es un
+ * detalle: es lo que permitió mudar los MP3 de Supabase a R2 sin que a nadie se
+ * le vaciara la caché ni volviera a bajarse los viajes que tenía descargados.
+ *
+ *   https://xyz.supabase.co/storage/v1/object/public/audioguides/u/t/a/s.mp3
+ *   https://pub-abc.r2.dev/u/t/a/s.mp3
+ *   u/t/a/s.mp3
+ *                        → todas /__audio__/u/t/a/s.mp3
+ *
+ * Se apoya en que la clave en R2 se dejó idéntica a la ruta que tenía en el
+ * bucket de Supabase. Si algún día se remapean las claves, aquí hay que decidir
+ * qué hacer con lo que la gente ya tiene descargado.
+ */
+function cacheKey(v: string): string {
+  const path = v
     .replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\/audioguides\//, '')
+    .replace(/^https?:\/\/[^/]+\//, '')
     .split('?')[0]
   return `/__audio__/${path}`
 }
@@ -24,15 +41,20 @@ async function openCache(): Promise<Cache | null> {
   try { return await caches.open(CACHE_NAME) } catch { return null }
 }
 
-export async function getAudio(url: string): Promise<Blob | null> {
+// A partir de aquí, `v` es SIEMPRE el valor crudo de `audio_url` tal y como
+// está en la fila: una clave de R2 o una URL absoluta de las antiguas. Nunca
+// una URL ya resuelta. La resolución para la red se hace aquí dentro, con
+// mediaUrl(), para que los llamantes no tengan que acordarse.
+
+export async function getAudio(v: string): Promise<Blob | null> {
   const cache = await openCache()
-  const hit = await cache?.match(cacheKey(url))
+  const hit = await cache?.match(cacheKey(v))
   return hit ? await hit.blob() : null
 }
 
-export async function hasAudio(url: string): Promise<boolean> {
+export async function hasAudio(v: string): Promise<boolean> {
   const cache = await openCache()
-  return !!(await cache?.match(cacheKey(url)))
+  return !!(await cache?.match(cacheKey(v)))
 }
 
 /**
@@ -46,16 +68,16 @@ function version(headers: Headers): string {
 }
 
 /** Descarga el MP3 a la caché local. Devuelve los bytes guardados (0 si ya estaba). */
-export async function cacheAudio(url: string): Promise<number> {
+export async function cacheAudio(v: string): Promise<number> {
   const cache = await openCache()
   if (!cache) return 0
-  if (await cache.match(cacheKey(url))) return 0
-  const res = await fetch(url)
+  if (await cache.match(cacheKey(v))) return 0
+  const res = await fetch(mediaUrlOrThrow(v))
   if (!res.ok) throw new Error(`audio ${res.status}`)
   // Se guarda la respuesta entera, no solo el blob: sus cabeceras son las que
   // luego permiten comprobar si el audio ha cambiado sin volver a bajarlo.
   const blob = await res.clone().blob()
-  await cache.put(cacheKey(url), res)
+  await cache.put(cacheKey(v), res)
   return blob.size
 }
 
@@ -65,10 +87,10 @@ export async function cacheAudio(url: string): Promise<number> {
  * verdad ha cambiado. Sin conexión, o si el servidor no contesta, se queda lo
  * que ya hay. Devuelve true si la copia local se ha renovado.
  */
-export async function refreshAudioIfChanged(url: string): Promise<boolean> {
+export async function refreshAudioIfChanged(v: string): Promise<boolean> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return false
   const cache = await openCache()
-  const hit = await cache?.match(cacheKey(url))
+  const hit = await cache?.match(cacheKey(v))
   if (!cache || !hit) return false
 
   // Copias guardadas antes de que se guardaran las cabeceras: no hay con qué
@@ -76,20 +98,23 @@ export async function refreshAudioIfChanged(url: string): Promise<boolean> {
   const local = version(hit.headers)
   if (!local) return false
 
+  const url = mediaUrl(v)
+  if (!url) return false
+
   const head = await fetch(url, { method: 'HEAD' }).catch(() => null)
   if (!head?.ok || version(head.headers) === local) return false
 
   const res = await fetch(url).catch(() => null)
   if (!res?.ok) return false
-  await cache.put(cacheKey(url), res)
+  await cache.put(cacheKey(v), res)
   return true
 }
 
 /** Libera el sitio de una audioguía borrada. */
-export async function removeAudios(urls: string[]): Promise<void> {
+export async function removeAudios(valores: string[]): Promise<void> {
   const cache = await openCache()
   if (!cache) return
-  await Promise.all(urls.map((u) => cache.delete(cacheKey(u)).catch(() => false)))
+  await Promise.all(valores.map((v) => cache.delete(cacheKey(v)).catch(() => false)))
 }
 
 /**
@@ -117,12 +142,12 @@ export async function clearAudioCache(): Promise<void> {
  * y si no una estimación por duración (`exact: false`, para poder decir "unos").
  */
 export async function audioSize(
-  url: string,
+  v: string,
   durationSeconds: number | null,
 ): Promise<{ bytes: number; exact: boolean }> {
   const fallback = { bytes: Math.round((durationSeconds ?? 0) * BYTES_PER_SECOND), exact: false }
   try {
-    const res = await fetch(url, { method: 'HEAD' })
+    const res = await fetch(mediaUrlOrThrow(v), { method: 'HEAD' })
     const len = Number(res.headers.get('content-length'))
     if (res.ok && len > 0) return { bytes: len, exact: true }
   } catch { /* sin conexión o CORS: nos vale la estimación */ }
@@ -164,7 +189,10 @@ export interface AudioUrls {
  * el gesto puede asignar el src y llamar a play() en el acto.
  */
 export function useAudioUrls(urls: (string | null | undefined)[]): AudioUrls {
-  const resueltas = useRef(new Map<string, string>())
+  // Se guarda `esBlob` en vez de deducirlo comparando con el valor de entrada:
+  // desde que la fila trae una clave de R2 y no una URL, lo resuelto NUNCA es
+  // igual a la entrada, y esa comparación decidía a quién revocar.
+  const resueltas = useRef(new Map<string, { src: string; esBlob: boolean }>())
   const [, avisarDeCambio] = useReducer((n: number) => n + 1, 0)
 
   // Clave estable: el array llega nuevo en cada render, pero su contenido no.
@@ -177,31 +205,37 @@ export function useAudioUrls(urls: (string | null | undefined)[]): AudioUrls {
     // Suelta las que se han salido de la ventana. Un blob: vivo retiene el MP3
     // entero en memoria, y una audioguía exhaustiva pasa de veinte paradas.
     // La que suena nunca se suelta: siempre está dentro de la ventana.
-    for (const [url, objectUrl] of resueltas.current) {
-      if (quiero.has(url)) continue
-      if (objectUrl !== url) URL.revokeObjectURL(objectUrl)
-      resueltas.current.delete(url)
+    for (const [v, resuelta] of resueltas.current) {
+      if (quiero.has(v)) continue
+      if (resuelta.esBlob) URL.revokeObjectURL(resuelta.src)
+      resueltas.current.delete(v)
     }
 
     void (async () => {
-      for (const url of quiero) {
+      for (const v of quiero) {
         if (cancelado) return
-        if (!resueltas.current.has(url)) {
-          const blob = await getAudio(url).catch(() => null)
+        if (!resueltas.current.has(v)) {
+          const blob = await getAudio(v).catch(() => null)
           if (cancelado) return
-          resueltas.current.set(url, blob ? URL.createObjectURL(blob) : url)
+          // Sin copia local se reproduce en streaming contra el origen público.
+          // `mediaUrl` puede devolver null si falta VITE_R2_PUBLIC_URL; en ese
+          // caso no se guarda nada y `resolve` sigue devolviendo null, que es
+          // lo que el reproductor ya sabe tratar como «todavía no está».
+          const streaming = blob ? null : mediaUrl(v)
+          if (blob) resueltas.current.set(v, { src: URL.createObjectURL(blob), esBlob: true })
+          else if (streaming) resueltas.current.set(v, { src: streaming, esBlob: false })
           avisarDeCambio()
         }
 
         // Ya se puede reproducir. Solo entonces, y solo con cobertura, se mira
         // si el audio se regeneró desde que se descargó (una petición HEAD).
-        const cambiado = await refreshAudioIfChanged(url).catch(() => false)
+        const cambiado = await refreshAudioIfChanged(v).catch(() => false)
         if (cancelado || !cambiado) continue
-        const fresco = await getAudio(url).catch(() => null)
+        const fresco = await getAudio(v).catch(() => null)
         if (cancelado || !fresco) continue
-        const anterior = resueltas.current.get(url)
-        if (anterior && anterior !== url) URL.revokeObjectURL(anterior)
-        resueltas.current.set(url, URL.createObjectURL(fresco))
+        const anterior = resueltas.current.get(v)
+        if (anterior?.esBlob) URL.revokeObjectURL(anterior.src)
+        resueltas.current.set(v, { src: URL.createObjectURL(fresco), esBlob: true })
         avisarDeCambio()
       }
     })()
@@ -213,14 +247,14 @@ export function useAudioUrls(urls: (string | null | undefined)[]): AudioUrls {
   useEffect(() => {
     const mapa = resueltas.current
     return () => {
-      for (const [url, objectUrl] of mapa) {
-        if (objectUrl !== url) URL.revokeObjectURL(objectUrl)
+      for (const { src, esBlob } of mapa.values()) {
+        if (esBlob) URL.revokeObjectURL(src)
       }
       mapa.clear()
     }
   }, [])
 
   return {
-    resolve: (url) => (url ? resueltas.current.get(url) ?? null : null),
+    resolve: (v) => (v ? resueltas.current.get(v)?.src ?? null : null),
   }
 }

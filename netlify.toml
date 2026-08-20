@@ -12,7 +12,11 @@
   # el de VITE_SUPABASE_URL, que sí va incrustado en el bundle por diseño: sin
   # omitirlo, el escáner lo encontraría en dist/ y tumbaría el build por una
   # filtración que no existe.
-  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_GOOGLE_MAPS_BROWSER_KEY,SUPABASE_URL"
+  # VITE_R2_PUBLIC_URL tampoco es un secreto: es el origen público desde el que
+  # el navegador se descarga los MP3 de las audioguías, así que por fuerza está
+  # en el bundle. Las credenciales de R2 que sí lo son viven como secretos de
+  # las Edge Functions y no pasan por aquí.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_GOOGLE_MAPS_BROWSER_KEY,SUPABASE_URL,VITE_R2_PUBLIC_URL"
   #
   # SUPABASE_SERVICE_ROLE_KEY **NO** está en esa lista, y es deliberado.
   #

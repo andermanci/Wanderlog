@@ -3,7 +3,7 @@ import { audioSize, formatBytes, refreshAudioIfChanged } from './audioCache'
 
 const URL_MP3 = 'https://xyz.supabase.co/storage/v1/object/public/audioguides/u/t/a/s.mp3'
 
-afterEach(() => { vi.unstubAllGlobals() })
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 // Cache API de mentira: un Map, que es lo único que usamos de ella.
 function fakeCaches(entries: Record<string, Response> = {}) {
@@ -111,6 +111,49 @@ describe('refreshAudioIfChanged', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('Failed to fetch') }))
 
     expect(await refreshAudioIfChanged(URL_MP3)).toBe(false)
+  })
+})
+
+/**
+ * El contrato del que depende que la mudanza a R2 no le vaciara la caché a
+ * nadie: el MISMO fichero, nombrado de las tres formas que pueden convivir en
+ * `audio_url`, tiene que caer en la MISMA entrada de la caché.
+ *
+ * Si esto se rompe, no falla nada de forma visible: simplemente todo el que
+ * tenga viajes descargados se los vuelve a bajar enteros la próxima vez que
+ * abra la app, que es justo lo que no puede pasar en un aeropuerto.
+ */
+describe('clave de caché', () => {
+  const CLAVE = 'u/t/a/s.mp3'
+  const EN_R2 = `https://pub-abc.r2.dev/${CLAVE}`
+
+  it.each([
+    ['la URL vieja de Supabase', URL_MP3],
+    ['la URL pública de R2', EN_R2],
+    ['la clave desnuda', CLAVE],
+  ])('%s encuentra la copia descargada', async (_caso, valor) => {
+    vi.stubEnv('VITE_R2_PUBLIC_URL', 'https://pub-abc.r2.dev')
+    fakeCaches({ [KEY]: mp3('Mon, 01 Jun 2026 10:00:00 GMT', '48000') })
+    // Mismas cabeceras que la copia local: si la ha encontrado, no descarga.
+    const fetchMock = vi.fn(async (_u: string, opts?: RequestInit) => {
+      if (opts?.method !== 'HEAD') throw new Error('no debería descargar el MP3')
+      return new Response(null, {
+        headers: { 'last-modified': 'Mon, 01 Jun 2026 10:00:00 GMT', 'content-length': '48000' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await refreshAudioIfChanged(valor)).toBe(false)
+    // El HEAD solo se lanza si la entrada estaba en la caché: es la prueba.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('la query de una URL firmada no cambia la entrada', async () => {
+    fakeCaches({ [KEY]: mp3('Mon, 01 Jun 2026 10:00:00 GMT', '48000') })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, {
+      headers: { 'last-modified': 'Mon, 01 Jun 2026 10:00:00 GMT', 'content-length': '48000' },
+    })))
+    expect(await refreshAudioIfChanged(`${URL_MP3}?token=abc`)).toBe(false)
   })
 })
 

@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import type { Audioguide, AudioguideStop } from '@/types/database'
 import type { ParsedAudioguideStop } from '@/lib/audioguide/parseAudioguideText'
 import {
-  scopeColumn, scopeKey, stopStoragePath, stopStoragePrefix, type AudioguideScope,
+  scopeColumn, scopeKey, type AudioguideScope,
 } from '@/lib/audioguide/scope'
 import { removeAudios } from '@/lib/audioCache'
 import { toast } from 'sonner'
@@ -167,16 +167,20 @@ export function useCreateAudioguide(tripId: string, scope: AudioguideScope) {
 }
 
 // Sintetiza el audio de una parada (llama a la edge function) y guarda el resultado.
-export function useGenerateStopAudio(tripId: string, scope: AudioguideScope) {
+export function useGenerateStopAudio(scope: AudioguideScope) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ stop, userId }: { stop: AudioguideStop; userId: string }) => {
+    mutationFn: async ({ stop }: { stop: AudioguideStop }) => {
       await supabase.from('audioguide_stops').update({ status: 'generating' }).eq('id', stop.id)
       qc.invalidateQueries({ queryKey: audioguideKeys.byScope(scope) })
 
-      const path = stopStoragePath(userId, tripId, scope, stop.id)
+      // Ya no se manda `path`: la clave del fichero la decide el servidor. Antes
+      // la elegía el cliente y la función se limitaba a mirar que empezara por
+      // el id del usuario, lo cual comprobaba la forma de la ruta pero no que la
+      // parada fuera suya. Ahora la deriva de la propia fila, tras verificar
+      // permiso de edición sobre el viaje.
       const { data, error } = await supabase.functions.invoke('audioguide-tts', {
-        body: { stopId: stop.id, text: stop.script_text, path },
+        body: { stopId: stop.id, text: stop.script_text },
       })
       if (error || data?.error) {
         await supabase.from('audioguide_stops')
@@ -188,7 +192,12 @@ export function useGenerateStopAudio(tripId: string, scope: AudioguideScope) {
       await supabase.from('audioguide_stops')
         .update({
           status: 'ready',
-          audio_url: data.audioUrl,
+          // La CLAVE del objeto en R2, no una URL: quien la resuelve es
+          // mediaUrl() con VITE_R2_PUBLIC_URL. `audioUrl` es el nombre que
+          // devolvía antes la función, y se acepta mientras convivan las dos
+          // versiones durante un despliegue.
+          audio_url: data.audioKey ?? data.audioUrl,
+          audio_bytes: data.audioBytes ?? null,
           audio_duration_seconds: data.durationSeconds ?? null,
           sentence_timings: data.sentenceTimings ?? null,
         })
@@ -212,23 +221,30 @@ export function useSetAudioguideStatus(scope: AudioguideScope) {
   })
 }
 
-// Borra la audioguía (y sus paradas por cascade) más los MP3 del storage, para regenerar desde cero.
-export function useDeleteAudioguide(tripId: string, scope: AudioguideScope) {
+/**
+ * Borra la audioguía (y sus paradas por cascade) más sus MP3, para regenerar
+ * desde cero.
+ *
+ * El borrado de ficheros se hace en el servidor: viven en Cloudflare R2 y el
+ * navegador no puede tener credenciales de escritura. Además la función borra
+ * por las claves escritas en las filas, y no listando un prefijo con el id de
+ * quien borra, que era lo que dejaba huérfanos los audios generados por otro
+ * miembro del viaje.
+ */
+export function useDeleteAudioguide(scope: AudioguideScope) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ audioguideId, userId }: { audioguideId: string; userId: string }) => {
-      // Los MP3 descargados para escucharlos sin conexión también sobran.
+    mutationFn: async ({ audioguideId }: { audioguideId: string }) => {
+      // Los MP3 descargados para escucharlos sin conexión también sobran. Esto
+      // sí es local, así que se hace aquí y da igual si el servidor falla luego.
       const cached = qc.getQueryData<AudioguideWithStops | null>(audioguideKeys.byScope(scope))
       const cachedUrls = (cached?.stops ?? []).map((s) => s.audio_url).filter((u): u is string => !!u)
       if (cachedUrls.length > 0) await removeAudios(cachedUrls).catch(() => {})
 
-      const prefix = stopStoragePrefix(userId, tripId, scope)
-      const { data: files } = await supabase.storage.from('audioguides').list(prefix)
-      if (files && files.length > 0) {
-        await supabase.storage.from('audioguides').remove(files.map((f) => `${prefix}/${f.name}`))
-      }
-      const { error } = await supabase.from('audioguides').delete().eq('id', audioguideId)
-      if (error) throw error
+      const { data, error } = await supabase.functions.invoke('audioguide-media', {
+        body: { action: 'delete-audioguide', audioguideId },
+      })
+      if (error || data?.error) throw new Error(data?.error ?? error?.message)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: audioguideKeys.byScope(scope) })

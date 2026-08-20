@@ -52,11 +52,29 @@ describe('rutas del storage', () => {
     expect(stopStoragePath('u1', 't1', DIA, 's1')).toBe('u1/t1/day-1/s1.mp3')
   })
 
-  // useDeleteAudioguide borra listando por prefijo: tiene que ser exactamente
-  // la carpeta de la que cuelgan los mp3, sin barra final.
-  it('el prefijo de borrado es la carpeta de los mp3', () => {
+  // El prefijo tiene que ser exactamente la carpeta de la que cuelgan los mp3,
+  // sin barra final.
+  it('el prefijo es la carpeta de los mp3', () => {
     const prefijo = stopStoragePrefix('u1', 't1', DIA)
     expect(prefijo).toBe('u1/t1/day-1')
     expect(stopStoragePath('u1', 't1', DIA, 's1')).toBe(`${prefijo}/s1.mp3`)
+  })
+
+  /**
+   * Al mudar los audios a Cloudflare R2 se conservó la forma de la ruta a
+   * propósito: la clave en R2 es IDÉNTICA a la que el fichero tenía dentro del
+   * bucket de Supabase. De ahí dependen dos cosas:
+   *
+   *   · que la clave de caché no cambie y nadie se vuelva a descargar los
+   *     viajes que ya tenía (ver el contrato en audioCache.test.ts), y
+   *   · que el script de migración pueda copiar clave a clave, sin remapear.
+   *
+   * El `userId` que abre la ruta ya no autoriza nada —en Supabase era la
+   * carpeta que miraban las políticas RLS del bucket; en R2 quien autoriza es
+   * la Edge Function—, pero se mantiene por esas dos razones.
+   */
+  it('la ruta vale tal cual como clave de R2', () => {
+    expect(stopStoragePath('u1', 't1', ACT, 's1')).toBe('u1/t1/act-1/s1.mp3')
+    expect(stopStoragePath('u1', 't1', ACT, 's1')).not.toMatch(/^\//)
   })
 })

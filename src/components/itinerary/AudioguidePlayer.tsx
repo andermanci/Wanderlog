@@ -11,6 +11,7 @@ import { AudioguideMapDialog } from './AudioguideMapDialog'
 import { useAuthStore } from '@/store/authStore'
 import { useAudioguideGroupPlayback, type AudioguideSyncState } from '@/lib/realtime/useAudioguideGroupPlayback'
 import { useAudioUrls } from '@/lib/audioCache'
+import { mediaUrl } from '@/lib/mediaUrl'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { AudioguideTranscript } from './AudioguideTranscript'
 import { emitirUso } from '@/lib/usage'
@@ -500,7 +501,7 @@ export function AudioguidePlayer({ stops, audioguideId, activityTitle, coverUrl,
         {stop.image_url && (
           <figure className="m-0">
             <img
-              src={stop.image_url}
+              src={mediaUrl(stop.image_url) ?? undefined}
               alt={`Imagen de ${stop.title}`}
               loading="lazy"
               className="w-full max-h-56 object-contain rounded-lg"

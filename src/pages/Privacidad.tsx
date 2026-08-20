@@ -110,6 +110,7 @@ export function PrivacidadPage() {
         <Seccion titulo="Servicios que hacen falta">
           <ul className="list-disc pl-5 space-y-1">
             <li><strong className="text-foreground">Supabase</strong> — base de datos, acceso y almacenamiento de ficheros.</li>
+            <li><strong className="text-foreground">Cloudflare R2</strong> — el audio de las audioguías, alojado en Europa.</li>
             <li><strong className="text-foreground">Netlify</strong> — servir la web.</li>
             <li><strong className="text-foreground">Google</strong> — inicio de sesión, mapas y la voz de las audioguías.</li>
           </ul>

@@ -1,13 +1,24 @@
 // Supabase Edge Function: audioguide-tts
 // Sintetiza el guion de una parada de audioguía a MP3 con Google Cloud TTS
-// y lo sube al bucket 'audioguides'. No usa service role: reenvía el JWT del
-// usuario para que las políticas RLS de la tabla y del storage sean las que
-// autoricen (igual patrón que revolut-sync).
+// y lo sube a Cloudflare R2. Devuelve la CLAVE del objeto, no una URL: quien
+// la convierte en URL es el cliente, con VITE_R2_PUBLIC_URL (src/lib/mediaUrl.ts).
+//
+// AUTORIZACIÓN: reenvía el JWT del usuario, como revolut-sync. Pero ojo, aquí
+// hay una diferencia importante respecto a cuando el audio vivía en Supabase
+// Storage: allí la última palabra la tenían las políticas RLS del bucket, que
+// exigían que el fichero colgara de la carpeta del propio usuario. En R2 no hay
+// RLS. Esta función es el ÚNICO guardián, así que comprueba de verdad que la
+// parada existe y que el usuario puede editar ese viaje, en vez de limitarse a
+// mirar la forma de una ruta que además mandaba el propio cliente.
+//
 // Deploy: supabase functions deploy audioguide-tts
+// Secretos: GOOGLE_TTS_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+//           R2_SECRET_ACCESS_KEY, R2_BUCKET
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { bloqueoIA } from '../_shared/limits.ts'
 import { registrarUso } from '../_shared/usage.ts'
+import { clienteR2, configR2DelEntorno, r2Put } from '../_shared/r2.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -15,6 +26,10 @@ const GOOGLE_TTS_API_KEY = Deno.env.get('GOOGLE_TTS_API_KEY')
 // Tope de caracteres por petición: el guion más largo que genera la app
 // (nivel "exhaustiva", 450 palabras) no llega a 3.000.
 const MAX_TTS_CHARS = 5000
+// El mismo tope que ponía `file_size_limit` del bucket de Supabase (migración
+// 027). En R2 no existe esa red, así que se pone aquí. Con MAX_TTS_CHARS a 32
+// kbps no se llega ni a 1,5 MB: es holgura, no restricción.
+const MAX_AUDIO_BYTES = 15 * 1024 * 1024
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,7 +44,7 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
-function base64ToBytes(base64: string): Uint8Array {
+function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
   const binary = atob(base64)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
@@ -102,7 +117,10 @@ function buildTimings(sentences: string[], timepoints: Timepoint[] | undefined):
 const V2_L3_BITRATES_KBPS = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
 const V2_SAMPLE_RATES = [22050, 24000, 16000]
 
-function addMp3XingHeader(bytes: Uint8Array): Uint8Array {
+// El tipo de retorno se concreta a `Uint8Array<ArrayBuffer>` porque estos
+// bytes acaban siendo el cuerpo de un fetch hacia R2, y el `Uint8Array`
+// genérico admite también SharedArrayBuffer, que ahí no vale.
+function addMp3XingHeader(bytes: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
   try {
     if (bytes.length < 4 || bytes[0] !== 0xff || (bytes[1] & 0xe0) !== 0xe0) return bytes
     const versionBits = (bytes[1] >> 3) & 0x03
@@ -167,6 +185,8 @@ Deno.serve(async (req) => {
 
   try {
     if (!GOOGLE_TTS_API_KEY) return json({ error: 'Falta GOOGLE_TTS_API_KEY' }, 500)
+    const cfgR2 = configR2DelEntorno()
+    if (!cfgR2) return json({ error: 'Falta la configuración de R2' }, 500)
 
     const authHeader = req.headers.get('Authorization') ?? ''
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
@@ -181,15 +201,51 @@ Deno.serve(async (req) => {
     const bloqueo = await bloqueoIA(userClient, user.id)
     if (bloqueo) return json({ error: bloqueo }, 403)
 
-    const { stopId, text, path } = await req.json().catch(() => ({}))
-    if (!stopId || !text || !path) return json({ error: 'Faltan stopId, text o path' }, 400)
-    if (!path.startsWith(`${user.id}/`)) return json({ error: 'Ruta no autorizada' }, 403)
+    // `path` se acepta y se IGNORA: los bundles anteriores a la mudanza a R2 lo
+    // siguen mandando, y durante un despliegue conviven los dos. La clave la
+    // decide ahora el servidor. compat: se puede quitar a partir de 2026-10.
+    const { stopId, text } = await req.json().catch(() => ({}))
+    if (!stopId || !text) return json({ error: 'Faltan stopId o text' }, 400)
     // Google Cloud TTS se factura por carácter sintetizado. Sin este tope,
     // cualquiera con la anon key (que va en el bundle) podría sintetizar texto
     // ilimitado contra nuestra cuenta. Una parada larga ronda los 3.000.
     if (typeof text !== 'string' || text.length > MAX_TTS_CHARS) {
       return json({ error: `El texto supera el máximo de ${MAX_TTS_CHARS} caracteres` }, 400)
     }
+
+    // Que la parada exista y sea visible ya lo decide `has_trip_access`, que es
+    // la política de SELECT de la tabla: con el cliente del usuario, una parada
+    // de un viaje ajeno sencillamente no aparece.
+    const { data: stop } = await userClient
+      .from('audioguide_stops')
+      .select('id, trip_id, audio_url, audioguides!inner(activity_id, day_id)')
+      .eq('id', stopId)
+      .maybeSingle()
+    if (!stop) return json({ error: 'Parada no encontrada' }, 404)
+
+    // Ver no es editar: un colaborador con permiso de solo lectura llega hasta
+    // aquí. `can_edit_trip` es la misma función que usan las políticas de
+    // escritura de la tabla, así que la regla no se duplica, se reutiliza.
+    const { data: puedeEditar } = await userClient.rpc('can_edit_trip', { p_trip_id: stop.trip_id })
+    if (puedeEditar !== true) return json({ error: 'No autorizado' }, 403)
+
+    // Regenerar una parada tiene que sobrescribir SU objeto, no crear uno nuevo:
+    // si la generó otro miembro del viaje, su clave lleva el id de aquel, y
+    // derivar una nueva con el id de quien regenera dejaría la anterior
+    // huérfana para siempre. Solo se deriva clave cuando no hay ninguna (o
+    // cuando la que hay es una URL de las antiguas, todavía en Supabase).
+    // PostgREST devuelve la relación anidada como objeto cuando deduce que es
+    // «muchos a uno» y como array cuando no lo deduce. Se aceptan las dos: que
+    // la generación de audio dependa de esa inferencia sería frágil de más.
+    const anidado = stop.audioguides as unknown
+    const scope = (Array.isArray(anidado) ? anidado[0] : anidado) as
+      { activity_id: string | null; day_id: string | null } | undefined
+    const scopeId = scope?.activity_id ?? scope?.day_id
+    if (!scopeId) return json({ error: 'La audioguía no tiene ámbito' }, 409)
+    const claveExistente = typeof stop.audio_url === 'string' && !/^https?:/.test(stop.audio_url)
+      ? stop.audio_url
+      : null
+    const key = claveExistente ?? `${user.id}/${stop.trip_id}/${scopeId}/${stop.id}.mp3`
 
     const voiceAndConfig = {
       voice: { languageCode: 'es-ES', name: 'es-ES-Neural2-B' },
@@ -244,13 +300,18 @@ Deno.serve(async (req) => {
     }
 
     const rawBytes = base64ToBytes(audioContent)
+    // Lo que se SUBE lleva la cabecera Xing; lo que se MIDE es el MP3 crudo.
+    // No es un descuido: sin ese frame Xing, Safari (Mac y iOS) no reproduce.
+    // Si algún día alguien "simplifica" esto subiendo rawBytes, la app se queda
+    // muda en todos los iPhone y el fallo no apunta hacia aquí.
     const bytes = addMp3XingHeader(rawBytes)
-    const { error: uploadErr } = await userClient.storage
-      .from('audioguides')
-      .upload(path, bytes, { contentType: 'audio/mpeg', upsert: true })
-    if (uploadErr) return json({ error: `Error subiendo audio: ${uploadErr.message}` }, 500)
+    if (bytes.length > MAX_AUDIO_BYTES) {
+      return json({ error: 'El audio generado es demasiado grande' }, 413)
+    }
 
-    const { data: pub } = userClient.storage.from('audioguides').getPublicUrl(path)
+    // El content-type lo fija el servidor y nunca se acepta del cliente: es lo
+    // que hacía `allowed_mime_types` del bucket, que en R2 no existe.
+    await r2Put(clienteR2(cfgR2), key, bytes, 'audio/mpeg')
 
     // Duración exacta calculada del propio MP3; si no se puede parsear, se
     // estima por nº de palabras (~150 palabras/min de narración).
@@ -263,9 +324,22 @@ Deno.serve(async (req) => {
       caracteres: text.length,
       frases: sentences.length,
       segundos: duration,
+      bytes: bytes.length,
     })
 
-    return json({ stopId, audioUrl: pub.publicUrl, durationSeconds: duration, sentenceTimings })
+    // `audioUrl` va con el MISMO valor que `audioKey` —la clave— y no con una
+    // URL, para que el bundle anterior, que solo conoce ese nombre, siga
+    // funcionando durante el despliegue: sabe guardarlo y sabe resolverlo,
+    // porque mediaUrl() acepta las dos formas. compat: quitar a partir de
+    // 2026-10, dejando solo audioKey.
+    return json({
+      stopId,
+      audioKey: key,
+      audioUrl: key,
+      audioBytes: bytes.length,
+      durationSeconds: duration,
+      sentenceTimings,
+    })
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : 'Error desconocido' }, 500)
   }

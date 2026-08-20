@@ -35,9 +35,21 @@ export function scopeRoute(tripId: string, scope: AudioguideScope): string {
     : `/trips/${tripId}/dias/${scope.id}/audioguide`
 }
 
-// Carpeta de los MP3 dentro del bucket. Los ids de actividad y de día son uuid
-// y nunca coinciden, así que el mismo esquema de tres niveles vale para los dos
-// y el borrado por prefijo de useDeleteAudioguide sigue funcionando igual.
+// Forma de la clave con la que se guarda cada MP3. Los ids de actividad y de
+// día son uuid y nunca coinciden, así que el mismo esquema de tres niveles vale
+// para los dos ámbitos.
+//
+// QUIÉN LO USA HOY: nadie en el cliente. La clave la deriva el servidor, en
+// supabase/functions/audioguide-tts (mantener las dos en sync), porque desde
+// que los ficheros están en R2 y no en Supabase Storage, dejar que el navegador
+// eligiera la ruta era dejarle elegir dónde escribe. Esto se conserva como la
+// definición legible del esquema y porque de su forma dependen dos cosas: la
+// clave de la caché offline (src/lib/audioCache.ts) y el script de migración,
+// que copia clave a clave sin remapear.
+//
+// El `userId` que abre la clave ya no autoriza nada. En Supabase era la carpeta
+// que miraban las políticas RLS del bucket; en R2 quien autoriza es la Edge
+// Function, que comprueba `can_edit_trip` sobre el viaje de la parada.
 export function stopStoragePath(
   userId: string,
   tripId: string,

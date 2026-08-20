@@ -122,7 +122,8 @@ src/
 supabase/
 ├── migrations/          # Esquema completo + RLS + Storage (31 migraciones)
 └── functions/
-    ├── audioguide-tts/  # Google Cloud TTS: guion → MP3 por paradas
+    ├── audioguide-tts/  # Google Cloud TTS: guion → MP3 por paradas, subido a R2
+    ├── audioguide-media/# Borra de R2 los audios de una audioguía o de un viaje
     ├── revolut-connect/ # Conexión bancaria (GoCardless/Nordigen)
     ├── revolut-sync/    # Importación de movimientos como gastos
     ├── flight-status/   # Estado real del vuelo (AeroDataBox); opcional
@@ -164,7 +165,8 @@ en Site settings → Environment variables.
 ### Edge Functions
 
 ```bash
-npx supabase functions deploy audioguide-tts   # TTS de audioguías (requiere GOOGLE_TTS_API_KEY)
+npx supabase functions deploy audioguide-tts     # TTS de audioguías (GOOGLE_TTS_API_KEY + R2_*)
+npx supabase functions deploy audioguide-media   # Borrado de los audios en R2 (R2_*)
 npx supabase functions deploy revolut-connect  # Conexión bancaria (GoCardless)
 npx supabase functions deploy revolut-sync
 npx supabase functions deploy send-reminders
@@ -209,5 +211,9 @@ compartir también a mano desde la lista de colaboradores.
 
 - Toda la base de datos protegida con **Row Level Security (RLS)**
 - Cada usuario solo accede a sus propios datos
-- Storage con políticas por carpeta `userId/`
+- Storage de Supabase con políticas por carpeta `userId/`
+- El audio de las audioguías vive en Cloudflare R2, donde no hay RLS: quien
+  autoriza es la Edge Function, comprobando `can_edit_trip` sobre el viaje de la
+  parada. El bucket es de lectura pública y de escritura solo con credenciales
+  que nunca salen del servidor. Ver `scripts/README.md`.
 - Auth exclusivamente via OAuth (sin contraseñas)

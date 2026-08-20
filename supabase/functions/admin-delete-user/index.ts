@@ -46,6 +46,7 @@
 // Deploy: supabase functions deploy admin-delete-user
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { clienteR2, configR2DelEntorno, r2Delete } from '../_shared/r2.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -169,6 +170,48 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 7-bis) El audio de sus viajes, que vive en Cloudflare R2 y por tanto NO
+    //    aparece en storage.objects. Se enumera por la base de datos: sus
+    //    viajes → las claves escritas en las paradas.
+    //
+    //    Ojo al cambio de criterio respecto al paso 7, que es deliberado. Los
+    //    ficheros de storage se borran por PREFIJO DEL USUARIO, o sea todo lo
+    //    que subió esté donde esté. El audio se borra por VIAJES QUE POSEE. Lo
+    //    segundo es lo correcto: con el criterio antiguo, borrar a A destruía
+    //    el audio que A hubiera generado en un viaje vivo de B, y B se
+    //    encontraba una audioguía rota sin haber hecho nada. Ahora coincide
+    //    exactamente con lo que se lleva la cascada de auth.users.
+    //
+    //    Antes de la cuenta, igual que el paso 7: si falla, estado recuperable.
+    let audiosBorrados = 0
+    const cfgR2 = configR2DelEntorno()
+    if (cfgR2) {
+      const { data: viajes, error: viajesErr } = await admin
+        .from('trips').select('id').eq('user_id', userId)
+      if (viajesErr) throw new Error(`Listando viajes: ${viajesErr.message}`)
+      const idsViaje = (viajes ?? []).map((t: { id: string }) => t.id)
+
+      if (idsViaje.length > 0) {
+        const { data: stops, error: stopsErr } = await admin
+          .from('audioguide_stops').select('audio_url').in('trip_id', idsViaje)
+        if (stopsErr) throw new Error(`Listando audios: ${stopsErr.message}`)
+
+        // Las filas sin migrar guardan todavía la URL de Supabase: esas ya las
+        // ha borrado el paso 7, porque sí están en storage.objects.
+        const claves = (stops ?? [])
+          .map((s: { audio_url: string | null }) => s.audio_url)
+          .filter((v: string | null): v is string => !!v && !/^https?:/.test(v))
+
+        if (claves.length > 0) {
+          const res = await r2Delete(clienteR2(cfgR2), claves)
+          if (res.fallos.length > 0) {
+            throw new Error(`R2: no se pudieron borrar ${res.fallos.length} audios`)
+          }
+          audiosBorrados = res.borradas
+        }
+      }
+    }
+
     // 8) Y ahora la cuenta. La cascada se lleva profiles → trips → el resto.
     const { error: delErr } = await admin.auth.admin.deleteUser(userId)
     if (delErr) throw delErr
@@ -179,6 +222,7 @@ Deno.serve(async (req) => {
       p_target_user: userId,
       p_detail: {
         email, ficheros, bytes,
+        audiosR2: audiosBorrados,
         colaboraciones: colabs ?? 0,
         invitacionesReasignadas: reasignadas ?? 0,
         visitasAnonimizadas: (anon as { visitas?: number } | null)?.visitas ?? 0,
@@ -186,7 +230,7 @@ Deno.serve(async (req) => {
       },
     })
 
-    return json({ ok: true, ficheros, bytes, colaboraciones: colabs ?? 0 })
+    return json({ ok: true, ficheros, bytes, audiosR2: audiosBorrados, colaboraciones: colabs ?? 0 })
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : 'Error desconocido' }, 500)
   }
