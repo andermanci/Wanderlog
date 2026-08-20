@@ -39,3 +39,4 @@ supabase/.temp/
 # Informes y registro del script de migración a R2 (scripts/README.md)
 scripts/.migracion-r2.jsonl
 scripts/informe-*.txt
+scripts/.respaldo-attachments/

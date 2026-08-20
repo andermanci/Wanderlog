@@ -166,3 +166,47 @@ inundar la pantalla (todos están en `.gitignore`):
 | `informe-fallos-app.txt` | URLs que no responden 200 |
 | `informe-sin-copia.txt` | Objetos sin copia en R2 al ir a borrar |
 | `.migracion-r2.jsonl` | Registro de todo lo copiado |
+
+---
+
+# Limpiar el bucket `attachments`
+
+Cuando el audio salió a R2, `attachments` pasó a ser el bucket dominante con
+417 MB. Al mirarlo de cerca, casi todo era evitable — así que no hace falta
+mudarlo a ninguna parte, que además sería caro: estos ficheros los sube el
+navegador, y en R2 harían falta URLs prefirmadas emitidas por una función.
+
+```bash
+deno run -A scripts/limpiar-attachments.ts medir
+deno run -A scripts/limpiar-attachments.ts huerfanos --apply
+deno run -A scripts/limpiar-attachments.ts recomprimir --apply
+```
+
+Sin `--apply` cuentan lo que harían. Todo lo que se borra o se sobrescribe se
+copia antes a `scripts/.respaldo-attachments/`.
+
+**`huerfanos`** borra los ficheros que no referencia ninguna fila. Los busca
+escaneando **cualquier campo de texto de 17 tablas**, no solo las columnas de
+URL: una imagen pegada en markdown dentro de una guía de destino no aparece en
+ninguna columna `*_url`, y borrarla sería destruir algo que sí se ve.
+
+Existen porque **borrar un viaje no limpia el storage**: las filas caen por
+cascada y los ficheros se quedan. Mientras eso no se arregle, esto hay que
+repasarlo de vez en cuando.
+
+**`recomprimir`** reduce a 1280 px de lado mayor y WebP calidad 60 —los mismos
+números que `compressImage` usa para las fotos del diario— sobrescribiendo cada
+fichero en su misma ruta, así que ninguna URL de la base de datos cambia. La
+extensión deja de coincidir con el contenido (un `.jpg` que sirve `image/webp`),
+y da igual: el navegador va por el `Content-Type`.
+
+## Resultado de la pasada del 20 de agosto de 2026
+
+| | antes | después |
+|---|---|---|
+| Huérfanos | 87 ficheros, 165,2 MB | borrados |
+| Imágenes grandes | 139 ficheros, 235,1 MB | 19,6 MB (92 % menos) |
+| **Bucket `attachments`** | **416,8 MB** | **36,1 MB** |
+
+Y `place-photo` pasó a pedirle a Google 1280 px en vez de 1600, para que las
+portadas nuevas no vuelvan a nacer grandes.

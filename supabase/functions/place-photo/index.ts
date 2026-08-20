@@ -25,7 +25,17 @@ const corsHeaders = {
 
 const ALLOWED_HOSTS = ['places.googleapis.com', 'maps.googleapis.com']
 // Ancho máximo al que se guarda la portada (la foto original puede venir a 4800px).
-const MAX_WIDTH_PX = 1600
+//
+// 1280 y no 1600, que es lo que había: es el mismo MAX_SIDE que usa
+// compressImage (src/lib/photoCache.ts) para las fotos del diario, así que las
+// portadas dejan de ser la excepción. El motivo no es teórico — el bucket
+// `attachments` llegó a 417 MB, y de eso 213 portadas de Google sumaban 355 MB
+// a 1,67 MB de media. Recomprimidas a 1280 px y WebP se quedaron en el 8 %.
+//
+// Aquí solo se puede pedirle a Google un tamaño menor: recomprimir hace falta
+// un codificador de imagen, y meter uno en una edge function no compensa. El
+// repaso periódico con scripts/limpiar-attachments.ts es lo que cierra el hueco.
+const MAX_WIDTH_PX = 1280
 // Los mismos que acepta el bucket 'attachments' (migración 006).
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
