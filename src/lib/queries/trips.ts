@@ -210,8 +210,21 @@ export function useDeleteTrip() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('trips').delete().eq('id', id)
-      if (error) throw error
+      // Pasa por la edge function y no por un delete a secas: borrar la fila
+      // deja los FICHEROS en el storage para siempre, porque las rutas llevan
+      // el id de quien subió cada uno y las filas que los referenciaban ya no
+      // existen. Con los adjuntos era espacio desperdiciado; con el bucket de
+      // documentos son DNI y pasaportes que seguían ahí después de que alguien
+      // borrara su viaje. La función enumera, borra el viaje y luego los
+      // ficheros, en ese orden.
+      const { data, error } = await supabase.functions.invoke('trip-delete', {
+        body: { tripId: id },
+      })
+      if (error || data?.error) throw new Error(data?.error ?? error?.message)
+      // Los avisos son ficheros que no se pudieron borrar. El viaje SÍ se ha
+      // borrado, así que para quien lo pidió la operación ha salido bien; los
+      // restos los recoge scripts/limpiar-attachments.ts.
+      if (data?.avisos?.length) console.warn('[trip-delete] restos sin borrar:', data.avisos)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: tripKeys.lists() })

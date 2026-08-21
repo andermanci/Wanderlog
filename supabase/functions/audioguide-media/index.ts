@@ -1,6 +1,5 @@
 // Supabase Edge Function: audioguide-media
-// Borra los ficheros de audio de una audioguía (o de un viaje entero) de
-// Cloudflare R2, y de paso los que queden del bucket antiguo de Supabase.
+// Borra los ficheros de audio de una audioguía de Cloudflare R2, y de paso los que queden del bucket antiguo de Supabase.
 //
 // POR QUÉ EXISTE: cuando el audio vivía en Supabase Storage, el borrado lo
 // hacía el navegador con las políticas RLS del bucket. En R2 no hay RLS y el
@@ -74,7 +73,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userErr } = await userClient.auth.getUser()
     if (userErr || !user) return json({ error: 'No autenticado' }, 401)
 
-    const { action, audioguideId, tripId } = await req.json().catch(() => ({}))
+    const { action, audioguideId } = await req.json().catch(() => ({}))
 
     // Qué viaje hay que poder editar, y de qué filas hay que sacar las claves.
     let tripObjetivo: string
@@ -94,18 +93,8 @@ Deno.serve(async (req) => {
       if (!guia) return json({ error: 'Audioguía no encontrada' }, 404)
       tripObjetivo = guia.trip_id
       filtro = { columna: 'audioguide_id', valor: audioguideId }
-    } else if (action === 'delete-trip') {
-      if (typeof tripId !== 'string' || !tripId) return json({ error: 'Falta tripId' }, 400)
-      const { data: viaje } = await userClient
-        .from('trips')
-        .select('id')
-        .eq('id', tripId)
-        .maybeSingle()
-      if (!viaje) return json({ error: 'Viaje no encontrado' }, 404)
-      tripObjetivo = tripId
-      filtro = { columna: 'trip_id', valor: tripId }
     } else {
-      return json({ error: 'action debe ser delete-audioguide o delete-trip' }, 400)
+      return json({ error: 'action debe ser delete-audioguide' }, 400)
     }
 
     // Ver no es borrar. Misma función que usan las políticas de escritura.
@@ -144,13 +133,8 @@ Deno.serve(async (req) => {
     }
 
     // Y ahora las filas. Las paradas caen por ON DELETE CASCADE (027).
-    if (action === 'delete-audioguide') {
-      const { error } = await userClient.from('audioguides').delete().eq('id', audioguideId)
-      if (error) return json({ error: `No se pudo borrar la audioguía: ${error.message}` }, 500)
-    }
-    // En 'delete-trip' NO se borran filas: lo hará la cascada del viaje. Aquí
-    // solo interesa que los ficheros no se queden sueltos en R2.
-
+    const { error } = await userClient.from('audioguides').delete().eq('id', audioguideId)
+    if (error) return json({ error: `No se pudo borrar la audioguía: ${error.message}` }, 500)
     return json({
       borrados: clavesR2.length + rutasSupabase.length,
       enR2: clavesR2.length,

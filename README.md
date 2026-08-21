@@ -123,7 +123,8 @@ supabase/
 ├── migrations/          # Esquema completo + RLS + Storage (31 migraciones)
 └── functions/
     ├── audioguide-tts/  # Google Cloud TTS: guion → MP3 por paradas, subido a R2
-    ├── audioguide-media/# Borra de R2 los audios de una audioguía o de un viaje
+    ├── audioguide-media/# Borra de R2 los audios de una audioguía
+    ├── trip-delete/     # Borra un viaje Y sus ficheros (adjuntos, documentos, audio)
     ├── revolut-connect/ # Conexión bancaria (GoCardless/Nordigen)
     ├── revolut-sync/    # Importación de movimientos como gastos
     ├── flight-status/   # Estado real del vuelo (AeroDataBox); opcional
@@ -167,6 +168,7 @@ en Site settings → Environment variables.
 ```bash
 npx supabase functions deploy audioguide-tts     # TTS de audioguías (GOOGLE_TTS_API_KEY + R2_*)
 npx supabase functions deploy audioguide-media   # Borrado de los audios en R2 (R2_*)
+npx supabase functions deploy trip-delete        # Borrado de viaje + sus ficheros (R2_*)
 npx supabase functions deploy revolut-connect  # Conexión bancaria (GoCardless)
 npx supabase functions deploy revolut-sync
 npx supabase functions deploy send-reminders
