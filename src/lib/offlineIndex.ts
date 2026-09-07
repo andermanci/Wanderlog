@@ -14,6 +14,7 @@ import { audioguideKeys } from '@/lib/queries/audioguides'
 import { removeDocs, clearDocCache } from '@/lib/docCache'
 import { removeTripAudios, clearAudioCache, formatBytes } from '@/lib/audioCache'
 import { removePhotos, clearPhotoCache } from '@/lib/photoCache'
+import { clearPersistedQueries } from '@/lib/queryPersister'
 import type { Activity, ItineraryDay } from '@/types/database'
 
 // Qué se descargó de cada viaje. Guardar la lista exacta de ficheros (y no
@@ -34,8 +35,6 @@ export interface OfflineIndex {
 
 const PREFIX = 'wanderlog-offline-'
 const KEY = (tripId: string) => `${PREFIX}${tripId}`
-// La caché de queries persistida, que es donde viven los datos descargados.
-const QUERY_CACHE_KEY = 'wanderlog-cache'
 
 export function readOfflineIndex(tripId: string): OfflineIndex | null {
   const raw = localStorage.getItem(KEY(tripId))
@@ -128,6 +127,35 @@ export async function deleteTripOffline(qc: QueryClient, tripId: string): Promis
   localStorage.removeItem(`${PREFIX}audio-${tripId}`)
 }
 
+/**
+ * Pide al navegador que NO desaloje lo descargado.
+ *
+ * Por defecto, todo lo que guarda una web —IndexedDB, la Cache API, hasta el
+ * registro del service worker— es «best-effort»: el sistema puede tirarlo
+ * cuando le falta disco. No es teórico: probando esto en un Mac con el disco al
+ * 99 % se vio desaparecer de golpe la base de datos, las cachés y el propio
+ * service worker de un origen entero. En un móvil casi lleno, eso es quedarse
+ * sin el viaje descargado justo cuando no hay cobertura.
+ *
+ * `navigator.storage.persist()` cambia ese modo a «persistente», que el sistema
+ * solo desaloja como último recurso. Cada navegador lo concede con su propia
+ * heurística y nadie garantiza un sí, así que esto devuelve el resultado pero
+ * nunca lanza ni bloquea: es una mejora, no un requisito.
+ *
+ * MEDIDO en iOS 26 (Safari del simulador): en una pestaña normal responde que
+ * NO. Apple lo reserva para las webs añadidas a la pantalla de inicio, que es
+ * donde de verdad importa —y es un argumento más para instalarla ahí en vez de
+ * usarla como pestaña—. En Chrome se concede con poco uso previo.
+ */
+export async function pedirAlmacenamientoPersistente(): Promise<boolean> {
+  try {
+    if (await navigator.storage?.persisted?.()) return true
+    return (await navigator.storage?.persist?.()) ?? false
+  } catch {
+    return false
+  }
+}
+
 /** Lo que ocupa la app en este dispositivo, si el navegador lo cuenta. */
 export async function offlineUsageBytes(): Promise<number | null> {
   try {
@@ -153,5 +181,7 @@ export async function clearAllOffline(qc: QueryClient): Promise<void> {
     if (key.startsWith(PREFIX)) localStorage.removeItem(key)
   }
   qc.clear()
-  localStorage.removeItem(QUERY_CACHE_KEY)
+  // La caché persistida vive en IndexedDB desde que dejó de caber en
+  // localStorage (ver src/lib/queryPersister.ts).
+  await clearPersistedQueries().catch(() => {})
 }

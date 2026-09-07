@@ -1,8 +1,8 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, useQueryClient, defaultShouldDehydrateQuery } from '@tanstack/react-query'
-import { PersistQueryClientProvider, removeOldestQuery } from '@tanstack/react-query-persist-client'
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { createIdbPersister } from '@/lib/queryPersister'
 import { MotionConfig } from 'framer-motion'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
@@ -95,15 +95,16 @@ const queryClient = new QueryClient({
   },
 })
 
-// Persiste la caché de queries en localStorage para uso offline.
-const persister = createSyncStoragePersister({
-  storage: window.localStorage,
-  key: 'wanderlog-cache',
-  // Si la caché no cabe en localStorage (los guiones de las audioguías son lo
-  // más voluminoso), se va soltando la query más vieja en vez de quedarnos sin
-  // persistir nada, que es lo que pasa por defecto al saltar la cuota.
-  retry: removeOldestQuery,
-})
+// Persiste la caché de queries en IndexedDB para uso offline. Estuvo en
+// localStorage hasta que los datos de tres viajes con audioguías dejaron de
+// caber en sus 5 MB; el porqué del cambio, en src/lib/queryPersister.ts.
+//
+// Aquí ya no hay `retry: removeOldestQuery`, y es deliberado: soltar la query
+// más vieja hasta que entre es exactamente lo que dejaba la app sin la lista de
+// viajes en modo avión, sin avisar a nadie. Con el presupuesto de IndexedDB no
+// hace falta, y si algún día tampoco cupiera, es mejor que la escritura falle y
+// se vea a que el viaje aparezca a medias.
+const persister = createIdbPersister()
 
 // En móvil los toasts van centrados arriba (arriba-derecha choca con el notch).
 const IS_MOBILE = window.matchMedia('(max-width: 767px)').matches

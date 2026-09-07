@@ -17,7 +17,7 @@ import { cacheDoc } from '@/lib/docCache'
 import { audioSize, cacheAudio } from '@/lib/audioCache'
 import { mediaUrl } from '@/lib/mediaUrl'
 import { cachePhoto, photosSize } from '@/lib/photoCache'
-import { readOfflineIndex, writeOfflineIndex } from '@/lib/offlineIndex'
+import { readOfflineIndex, writeOfflineIndex, pedirAlmacenamientoPersistente } from '@/lib/offlineIndex'
 import type { AudioguideStop } from '@/types/database'
 
 export type PrefetchProgress = {
@@ -109,6 +109,13 @@ export async function prefetchTripOffline(
   tripId: string,
   { onProgress, includePhotos = true, includeAudio = false }: PrefetchOptions = {},
 ): Promise<void> {
+  // Lo primero, antes de bajar un solo byte: pedir que el sistema no desaloje
+  // esto cuando le falte disco. Va aquí y no en el arranque porque los
+  // navegadores lo conceden con más facilidad dentro de un gesto del usuario, y
+  // "descargar el viaje" es exactamente el momento en que se está pidiendo que
+  // esto sobreviva. Si no se concede, se sigue igual: es una mejora.
+  await pedirAlmacenamientoPersistente()
+
   const sel = (table: string, order?: { col: string; asc?: boolean }) => async () => {
     let q = supabase.from(table).select('*').eq('trip_id', tripId)
     if (order) q = q.order(order.col, { ascending: order.asc ?? true, nullsFirst: false })
