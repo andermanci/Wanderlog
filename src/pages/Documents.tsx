@@ -38,7 +38,7 @@ import { IcsImportDialog } from '@/components/trips/IcsImportDialog'
 import { useAuthStore } from '@/store/authStore'
 import { useWalletPassStore } from '@/store/walletPassStore'
 import { buildDocPass, buildAttachmentPass } from '@/lib/wallet/pass'
-import { formatDate, DOCUMENT_LABELS, PERSONAL_DOC_CATEGORIES } from '@/lib/utils'
+import { formatDate, DOCUMENT_LABELS, PERSONAL_DOC_CATEGORIES, isFileDoc, isPdfPath } from '@/lib/utils'
 import type { Document, ActivityAttachment, Traveler, Activity } from '@/types/database'
 import { parseISO, addMonths } from 'date-fns'
 import { toast } from 'sonner'
@@ -193,6 +193,8 @@ export function DocumentsPage() {
   const [travelerFormOpen, setTravelerFormOpen] = useState(false)
   // Documento personal
   const [pForm, setPForm] = useState<PersonalForm | null>(null)
+  // Subida del archivo suelto (visado, vacunas): no pasa por IdPhotoInput.
+  const [uploadingP, setUploadingP] = useState(false)
   // Visores
   const [viewId, setViewId] = useState<{ front: string | null; back: string | null; title: string; subtitle: string | null } | null>(null)
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
@@ -283,7 +285,7 @@ export function DocumentsPage() {
       traveler_id: pForm.traveler_id || null,
       confirmation_number: pForm.number || null,
       datetime_end: pForm.expiry || null,
-      file_url: pForm.front, back_url: pForm.back,
+      file_url: pForm.front, back_url: isFileDoc(pForm.category) ? null : pForm.back,
       locator: null, provider: null, link: null, datetime_start: null,
       origin: null, destination: null, seat: null, phone: null, notes: null,
       flight_number: null,
@@ -329,7 +331,7 @@ export function DocumentsPage() {
               <div className="flex items-center gap-2 min-w-0">
                 <IdCard size={16} style={{ color: 'var(--primary)' }} />
                 <h2 className="font-serif text-xl font-medium">Viajeros</h2>
-                <span className="text-xs text-muted-foreground hidden sm:inline">DNI, pasaporte y permisos</span>
+                <span className="text-xs text-muted-foreground hidden sm:inline">DNI, pasaporte, visados y vacunas</span>
               </div>
               <Button size="sm" variant="outline" className="gap-1.5 flex-shrink-0" onClick={() => setTravelerFormOpen(true)}>
                 <UserPlus size={14} /> Añadir viajero
@@ -339,7 +341,7 @@ export function DocumentsPage() {
             {!travelers?.length && !unassignedPersonal.length ? (
               <div className="rounded-xl p-6 text-center surface">
                 <User size={26} className="mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Añade a los viajeros y guarda su DNI o pasaporte (anverso y reverso).</p>
+                <p className="text-sm text-muted-foreground">Añade a los viajeros y guarda su DNI o pasaporte (anverso y reverso), el visado o el certificado de vacunas en PDF.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -376,7 +378,7 @@ export function DocumentsPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {docs.map(doc => (
                             <PersonalDocCard key={doc.id} doc={doc} travelerName={t.name}
-                              onView={setViewId} onEdit={openPersonalEdit} onDelete={setDeleteTarget} />
+                              onView={setViewId} onOpenFile={setLightbox} onEdit={openPersonalEdit} onDelete={setDeleteTarget} />
                           ))}
                         </div>
                       )}
@@ -391,7 +393,7 @@ export function DocumentsPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {unassignedPersonal.map(doc => (
                         <PersonalDocCard key={doc.id} doc={doc} travelerName={null}
-                          onView={setViewId} onEdit={openPersonalEdit} onDelete={setDeleteTarget} />
+                          onView={setViewId} onOpenFile={setLightbox} onEdit={openPersonalEdit} onDelete={setDeleteTarget} />
                       ))}
                     </div>
                   </div>
@@ -534,14 +536,15 @@ export function DocumentsPage() {
       <Dialog open={!!pForm} onOpenChange={(o) => !o && setPForm(null)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto surface">
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">{pForm?.id ? 'Editar documento' : 'Documento de identidad'}</DialogTitle>
+            <DialogTitle className="font-serif text-xl">{pForm?.id ? 'Editar documento' : 'Nuevo documento'}</DialogTitle>
           </DialogHeader>
           {pForm && (
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Tipo</Label>
-                  <Select value={pForm.category} onValueChange={(v) => setPForm({ ...pForm, category: v })}>
+                  <Select value={pForm.category}
+                    onValueChange={(v) => setPForm({ ...pForm, category: v, back: isFileDoc(v) ? null : pForm.back })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {PERSONAL_DOC_CATEGORIES.map(k => (
@@ -564,24 +567,47 @@ export function DocumentsPage() {
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Nº de documento</Label>
-                  <Input value={pForm.number} onChange={(e) => setPForm({ ...pForm, number: e.target.value })} placeholder="XX0000000" className="font-mono" />
-                </div>
+                {pForm.category !== 'vaccines' && (
+                  <div className="space-y-1.5">
+                    <Label>Nº de documento</Label>
+                    <Input value={pForm.number} onChange={(e) => setPForm({ ...pForm, number: e.target.value })} placeholder="XX0000000" className="font-mono" />
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <Label>Caducidad</Label>
                   <Input type="date" value={pForm.expiry} onChange={(e) => setPForm({ ...pForm, expiry: e.target.value })} />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <IdPhotoInput label="Anverso" value={pForm.front} tripId={tripId!} onChange={(url) => setPForm({ ...pForm, front: url })} />
-                <IdPhotoInput label="Reverso" value={pForm.back} tripId={tripId!} onChange={(url) => setPForm({ ...pForm, back: url })} />
-              </div>
+              {isFileDoc(pForm.category) ? (
+                <div className="space-y-1.5">
+                  <Label>Archivo (PDF o imagen)</Label>
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary transition-colors"
+                    onClick={() => document.getElementById('personal-doc-file')?.click()}>
+                    {uploadingP ? <Loader2 size={16} className="animate-spin" /> : pForm.front ? <File size={16} style={{ color: 'var(--primary)' }} /> : <Upload size={16} className="text-muted-foreground" />}
+                    <span className="text-xs text-muted-foreground">{uploadingP ? 'Subiendo...' : pForm.front ? 'Archivo subido ✓' : 'Subir archivo'}</span>
+                    {pForm.front && !uploadingP && (
+                      <button type="button" className="ml-auto text-xs text-muted-foreground hover:text-destructive"
+                        onClick={(e) => { e.stopPropagation(); setPForm({ ...pForm, front: null }) }}>Quitar</button>
+                    )}
+                  </div>
+                  <input id="personal-doc-file" type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) handleFileUpload(f, (url) => setPForm(prev => prev && { ...prev, front: url }), setUploadingP)
+                      e.target.value = ''
+                    }} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <IdPhotoInput label="Anverso" value={pForm.front} tripId={tripId!} onChange={(url) => setPForm({ ...pForm, front: url })} />
+                  <IdPhotoInput label="Reverso" value={pForm.back} tripId={tripId!} onChange={(url) => setPForm({ ...pForm, back: url })} />
+                </div>
+              )}
             </div>
           )}
           <DialogFooter className="gap-2 pt-2">
             <Button variant="ghost" onClick={() => setPForm(null)}>Cancelar</Button>
-            <Button disabled={createDoc.isPending || updateDoc.isPending} onClick={submitPersonal}
+            <Button disabled={createDoc.isPending || updateDoc.isPending || uploadingP} onClick={submitPersonal}
               variant="brand">
               {(createDoc.isPending || updateDoc.isPending) && <Loader2 size={14} className="animate-spin mr-2" />}
               {pForm?.id ? 'Guardar' : 'Añadir'}
@@ -800,24 +826,39 @@ export function DocumentsPage() {
   )
 }
 
-// Tarjeta de documento de identidad (con miniatura del anverso → abre el visor).
-function PersonalDocCard({ doc, travelerName, onView, onEdit, onDelete }: {
+// Tarjeta de documento personal (con miniatura del anverso → abre el visor).
+// El visado y las vacunas no son un carné: van al visor de ficheros, y si son
+// un PDF ni siquiera se puede pintar la miniatura.
+function PersonalDocCard({ doc, travelerName, onView, onOpenFile, onEdit, onDelete }: {
   doc: Document
   travelerName: string | null
   onView: (v: { front: string | null; back: string | null; title: string; subtitle: string | null }) => void
+  onOpenFile: (v: { url: string; name: string }) => void
   onEdit: (d: Document) => void
   onDelete: (d: Document) => void
 }) {
   const subtitle = [travelerName, doc.confirmation_number].filter(Boolean).join(' · ') || null
+  const title = `${DOCUMENT_LABELS[doc.category]}${travelerName ? ` · ${travelerName}` : ''}`
+  const asFile = isFileDoc(doc.category)
+  const open = () => {
+    if (asFile) {
+      if (doc.file_url) onOpenFile({ url: doc.file_url, name: title })
+      return
+    }
+    onView({ front: doc.file_url, back: doc.back_url, title, subtitle: doc.confirmation_number })
+  }
   return (
     <div className="rounded-lg border border-border overflow-hidden" style={{ background: 'var(--secondary)' }}>
-      <button type="button" className="w-full flex items-stretch gap-3 text-left"
-        onClick={() => onView({ front: doc.file_url, back: doc.back_url, title: `${DOCUMENT_LABELS[doc.category]}${travelerName ? ` · ${travelerName}` : ''}`, subtitle: doc.confirmation_number })}>
+      <button type="button" className="w-full flex items-stretch gap-3 text-left" onClick={open}>
         <div className="w-16 flex-shrink-0 bg-black/5 flex items-center justify-center">
-          <DocImage
-            src={doc.file_url} alt="" className="w-full h-full object-cover"
-            fallback={<DocIcon category={doc.category} size={22} style={{ color: 'var(--primary)' }} />}
-          />
+          {isPdfPath(doc.file_url) ? (
+            <DocIcon category={doc.category} size={22} style={{ color: 'var(--primary)' }} />
+          ) : (
+            <DocImage
+              src={doc.file_url} alt="" className="w-full h-full object-cover"
+              fallback={<DocIcon category={doc.category} size={22} style={{ color: 'var(--primary)' }} />}
+            />
+          )}
         </div>
         <div className="flex-1 min-w-0 py-2 pr-1">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -826,7 +867,9 @@ function PersonalDocCard({ doc, travelerName, onView, onEdit, onDelete }: {
           </div>
           {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
           <span className="text-[11px] text-muted-foreground/80 flex items-center gap-1 mt-0.5">
-            <Eye size={10} /> Ver {doc.back_url ? '· anverso y reverso' : ''}
+            {asFile
+              ? (doc.file_url ? <><Eye size={10} /> Ver archivo</> : <>Sin archivo</>)
+              : <><Eye size={10} /> Ver {doc.back_url ? '· anverso y reverso' : ''}</>}
           </span>
         </div>
       </button>

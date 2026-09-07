@@ -1,6 +1,6 @@
 import {
   Plane, TrainFront, Bus, BedDouble, Car, CarTaxiFront, Ticket, Flag,
-  ShieldCheck, FileText, BookUser, IdCard, Stamp, HeartPulse, UtensilsCrossed,
+  ShieldCheck, FileText, BookUser, IdCard, Stamp, HeartPulse, Syringe, UtensilsCrossed,
   type LucideProps,
 } from 'lucide-react'
 
@@ -12,6 +12,7 @@ const MAP: Record<string, React.ComponentType<LucideProps>> = {
   visa: Stamp,
   driving_license: Car,
   health_card: HeartPulse,
+  vaccines: Syringe,
   // Reservas y billetes
   flight: Plane,
   train: TrainFront,

@@ -119,6 +119,7 @@ export const DOCUMENT_LABELS: Record<string, string> = {
   visa: 'Visado',
   driving_license: 'Carnet de conducir',
   health_card: 'Tarjeta sanitaria',
+  vaccines: 'Vacunas',
   flight: 'Vuelo',
   train: 'Tren',
   bus: 'Bus',
@@ -132,7 +133,18 @@ export const DOCUMENT_LABELS: Record<string, string> = {
 }
 
 // Documentación personal (identidad), separada de las reservas del viaje.
-export const PERSONAL_DOC_CATEGORIES = ['passport', 'dni', 'visa', 'driving_license', 'health_card']
+export const PERSONAL_DOC_CATEGORIES = ['passport', 'dni', 'visa', 'driving_license', 'health_card', 'vaccines']
+
+// De estas no hay tarjeta que fotografiar por las dos caras: son un documento
+// suelto (normalmente un PDF), así que se suben como un único archivo y se
+// abren en el visor de ficheros en vez de en el de carnés.
+export const FILE_DOC_CATEGORIES = ['visa', 'vaccines']
+
+export const isFileDoc = (category: string) => FILE_DOC_CATEGORIES.includes(category)
+
+// Un PDF no se puede pintar en un `<img>`: hay que mirar el path original, que
+// conserva la extensión (la URL firmada o el blob de la caché ya no la tienen).
+export const isPdfPath = (path: string | null | undefined) => !!path && /\.pdf(\?|$)/i.test(path)
 
 export const PLACE_CATEGORY_LABELS: Record<string, string> = {
   restaurant: 'Restaurante',
