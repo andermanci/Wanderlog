@@ -1,3 +1,4 @@
+import type { Query } from '@tanstack/react-query'
 import type { Persister, PersistedClient } from '@tanstack/react-query-persist-client'
 
 // Dónde se guarda la caché de queries para poder usar los viajes sin conexión.
@@ -101,6 +102,76 @@ function borrarLs(): void {
 }
 
 /**
+ * Qué queries se escriben en disco: TODA la que tenga datos, aunque su último
+ * refetch haya fallado. Menos las del panel de administración, que son datos
+ * de otras personas y no tienen por qué sobrevivir a la pestaña.
+ *
+ * Aquí estaba antes `defaultShouldDehydrateQuery`, que solo deja pasar
+ * status === 'success'. Y React Query pone status 'error' cuando un refetch en
+ * segundo plano falla AUNQUE conserve los datos. Así que bastaba un refresco
+ * fallido para que la siguiente escritura borrase del disco un viaje
+ * perfectamente descargado. Y pasaba justo en el peor momento: bajando cientos
+ * de megas de audios con el 4G saturado, o al desbloquear el móvil con la app
+ * abierta, cuando todo lo montado en pantalla está caducado y se refresca.
+ *
+ * Reproducido el 11/09/2026: tras un refetch fallido desaparecían del disco el
+ * detalle del viaje, los días, las actividades, los documentos y los gastos,
+ * pero NO la lista de viajes, que no estaba montada y no se refrescó.
+ * Resultado en modo avión: el viaje sale en la lista y al entrar, tras ~16 s de
+ * reintentos (3 de postgrest-js × 2 de React Query), «Viaje no encontrado».
+ */
+export function debePersistirse(q: Query): boolean {
+  return q.state.data !== undefined && q.queryKey[0] !== 'admin'
+}
+
+/**
+ * Lo que va a disco es el último DATO BUENO de cada query, no su último intento.
+ *
+ * `debePersistirse` deja pasar las queries con datos aunque su último refetch
+ * haya fallado. Esas llegan aquí con status 'error' y el error del intento
+ * colgando, y eso no puede ir tal cual:
+ *
+ * - Restaurada como 'error' (hydrate conserva el status tal cual), la query le
+ *   diría a la pantalla que falló, cuando lo que tiene es un dato bueno de
+ *   hace un rato, que es justo lo que se quiere ver sin conexión.
+ * - El error es un objeto Error (o un PostgrestError). IndexedDB guarda por
+ *   clonado estructurado, y un Error con propiedades propias no siempre se
+ *   clona igual en todos los navegadores; un DataCloneError tumbaría la
+ *   escritura ENTERA, no solo esa query.
+ *
+ * Así que se guarda como un éxito con su `dataUpdatedAt` de verdad: al volver
+ * la red está caducada por tiempo y se refresca sola. Por lo mismo se quita
+ * `promise` (una query pendiente no se puede clonar) y se deja `fetchStatus`
+ * en reposo: lo que se estaba pidiendo en el momento de escribir no sigue
+ * pidiéndose en el próximo arranque.
+ */
+export function sanear(cliente: PersistedClient): PersistedClient {
+  const { queries, mutations } = cliente.clientState
+  return {
+    ...cliente,
+    clientState: {
+      ...cliente.clientState,
+      queries: queries.map((q) => q.state ? {
+        ...q,
+        promise: undefined,
+        state: {
+          ...q.state,
+          status: q.state.data !== undefined ? 'success' : q.state.status,
+          fetchStatus: 'idle',
+          error: null,
+          fetchFailureReason: null,
+          fetchFailureCount: 0,
+        },
+      } : q),
+      mutations: mutations.map((m) => m.state ? {
+        ...m,
+        state: { ...m.state, error: null, failureReason: null },
+      } : m),
+    },
+  }
+}
+
+/**
  * Persister de React Query sobre IndexedDB, con localStorage de reserva.
  *
  * `persistClient` se llama en CADA evento de la caché de queries (el core no
@@ -127,22 +198,43 @@ export function createIdbPersister(): Persister {
 
   async function vaciarPendiente(): Promise<void> {
     while (pendiente) {
-      const cliente = pendiente
+      const siguiente = pendiente
       pendiente = null
-      if (modo === 'lectura-fallida') continue
-      if (modo === 'solo-localstorage') { escribirLs(cliente); continue }
-      const guardado = await operar('readwrite', (s) => s.put(cliente, RECORD))
-      // La escritura ha fallado pero antes sí se pudo leer: el almacenamiento
-      // se ha vuelto inaccesible a media sesión. localStorage como red.
-      if (guardado === null) escribirLs(cliente)
+      // Una escritura que revienta no puede llevarse por delante a las demás:
+      // si esto lanzase, `lanzar` quedaría rechazada, `escribiendo` no se
+      // soltaría nunca y el resto de la sesión no guardaría nada.
+      try {
+        if (modo === 'lectura-fallida') continue
+        const cliente = sanear(siguiente)
+        if (modo === 'solo-localstorage') { escribirLs(cliente); continue }
+        const guardado = await operar('readwrite', (s) => s.put(cliente, RECORD))
+        // La escritura ha fallado pero antes sí se pudo leer: el almacenamiento
+        // se ha vuelto inaccesible a media sesión. localStorage como red.
+        if (guardado === null) escribirLs(cliente)
+      } catch (err) {
+        console.warn('[queryPersister] no se ha podido guardar la caché:', err)
+      }
     }
-    escribiendo = null
+  }
+
+  // `escribiendo` se suelta en un `.then` y no dentro de vaciarPendiente. En
+  // los modos sin IndexedDB el bucle no espera a nada y termina en el mismo
+  // tick, ANTES de que `??=` asigne su resultado: soltarlo dentro dejaba
+  // `escribiendo` apuntando para siempre a una promesa ya resuelta, y todas
+  // las escrituras siguientes de la sesión se perdían sin hacer ruido.
+  // Y si mientras se cerraba una tanda llegó otra, se encadena en vez de
+  // quedarse apuntada sin nadie que la escriba.
+  function lanzar(): Promise<void> {
+    return vaciarPendiente().then(() => {
+      if (pendiente) return lanzar()
+      escribiendo = null
+    })
   }
 
   return {
     persistClient(cliente) {
       pendiente = cliente
-      escribiendo ??= vaciarPendiente()
+      escribiendo ??= lanzar()
       return escribiendo
     },
 

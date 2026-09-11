@@ -1,8 +1,8 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, useQueryClient, defaultShouldDehydrateQuery } from '@tanstack/react-query'
+import { QueryClient, useQueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
-import { createIdbPersister } from '@/lib/queryPersister'
+import { createIdbPersister, debePersistirse } from '@/lib/queryPersister'
 import { MotionConfig } from 'framer-motion'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
@@ -138,15 +138,10 @@ export default function App() {
         persister,
         maxAge: 1000 * 60 * 60 * 24 * 60,
         buster: CACHE_SCHEMA,
-        // Nada del panel de administración se escribe en localStorage. El
-        // resto de la caché se persiste 60 días porque son TUS viajes y los
-        // quieres sin conexión; los del panel son datos de otras personas y
-        // no tienen por qué sobrevivir a la pestaña.
-        // El `defaultShouldDehydrateQuery` se compone, no se sustituye: es el
-        // que descarta las queries que fallaron o siguen cargando. Sin él,
-        // errores y estados a medias también acabarían en localStorage.
+        // Qué queries van a disco, y por qué NO es el filtro por defecto de
+        // React Query: ver `debePersistirse` en src/lib/queryPersister.ts.
         dehydrateOptions: {
-          shouldDehydrateQuery: q => defaultShouldDehydrateQuery(q) && q.queryKey[0] !== 'admin',
+          shouldDehydrateQuery: debePersistirse,
         },
       }}
     >

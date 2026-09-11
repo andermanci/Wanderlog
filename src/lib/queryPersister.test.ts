@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { QueryClient, dehydrate, hydrate } from '@tanstack/react-query'
 import type { PersistedClient } from '@tanstack/react-query-persist-client'
-import { createIdbPersister, clearPersistedQueries } from './queryPersister'
+import { createIdbPersister, clearPersistedQueries, debePersistirse, sanear } from './queryPersister'
 
 // jsdom NO implementa IndexedDB, así que estos tests recorren exactamente el
 // plan B: el navegador sin IndexedDB (modo privado de algún Safari viejo). Es
@@ -11,7 +12,7 @@ import { createIdbPersister, clearPersistedQueries } from './queryPersister'
 const cliente = (marca: string): PersistedClient => ({
   timestamp: 1,
   buster: '1',
-  clientState: { mutations: [], queries: [{ queryHash: marca }] },
+  clientState: { mutations: [], queries: [{ queryHash: marca, state: { data: marca, status: 'success' } }] },
 } as unknown as PersistedClient)
 
 const leerLs = () => {
@@ -91,6 +92,19 @@ describe('createIdbPersister sin IndexedDB', () => {
     vi.unstubAllGlobals()
   })
 
+  // El agrupador de escrituras soltaba `escribiendo` dentro del bucle, que en
+  // los modos sin IndexedDB termina en el mismo tick: quedaba apuntando a una
+  // promesa resuelta y todas las escrituras de la sesión tras la primera se
+  // perdían. Aquí se esperan una a una, que es como llegan en la app.
+  it('en modo solo localStorage no se pierde ninguna escritura tras la primera', async () => {
+    const p = createIdbPersister()
+    await p.restoreClient()
+    await p.persistClient(cliente('1'))
+    await p.persistClient(cliente('2'))
+    await p.persistClient(cliente('3'))
+    expect(marcaDe(leerLs())).toBe('3')
+  })
+
   it('removeClient y clearPersistedQueries dejan el almacenamiento limpio', async () => {
     const p = createIdbPersister()
     await p.persistClient(cliente('a'))
@@ -101,5 +115,64 @@ describe('createIdbPersister sin IndexedDB', () => {
     await p.persistClient(cliente('b'))
     await clearPersistedQueries()
     expect(leerLs()).toBeNull()
+  })
+})
+
+// El fallo de «descargo el viaje y al volver me pone Viaje no encontrado»,
+// reproducido con un QueryClient de verdad: un refetch que falla deja la query
+// con sus datos en memoria pero con status 'error', y el filtro por defecto de
+// React Query la sacaba de la siguiente escritura a disco.
+describe('qué va a disco cuando un refetch falla', () => {
+  const KEY = ['trips', 'detail', 't1']
+  const VIAJE = { id: 't1', name: 'VERANO 2026' }
+
+  async function queryConRefetchFallido() {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    let falla = false
+    const queryFn = async () => {
+      if (falla) throw new TypeError('Load failed')
+      return VIAJE
+    }
+    await qc.fetchQuery({ queryKey: KEY, queryFn })
+    falla = true
+    await qc.fetchQuery({ queryKey: KEY, queryFn, staleTime: 0 }).catch(() => {})
+    return qc
+  }
+
+  it('el refetch fallido deja los datos en memoria con status error', async () => {
+    const qc = await queryConRefetchFallido()
+    expect(qc.getQueryData(KEY)).toEqual(VIAJE)
+    expect(qc.getQueryState(KEY)?.status).toBe('error')
+  })
+
+  it('con el filtro por defecto, el viaje desaparecía del disco', async () => {
+    const qc = await queryConRefetchFallido()
+    expect(dehydrate(qc).queries).toHaveLength(0)
+  })
+
+  it('con debePersistirse + sanear, se guarda y se restaura como dato bueno', async () => {
+    const qc = await queryConRefetchFallido()
+    const guardado = sanear({
+      timestamp: Date.now(),
+      buster: '1',
+      clientState: dehydrate(qc, { shouldDehydrateQuery: debePersistirse }),
+    })
+
+    // Lo que va a IndexedDB tiene que poder clonarse: sin el Error colgando.
+    expect(() => structuredClone(guardado)).not.toThrow()
+    expect(guardado.clientState.queries[0].state.error).toBeNull()
+
+    const arranque = new QueryClient()
+    hydrate(arranque, guardado.clientState)
+    expect(arranque.getQueryData(KEY)).toEqual(VIAJE)
+    expect(arranque.getQueryState(KEY)?.status).toBe('success')
+  })
+
+  it('no guarda lo que nunca tuvo datos ni lo del panel de administración', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await qc.fetchQuery({ queryKey: ['admin', 'usuarios'], queryFn: async () => [1, 2] })
+    await qc.fetchQuery({ queryKey: ['trips', 'detail', 'nunca'], queryFn: async () => { throw new Error('x') } })
+      .catch(() => {})
+    expect(dehydrate(qc, { shouldDehydrateQuery: debePersistirse }).queries).toHaveLength(0)
   })
 })
