@@ -59,6 +59,10 @@ const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ?? ''
 // El conector de tiempos de viaje necesita la librería 'routes' de Google
 // Maps, que a su vez necesita un <APIProvider> ancestro — de ahí este
 // envoltorio ligero alrededor del componente real de la página.
+// Herramientas de vista de la cabecera: todas con la misma altura que el
+// selector Editar/Ver para que la barra quede alineada. En móvil, solo icono.
+const TOOL = 'inline-flex items-center justify-center gap-1.5 h-8 min-w-8 px-2 sm:px-2.5 text-xs font-medium rounded-md border border-border transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2'
+
 export function ItineraryPage() {
   return (
     <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
@@ -299,31 +303,35 @@ function ItineraryPageInner() {
       {trip && days && (
         <VersionsSheet open={versionsOpen} onOpenChange={setVersionsOpen} trip={trip} days={days} live={liveSnapshot} canEdit={canEdit} />
       )}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-6">
+      {/* Dos niveles: el título con la acción principal, y debajo una barra de
+          herramientas de una sola altura (el modo a la izquierda, las
+          herramientas de vista a la derecha). En una sola fila, cinco
+          controles de dos tamaños distintos se descolgaban al saltar de línea. */}
+      <div className="flex items-end justify-between gap-3 mb-4">
         <div>
           <h1 className="font-serif text-2xl font-medium">Itinerario</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Plan día a día</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {(days?.length ?? 0) > 0 && (
-            <button
-              type="button"
-              onClick={toggleAllDays}
-              aria-label={allDaysCollapsed ? 'Expandir todos los días' : 'Colapsar todos los días'}
-              title={allDaysCollapsed ? 'Expandir todos los días' : 'Colapsar todos los días'}
-              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-border transition-colors hover:bg-secondary"
-            >
-              {allDaysCollapsed ? <ChevronsUpDown size={13} /> : <ChevronsDownUp size={13} />}
-              <span className="hidden sm:inline">{allDaysCollapsed ? 'Expandir todos' : 'Colapsar todos'}</span>
-            </button>
-          )}
-          {/* Toggle Editar / Ver (sin permiso de edición, siempre en Ver) */}
-          {canEdit && (
-          <div className="flex items-center p-0.5 rounded-lg" style={{ background: 'var(--secondary)' }} role="group" aria-label="Modo del itinerario">
+        {editMode && (
+          <Button
+            onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}
+            variant="brand"
+            className="gap-2 shrink-0"
+            aria-label="Añadir actividad" title="Añadir actividad"
+          >
+            <Plus size={16} />
+            <span className="hidden sm:inline">Añadir actividad</span>
+          </Button>
+        )}
+      </div>
+      <div className="flex items-center justify-between gap-2 mb-6">
+        {/* Toggle Editar / Ver (sin permiso de edición, siempre en Ver) */}
+        {canEdit ? (
+          <div className="flex items-center h-8 p-0.5 rounded-lg" style={{ background: 'var(--secondary)' }} role="group" aria-label="Modo del itinerario">
             <button
               onClick={() => setMode('edit')}
               aria-pressed={editMode}
-              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors"
+              className="flex items-center gap-1.5 h-7 text-xs font-medium px-2.5 rounded-md transition-colors"
               style={editMode
                 ? { background: 'var(--card)', color: 'var(--foreground)', boxShadow: '0 1px 2px color-mix(in srgb, var(--foreground) 8%, transparent)' }
                 : { color: 'var(--muted-foreground)' }}
@@ -334,7 +342,7 @@ function ItineraryPageInner() {
             <button
               onClick={() => setMode('view')}
               aria-pressed={!editMode}
-              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors"
+              className="flex items-center gap-1.5 h-7 text-xs font-medium px-2.5 rounded-md transition-colors"
               style={!editMode
                 ? { background: 'var(--card)', color: 'var(--foreground)', boxShadow: '0 1px 2px color-mix(in srgb, var(--foreground) 8%, transparent)' }
                 : { color: 'var(--muted-foreground)' }}
@@ -343,33 +351,31 @@ function ItineraryPageInner() {
               Ver
             </button>
           </div>
-          )}
-          {(days?.length ?? 0) > 0 && (
-            <Button variant="outline" className="gap-2" onClick={() => setVersionsOpen(true)} aria-label="Versiones" title="Guardar y comparar versiones">
-              <Layers size={16} />
-              <span className="hidden sm:inline">Versiones</span>
-            </Button>
-          )}
-          {hasRoute && (
-            <Button variant="outline" className="gap-2" asChild>
-              <Link to={`/trips/${tripId}/map?route=1`} aria-label="Ver recorrido" title="Ver recorrido">
-                <Route size={16} />
+        ) : <span />}
+        {(days?.length ?? 0) > 0 && (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={toggleAllDays}
+              aria-label={allDaysCollapsed ? 'Expandir todos los días' : 'Colapsar todos los días'}
+              title={allDaysCollapsed ? 'Expandir todos los días' : 'Colapsar todos los días'}
+              className={TOOL}
+            >
+              {allDaysCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
+              <span className="hidden sm:inline">{allDaysCollapsed ? 'Expandir todos' : 'Colapsar todos'}</span>
+            </button>
+            {hasRoute && (
+              <Link to={`/trips/${tripId}/map?route=1`} aria-label="Ver recorrido" title="Ver recorrido" className={TOOL}>
+                <Route size={14} />
                 <span className="hidden sm:inline">Ver recorrido</span>
               </Link>
-            </Button>
-          )}
-          {editMode && (
-            <Button
-              onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}
-              variant="brand"
-              className="gap-2"
-              aria-label="Añadir actividad" title="Añadir actividad"
-            >
-              <Plus size={16} />
-              <span className="hidden sm:inline">Añadir actividad</span>
-            </Button>
-          )}
-        </div>
+            )}
+            <button type="button" onClick={() => setVersionsOpen(true)} aria-label="Versiones" title="Guardar y comparar versiones" className={TOOL}>
+              <Layers size={14} />
+              <span className="hidden sm:inline">Versiones</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {loading ? (

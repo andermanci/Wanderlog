@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from 'react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { ArrowRight, ArrowLeft, BedDouble, ChevronDown, Lightbulb, TrainFront, Plane } from 'lucide-react'
+import { ArrowRight, ArrowLeft, BedDouble, ChevronDown, Lightbulb, Maximize2, TrainFront, Plane } from 'lucide-react'
 import type { DayDiff, ItemChange } from '@/lib/versions/diff'
 import type { DayMetrics } from '@/lib/versions/metrics'
 import { hhmm } from '@/lib/versions/snapshot'
 import type { SnapshotActivity } from '@/types/database'
-import { RouteSketch, type SketchPoint } from './RouteSketch'
+import type { SketchPoint } from '@/lib/versions/sketch'
+import { RouteSketch } from './RouteSketch'
+import { RouteMapDialog } from './RouteMapDialog'
 import { CHANGE, SIDE, soft } from './versionStyle'
 
 const isMove = (a: SnapshotActivity) => a.type === 'transport' || a.type === 'flight'
@@ -31,11 +33,15 @@ interface Props {
 
 export function DayCompareCard({ diff, mA, mB, cities, hotel, explanation }: Props) {
   const [side, setSide] = useState<'a' | 'b'>('b')
+  const [mapOpen, setMapOpen] = useState(false)
   const bItems = diff.b.map(c => c.activity)
   const numB = numbering(bItems)
   const numA = numbering(diff.a)
-  const pointsB: SketchPoint[] = bItems.filter(a => numB.has(a.id)).map(a => ({ lat: a.lat!, lng: a.lng!, n: numB.get(a.id)!, eat: a.type === 'restaurant' }))
-  const pointsA: SketchPoint[] = diff.a.filter(a => numA.has(a.id)).map(a => ({ lat: a.lat!, lng: a.lng!, n: numA.get(a.id)! }))
+  const pointsB: SketchPoint[] = bItems.filter(a => numB.has(a.id))
+    .map(a => ({ lat: a.lat!, lng: a.lng!, n: numB.get(a.id)!, eat: a.type === 'restaurant', title: a.title }))
+  const pointsA: SketchPoint[] = diff.a.filter(a => numA.has(a.id))
+    .map(a => ({ lat: a.lat!, lng: a.lng!, n: numA.get(a.id)!, title: a.title }))
+  const hotelPoint = hotel?.lat != null && hotel.lng != null ? { lat: hotel.lat, lng: hotel.lng, title: hotel.title } : null
   const kmDelta = mB.km - mA.km
   const date = parseISO(diff.date)
 
@@ -97,8 +103,18 @@ export function DayCompareCard({ diff, mA, mB, cities, hotel, explanation }: Pro
           {diff.b.map(c => <Row key={c.activity.id} activity={c.activity} n={numB.get(c.activity.id)} side="b" tag={tagFor(c)} />)}
         </Column>
         <div className="md:col-span-2 lg:col-span-1">
-          <RouteSketch a={pointsA} b={pointsB} hotel={hotel?.lat != null && hotel.lng != null ? { lat: hotel.lat, lng: hotel.lng } : null}
-            label={`Ruta del ${short(diff.date)}: A discontinua, B continua`} />
+          {/* Todo el croquis abre el mapa grande; el botón lo hace evidente. */}
+          <button type="button" onClick={() => setMapOpen(true)} disabled={pointsA.length + pointsB.length === 0}
+            className="group relative block w-full text-left rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-default"
+            aria-label={`Ampliar el mapa del ${short(diff.date)}`}>
+            <RouteSketch a={pointsA} b={pointsB} hotel={hotelPoint} label={`Ruta del ${short(diff.date)}: A discontinua, B continua`} />
+            {pointsA.length + pointsB.length > 0 && (
+              <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-medium shadow-sm border border-border transition-colors group-hover:bg-secondary"
+                style={{ background: 'var(--card)' }}>
+                <Maximize2 size={12} /> Ampliar
+              </span>
+            )}
+          </button>
           <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-3">
             <span className="flex items-center gap-1"><svg width="18" height="4" aria-hidden><line x1="0" y1="2" x2="18" y2="2" stroke={SIDE.a.color} strokeWidth="2" strokeDasharray="4 3" /></svg>A</span>
             <span className="flex items-center gap-1"><svg width="18" height="4" aria-hidden><line x1="0" y1="2" x2="18" y2="2" stroke={SIDE.b.color} strokeWidth="3" /></svg>B</span>
@@ -106,6 +122,8 @@ export function DayCompareCard({ diff, mA, mB, cities, hotel, explanation }: Pro
           </p>
         </div>
       </div>
+      <RouteMapDialog open={mapOpen} onOpenChange={setMapOpen} a={pointsA} b={pointsB} hotel={hotelPoint}
+        title={format(date, 'EEEE d MMMM', { locale: es })} subtitle={cities} />
     </article>
   )
 }

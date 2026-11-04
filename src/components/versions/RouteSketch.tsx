@@ -1,16 +1,12 @@
 import { useMemo } from 'react'
-import { haversineKm, type GeoPoint } from '@/lib/travelTime'
+import type { GeoPoint } from '@/lib/travelTime'
+import { nearMedian, type SketchPoint } from '@/lib/versions/sketch'
 import { SIDE } from './versionStyle'
 
 // Croquis de la ruta de un día: las dos versiones superpuestas, A discontinua y
 // B continua y numerada. Es un SVG hecho a mano a propósito: no gasta la API de
 // Maps (ni la cuota de Geocoding), funciona sin conexión y se pinta al instante
 // aunque haya veinte días en pantalla.
-
-export interface SketchPoint extends GeoPoint {
-  n: number
-  eat?: boolean
-}
 
 interface Props {
   a?: SketchPoint[]
@@ -21,17 +17,11 @@ interface Props {
 }
 
 const W = 320, H = 220, PAD = 22
-/** Lo que queda a más de esto de la mediana es otra ciudad (el tren del día): fuera del croquis. */
-const CLIP_KM = 40
 
 export function RouteSketch({ a = [], b, hotel, label }: Props) {
   const geo = useMemo(() => {
-    const all = [...a, ...b]
-    if (all.length === 0) return null
-    const lats = all.map(p => p.lat).sort((x, y) => x - y)
-    const lngs = all.map(p => p.lng).sort((x, y) => x - y)
-    const med = { lat: lats[lats.length >> 1], lng: lngs[lngs.length >> 1] }
-    const near = (p: GeoPoint) => haversineKm(p, med) < CLIP_KM
+    if (a.length + b.length === 0) return null
+    const near = nearMedian([...a, ...b])
     const A = a.filter(near), B = b.filter(near)
     const H0 = hotel && near(hotel) ? hotel : null
     const pts = [...A, ...B, ...(H0 ? [H0] : [])]
