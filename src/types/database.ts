@@ -910,6 +910,35 @@ export type Database = {
         Update: never
         Relationships: []
       }
+      itinerary_versions: {
+        // Foto de las actividades de un viaje (061). Ver src/lib/versions/.
+        Row: {
+          id: string
+          trip_id: string
+          name: string
+          source: 'manual' | 'auto' | 'claude'
+          summary: string | null
+          explanations: Record<string, string>
+          snapshot: SnapshotActivity[]
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          name: string
+          source?: 'manual' | 'auto' | 'claude'
+          summary?: string | null
+          explanations?: Record<string, string>
+          snapshot: SnapshotActivity[]
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -928,6 +957,14 @@ export type Database = {
       duplicate_trip: {
         Args: { p_trip_id: string }
         Returns: Database['public']['Tables']['trips']['Row']
+      }
+      save_itinerary_version: {
+        Args: { p_trip_id: string; p_name: string; p_source?: 'manual' | 'auto' | 'claude' }
+        Returns: Database['public']['Tables']['itinerary_versions']['Row']
+      }
+      restore_itinerary_version: {
+        Args: { p_version_id: string }
+        Returns: { backup_id: string; deleted: number; upserted: number }
       }
       // Ficha del viaje para la pantalla de invitación: es la única lectura
       // que se hace SIN sesión (quien aún no tiene cuenta).
@@ -1017,6 +1054,11 @@ export type Profile = Database['public']['Tables']['profiles']['Row']
 export type Trip = Database['public']['Tables']['trips']['Row']
 export type ItineraryDay = Database['public']['Tables']['itinerary_days']['Row']
 export type Activity = Database['public']['Tables']['activities']['Row']
+export type ItineraryVersion = Database['public']['Tables']['itinerary_versions']['Row']
+// Una actividad dentro de la foto de una versión: lleva la FECHA de su día en
+// lugar de day_id/end_day_id, y las claves de day_orders también son fechas.
+export type SnapshotActivity =
+  Omit<Activity, 'trip_id' | 'day_id' | 'end_day_id'> & { date: string; end_date: string | null }
 export type Document = Database['public']['Tables']['documents']['Row']
 export type FavoritePlace = Database['public']['Tables']['favorite_places']['Row']
 export type Reminder = Database['public']['Tables']['reminders']['Row']

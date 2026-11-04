@@ -31,6 +31,7 @@ const InvitePage = lazy(() => import('@/pages/InvitePage').then(m => ({ default:
 const RevolutCallback = lazy(() => import('@/pages/RevolutCallback').then(m => ({ default: m.RevolutCallback })))
 const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })))
 const TripDetail = lazy(() => import('@/pages/TripDetail').then(m => ({ default: m.TripDetail })))
+const VersionComparePage = lazy(() => import('@/pages/VersionCompare').then(m => ({ default: m.VersionComparePage })))
 const ItineraryPage = lazy(() => import('@/pages/Itinerary').then(m => ({ default: m.ItineraryPage })))
 const ActivityFormPage = lazy(() => import('@/pages/ActivityFormPage').then(m => ({ default: m.ActivityFormPage })))
 const ActivityDetailPage = lazy(() => import('@/pages/ActivityDetailPage').then(m => ({ default: m.ActivityDetailPage })))
@@ -202,6 +203,7 @@ export default function App() {
 
               <Route path="/trips/:tripId" element={<TripDetail />} />
               <Route path="/trips/:tripId/itinerary" element={<ItineraryPage />} />
+              <Route path="/trips/:tripId/itinerary/compare" element={<VersionComparePage />} />
               <Route path="/trips/:tripId/itinerary/new" element={<ActivityFormPage />} />
               <Route path="/trips/:tripId/itinerary/:activityId" element={<ActivityDetailPage />} />
               <Route path="/trips/:tripId/itinerary/:activityId/edit" element={<ActivityFormPage />} />

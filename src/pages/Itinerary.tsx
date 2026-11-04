@@ -10,7 +10,7 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, Headphones, MapPin, Pencil, Eye } from 'lucide-react'
+import { Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, Headphones, MapPin, Pencil, Eye, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -48,6 +48,8 @@ import { useTripAudioguidesReadiness } from '@/lib/queries/audioguides'
 import { buildRoutePoints } from '@/lib/route'
 import { lodgingByDayMap, dayOrderOf, type Lodging } from '@/lib/lodging'
 import { TripHeader } from '@/components/trips/TripHeader'
+import { VersionsSheet } from '@/components/versions/VersionsSheet'
+import { toLiveSnapshot } from '@/lib/versions/snapshot'
 import type { Activity, DayAlert, ItineraryDay } from '@/types/database'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -111,6 +113,11 @@ function ItineraryPageInner() {
   const { data: journalPhotos } = useJournalPhotos(tripId!)
   const { data: weather } = useTripWeather(trip, days, activities)
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
+  const [versionsOpen, setVersionsOpen] = useState(false)
+  const liveSnapshot = useMemo(
+    () => (versionsOpen && activities && days ? toLiveSnapshot(activities, days) : []),
+    [versionsOpen, activities, days],
+  )
 
   // En táctil: mantener pulsado ~250 ms para arrastrar (no pelea con el scroll).
   const sensors = useSensors(
@@ -289,6 +296,9 @@ function ItineraryPageInner() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section="Itinerario" />
+      {trip && days && (
+        <VersionsSheet open={versionsOpen} onOpenChange={setVersionsOpen} trip={trip} days={days} live={liveSnapshot} canEdit={canEdit} />
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-6">
         <div>
           <h1 className="font-serif text-2xl font-medium">Itinerario</h1>
@@ -333,6 +343,12 @@ function ItineraryPageInner() {
               Ver
             </button>
           </div>
+          )}
+          {(days?.length ?? 0) > 0 && (
+            <Button variant="outline" className="gap-2" onClick={() => setVersionsOpen(true)} aria-label="Versiones" title="Guardar y comparar versiones">
+              <Layers size={16} />
+              <span className="hidden sm:inline">Versiones</span>
+            </Button>
           )}
           {hasRoute && (
             <Button variant="outline" className="gap-2" asChild>
