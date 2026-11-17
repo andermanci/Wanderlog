@@ -27,6 +27,8 @@ interface TransitPromptDialogProps {
   /** "el jueves 26" o "en todo el viaje": para los textos. */
   scopeLabel: string
   legs: TransitLegInput[]
+  /** Todos tienen ya ruta: se rehacen y las nuevas sustituyen a las guardadas. */
+  redo?: boolean
 }
 
 function Step({ n, done, title, children }: { n: number; done?: boolean; title: string; children: React.ReactNode }) {
@@ -51,7 +53,7 @@ function Step({ n, done, title, children }: { n: number; done?: boolean; title: 
 // Transporte público sin APIs: copiar el prompt con los trayectos en coche,
 // pegarlo en la IA que prefieras y traer aquí su respuesta. Se valida al
 // pegar y se enseña qué se ha entendido antes de guardar.
-export function TransitPromptDialog({ open, onOpenChange, tripId, tripLabel, scopeLabel, legs }: TransitPromptDialogProps) {
+export function TransitPromptDialog({ open, onOpenChange, tripId, tripLabel, scopeLabel, legs, redo = false }: TransitPromptDialogProps) {
   const [provider, setProvider] = useState<AudioguideAiProvider>('claude')
   const [copied, setCopied] = useState(false)
   const [showLegs, setShowLegs] = useState(false)
@@ -111,10 +113,13 @@ export function TransitPromptDialog({ open, onOpenChange, tripId, tripLabel, sco
         <DialogHeader>
           <DialogTitle className="font-serif text-xl font-medium flex items-center gap-2">
             <TrainFront size={20} style={{ color: 'var(--primary)' }} />
-            Transporte público
+            {redo ? 'Rehacer transporte público' : 'Transporte público'}
           </DialogTitle>
           <DialogDescription>
-            {legs.length} {legs.length === 1 ? 'trayecto en coche' : 'trayectos en coche'} {scopeLabel}. Tu IA te dice qué metro, tren o bus coger y aquí se guarda.
+            {legs.length} {legs.length === 1 ? 'trayecto en coche' : 'trayectos en coche'} {scopeLabel}.{' '}
+            {redo
+              ? 'Ya tienen ruta guardada: la que traigas ahora la sustituye.'
+              : 'Tu IA te dice qué metro, tren o bus coger y aquí se guarda.'}
           </DialogDescription>
         </DialogHeader>
 

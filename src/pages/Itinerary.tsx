@@ -241,6 +241,10 @@ function ItineraryPageInner() {
     }))
     return merged
   }, [travelTimes, transitByDay])
+  const transitDrivingTotal = useMemo(
+    () => [...transitByDay.values()].reduce((n, dt) => n + dt.legs.size, 0),
+    [transitByDay],
+  )
   const transitPendingTotal = useMemo(
     () => [...transitByDay.values()].reduce((n, dt) => n + dt.pending.length, 0),
     [transitByDay],
@@ -251,7 +255,14 @@ function ItineraryPageInner() {
   const transitLegs = useMemo((): TransitLegInput[] => {
     if (!transitScope) return []
     const byId = new Map((activities ?? []).map(a => [a.id, a]))
-    return transitScope.dayIds.flatMap(dayId => (transitByDay.get(dayId)?.pending ?? []).flatMap(leg => {
+    // Si en esos días ya está todo pedido, es para rehacerlo: van todos los
+    // trayectos en coche y las rutas nuevas sustituyen a las guardadas.
+    const pendingInScope = transitScope.dayIds.some(id => (transitByDay.get(id)?.pending.length ?? 0) > 0)
+    const legsOf = (dayId: string) => {
+      const dt = transitByDay.get(dayId)
+      return pendingInScope ? dt?.pending ?? [] : [...(dt?.legs.values() ?? [])]
+    }
+    return transitScope.dayIds.flatMap(dayId => legsOf(dayId).flatMap(leg => {
       const from = byId.get(leg.fromId)
       const to = byId.get(leg.toId)
       return from && to ? [{ leg, from, to, drive: travelTimes.get(pairKey(leg.fromId, leg.toId)) }] : []
@@ -356,6 +367,7 @@ function ItineraryPageInner() {
           tripId={tripId!}
           tripLabel={[trip.name, trip.destination].filter(Boolean).join(' — ')}
           scopeLabel={transitScope?.label ?? ''}
+          redo={!!transitScope && transitScope.dayIds.every(id => !(transitByDay.get(id)?.pending.length))}
           legs={transitLegs}
         />
       )}
@@ -426,12 +438,14 @@ function ItineraryPageInner() {
                 <span className="hidden sm:inline">Ver recorrido</span>
               </Link>
             )}
-            {canEdit && transitPendingTotal > 0 && (
+            {canEdit && transitDrivingTotal > 0 && (
               <button
                 type="button"
                 onClick={() => setTransitScope({ dayIds: (days ?? []).map(d => d.id), label: 'en todo el viaje' })}
                 aria-label="Sugerir transporte público en todo el viaje"
-                title={`Sugerir transporte público en los ${transitPendingTotal} trayectos en coche del viaje`}
+                title={transitPendingTotal > 0
+                  ? `Sugerir transporte público en los ${transitPendingTotal} trayectos en coche sin ruta`
+                  : 'Rehacer el transporte público de todo el viaje'}
                 className={`${TOOL} disabled:opacity-60`}
               >
                 <TrainFront size={14} />
@@ -614,13 +628,15 @@ function ItineraryPageInner() {
                             <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--primary)' }} />
                           )}
                         </Button>
-                        {editMode && (transitByDay.get(day.id)?.pending.length ?? 0) > 0 && (
+                        {editMode && (transitByDay.get(day.id)?.legs.size ?? 0) > 0 && (
                           <Button
                             size="icon"
                             variant="ghost"
                             className="w-7 h-7"
                             aria-label="Sugerir transporte público para este día"
-                            title={`Sugerir transporte público (${transitByDay.get(day.id)!.pending.length} trayectos en coche)`}
+                            title={transitByDay.get(day.id)!.pending.length > 0
+                              ? `Sugerir transporte público (${transitByDay.get(day.id)!.pending.length} trayectos en coche sin ruta)`
+                              : 'Rehacer el transporte público de este día'}
                             onClick={(e) => { e.stopPropagation(); setTransitScope({ dayIds: [day.id], label: format(parseISO(day.date), "'el' EEEE d", { locale: es }) }) }}
                           >
                             <TrainFront size={14} />
