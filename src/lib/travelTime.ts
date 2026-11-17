@@ -13,6 +13,9 @@ export interface TravelLeg {
   mode: TravelMode
   distanceMeters: number
   durationSeconds: number
+  // Google no ha dado la ruta: distancia y tiempo calculados a partir de la
+  // línea recta. Se muestra con «≈».
+  estimated?: boolean
 }
 
 const EARTH_RADIUS_KM = 6371
@@ -80,7 +83,7 @@ export function formatTravelLeg(leg: TravelLeg): string {
   const dist = leg.distanceMeters >= 1000
     ? `${(leg.distanceMeters / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} km`
     : `${Math.round(leg.distanceMeters)} m`
-  return `${mins} min · ${dist}`
+  return `${leg.estimated ? '≈ ' : ''}${mins} min · ${dist}`
 }
 
 export function formatDayTotal(totalSeconds: number): string {

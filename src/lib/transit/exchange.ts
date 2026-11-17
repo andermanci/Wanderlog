@@ -250,6 +250,12 @@ export function walkMeters(a: GeoPoint, b: GeoPoint): number {
   return haversineKm(a, b) * 1000 * WALK_DETOUR
 }
 
+// Trayecto a pie cuando Google no devuelve la ruta (cuota agotada, sin
+// conexión…): mejor una cifra aproximada que dejar el hueco sin nada.
+export function estimatedWalkLeg(a: GeoPoint, b: GeoPoint): TravelLeg {
+  return { mode: 'WALKING', distanceMeters: walkMeters(a, b), durationSeconds: walkMinutes(a, b) * 60, estimated: true }
+}
+
 // Qué conviene cuando el transporte público no compensa. Las filas de antes
 // de la 063 no lo traen: se deduce de lo que se tarda andando.
 export const WALK_INSTEAD_MAX_MIN = 25

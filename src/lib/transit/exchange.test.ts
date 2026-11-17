@@ -240,3 +240,16 @@ describe('casos reales del viaje a Japón', () => {
     expect(steps[steps.length - 1]).toMatchObject({ kind: 'walk', minutes: 6 }) // no 1
   })
 })
+
+describe('trayecto a pie estimado', () => {
+  it('da una cifra aproximada entre dos sitios pegados (Hachiko → Shibuya Crossing)', async () => {
+    const { estimatedWalkLeg } = await import('./exchange')
+    const { formatTravelLeg } = await import('@/lib/travelTime')
+    const leg = estimatedWalkLeg({ lat: 35.6590579, lng: 139.7006293 }, { lat: 35.659482, lng: 139.7005596 })
+    expect(leg.mode).toBe('WALKING')
+    expect(leg.estimated).toBe(true)
+    expect(leg.distanceMeters).toBeGreaterThan(40)
+    expect(leg.distanceMeters).toBeLessThan(90)
+    expect(formatTravelLeg(leg)).toMatch(/^≈ 1 min · \d+ m$/)
+  })
+})

@@ -34,7 +34,7 @@ import {
 import { useTripRole, canEditRole } from '@/lib/queries/sharing'
 import { useTripTravelTimes, legsForDay, type PendingLeg } from '@/lib/queries/travelTime'
 import { useTransitRoutes, dayTransit, effectiveLeg, type DayTransit } from '@/lib/queries/transitRoutes'
-import type { TransitLegInput } from '@/lib/transit/exchange'
+import { estimatedWalkLeg, type TransitLegInput } from '@/lib/transit/exchange'
 import { describeRoute } from '@/lib/transit/labels'
 import { TransitPromptDialog } from '@/components/itinerary/TransitPromptDialog'
 import { pairKey, formatDayTotal, isMove } from '@/lib/travelTime'
@@ -241,18 +241,26 @@ function ItineraryPageInner() {
   const [transitScope, setTransitScope] = useState<{ dayIds: string[]; label: string; onlyKey?: string } | null>(null)
   const transitByDay = useMemo(() => {
     const rowsByPair = new Map((transitRows ?? []).map(r => [pairKey(r.from_activity_id, r.to_activity_id), r]))
-    const map = new Map<string, DayTransit & { legs: Map<string, PendingLeg> }>()
+    const map = new Map<string, DayTransit & { legs: Map<string, PendingLeg>; walking: PendingLeg[] }>()
     for (const day of days ?? []) {
-      const driving = legsForDay(legItemsFor(day.id)).filter(l => l.mode === 'DRIVING')
+      const all = legsForDay(legItemsFor(day.id))
+      const driving = all.filter(l => l.mode === 'DRIVING')
       map.set(day.id, {
         ...dayTransit(driving, rowsByPair),
         legs: new Map(driving.map(l => [pairKey(l.fromId, l.toId), l])),
+        walking: all.filter(l => l.mode === 'WALKING'),
       })
     }
     return map
   }, [days, activities, transitRows]) // eslint-disable-line react-hooks/exhaustive-deps
   const legs = useMemo(() => {
     const merged = new Map(travelTimes)
+    // Trayectos a pie que Google no ha devuelto: se estiman, para que entre
+    // dos sitios cercanos nunca falte la distancia.
+    transitByDay.forEach(dt => dt.walking.forEach(l => {
+      const k = pairKey(l.fromId, l.toId)
+      if (!merged.has(k)) merged.set(k, estimatedWalkLeg(l.origin, l.destination))
+    }))
     transitByDay.forEach(dt => dt.routes.forEach((route, k) => {
       const eff = effectiveLeg(travelTimes.get(k), route, dt.legs.get(k))
       if (eff) merged.set(k, eff)
