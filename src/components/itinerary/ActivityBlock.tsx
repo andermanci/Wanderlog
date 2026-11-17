@@ -99,7 +99,7 @@ export function ActivityBlock({ activity, attachments = [], hasAudioguide, onEdi
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <p className={cn(
-              'font-serif font-semibold text-[15px] sm:text-base text-foreground line-clamp-1 group-hover:text-primary transition-colors',
+              'font-serif font-semibold text-[15px] sm:text-base text-foreground line-clamp-2 group-hover:text-primary transition-colors',
               done && 'line-through',
             )}>
               {activity.title}

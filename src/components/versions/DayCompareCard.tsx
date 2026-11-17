@@ -199,6 +199,7 @@ function LegRow({ leg, change, dropped }: { leg: VersionLeg; change?: LegChange;
       <span />
       <span className="justify-self-center w-px self-stretch min-h-6" style={{ borderLeft: '1.5px dashed var(--border)' }} aria-hidden />
       <div className="min-w-0 py-0.5">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
         <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
           className="inline-flex items-center gap-1.5 max-w-full rounded-full border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-secondary transition-colors"
           style={tag ? { borderColor: soft(tag.color, 45), background: soft(tag.color, 8) } : undefined}>
@@ -209,9 +210,11 @@ function LegRow({ leg, change, dropped }: { leg: VersionLeg; change?: LegChange;
           ) : (
             <span className="truncate">{SKIP_REASON[verdict.reason ?? 'otro']}</span>
           )}
-          {tag && <span className="shrink-0 font-semibold" style={{ color: tag.color }}>· {tag.label}</span>}
           <ChevronDown size={11} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
+        {/* La etiqueta va fuera de la píldora: dentro recortaba los nombres de las líneas. */}
+        {tag && <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: tag.color }}>{tag.label}</span>}
+        </div>
         {open && (
           <TransitSteps route={{ ...route, id: leg.key, trip_id: '' }} from={leg.origin} to={leg.destination}
             fromName={leg.from.title} toName={leg.to.title} />

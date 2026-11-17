@@ -212,10 +212,26 @@ function ItineraryPageInner() {
     return [...acts, ...lodgings].sort((a, b) => dayOrderOf(a, dayId) - dayOrderOf(b, dayId))
   }
 
+  // El hotel donde se ha dormido (el día no es el de entrada). Si el día no
+  // empieza ya en él, el primer trayecto es desde ese hotel: suele ser el más
+  // largo del día y antes no existía, porque el banner del hotel va al final.
+  function morningHotelFor(dayId: string): Activity | null {
+    const slept = (lodgingByDay.get(dayId) ?? []).find(l => l.role === 'mid' || l.role === 'out')?.activity
+    const first = combinedItemsFor(dayId)[0]
+    return slept && first && first.id !== slept.id ? slept : null
+  }
+  // La secuencia de la que salen los trayectos: la del día, con el hotel de
+  // la mañana delante.
+  function legItemsFor(dayId: string): Activity[] {
+    const morning = morningHotelFor(dayId)
+    const items = combinedItemsFor(dayId)
+    return morning ? [morning, ...items] : items
+  }
+
   // Tiempos de viaje (a pie / en coche) entre paradas consecutivas de cada
   // día, para el conector que se pinta entre tarjetas de actividad.
   const routesLib = useMapsLibrary('routes')
-  const travelTimes = useTripTravelTimes({ days, combinedItemsFor, collapsedDays, routesLib })
+  const travelTimes = useTripTravelTimes({ days, combinedItemsFor: legItemsFor, collapsedDays, routesLib })
 
   // Transporte público: para cada trayecto en coche, la ruta guardada (si la
   // hay y sigue vigente) y los que faltan por sugerir. Si una ruta compensa,
@@ -227,7 +243,7 @@ function ItineraryPageInner() {
     const rowsByPair = new Map((transitRows ?? []).map(r => [pairKey(r.from_activity_id, r.to_activity_id), r]))
     const map = new Map<string, DayTransit & { legs: Map<string, PendingLeg> }>()
     for (const day of days ?? []) {
-      const driving = legsForDay(combinedItemsFor(day.id)).filter(l => l.mode === 'DRIVING')
+      const driving = legsForDay(legItemsFor(day.id)).filter(l => l.mode === 'DRIVING')
       map.set(day.id, {
         ...dayTransit(driving, rowsByPair),
         legs: new Map(driving.map(l => [pairKey(l.fromId, l.toId), l])),
@@ -502,10 +518,12 @@ function ItineraryPageInner() {
                 ].sort((x, y) => x.order - y.order)
                 // Suma de los tramos con tiempo ya resuelto (los que faltan por
                 // cargar o sin coordenadas simplemente no cuentan).
+                const morningHotel = morningHotelFor(day.id)
+                const morningKey = morningHotel && dayItems[0] ? pairKey(morningHotel.id, dayItems[0].id) : null
                 const dayTravelTotalSeconds = dayItems.slice(0, -1).reduce((sum, it, i) => {
                   const leg = legs.get(pairKey(it.id, dayItems[i + 1].id))
                   return leg ? sum + leg.durationSeconds : sum
-                }, 0)
+                }, morningKey ? legs.get(morningKey)?.durationSeconds ?? 0 : 0)
                 const collapsed = collapsedDays.has(day.id)
                 const dateLabel = format(parseISO(day.date), "EEEE dd 'de' MMMM", { locale: es })
                 const isToday = day.date === todayStr
@@ -551,7 +569,11 @@ function ItineraryPageInner() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h2 className="font-serif text-base sm:text-lg font-medium capitalize truncate">{dateLabel}</h2>
+                          <h2 className="font-serif text-base sm:text-lg font-medium capitalize truncate">
+                            {/* En el móvil la fecha larga no cabe junto a los botones y se cortaba. */}
+                            <span className="sm:hidden">{format(parseISO(day.date), 'EEE d MMM', { locale: es })}</span>
+                            <span className="hidden sm:inline">{dateLabel}</span>
+                          </h2>
                           {isToday && (
                             <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
                               style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }}>
@@ -733,7 +755,23 @@ function ItineraryPageInner() {
                                   <p className="text-sm text-muted-foreground py-2">Sin actividades</p>
                                 )
                               ) : (
-                                dayItems.flatMap((it, i) => {
+                                [...(morningHotel && morningKey && legs.get(morningKey) ? [
+                                  <div key="morning" className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground pt-1">
+                                    <BedDouble size={13} aria-hidden="true" />
+                                    <span className="truncate">Sales de <span className="font-medium text-foreground">{morningHotel.title}</span></span>
+                                  </div>,
+                                  <TravelConnector
+                                    key="morning-conn"
+                                    leg={legs.get(morningKey)}
+                                    transit={transitByDay.get(day.id)?.routes.get(morningKey)}
+                                    drive={travelTimes.get(morningKey)}
+                                    from={transitByDay.get(day.id)?.legs.get(morningKey)?.origin}
+                                    to={transitByDay.get(day.id)?.legs.get(morningKey)?.destination}
+                                    fromName={morningHotel.title}
+                                    toName={dayItems[0].act?.title ?? dayItems[0].lodge?.activity.title}
+                                    onRedoTransit={canEdit ? () => setTransitScope({ dayIds: [day.id], label: 'para corregirlo', onlyKey: morningKey }) : undefined}
+                                  />,
+                                ] : []), ...dayItems.flatMap((it, i) => {
                                   const card = it.lodge ? (
                                     <SortableLodgingBanner key={it.id} sortableId={`${it.id}::${day.id}`} lodging={it.lodge} tripId={tripId!} editMode={editMode} />
                                   ) : (
@@ -769,7 +807,7 @@ function ItineraryPageInner() {
                       onRedoTransit={canEdit ? () => setTransitScope({ dayIds: [day.id], label: 'para corregirlo', onlyKey: key }) : undefined}
                                     />
                                   )]
-                                })
+                                })]
                               )}
                             </SortableContext>
                           </DayDroppable>

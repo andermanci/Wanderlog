@@ -148,7 +148,11 @@ describe('trayectos y ubicaciones entre versiones', () => {
   })
 
   it('la secuencia del día intercala el hotel donde lo tenga puesto', () => {
-    expect(sequenceOn([hotel, shibuya, senso], D).map(a => a.id)).toEqual(['senso', 'shibuya', 'h'])
+    // Se durmió en el hotel: el día sale de él y acaba en él.
+    expect(sequenceOn([hotel, shibuya, senso], D).map(a => a.id)).toEqual(['h', 'senso', 'shibuya', 'h'])
+    // El día de entrada no hay hotel de la mañana.
+    const arriving = { ...hotel, date: D }
+    expect(sequenceOn([arriving, shibuya, senso], D).map(a => a.id)).toEqual(['senso', 'shibuya', 'h'])
     expect(sequenceOn([{ ...hotel, day_orders: { [D]: -1 } }, senso], D).map(a => a.id)).toEqual(['h', 'senso'])
   })
 

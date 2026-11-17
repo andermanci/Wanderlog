@@ -71,7 +71,7 @@ type Rail = { kind: 'walk' } | { kind: 'ride'; color: string } | null
 
 type Item =
   | { type: 'place'; name: string }
-  | { type: 'station'; name: string; near: GeoPoint; exact: boolean; kind: string; color: string; transfer: boolean }
+  | { type: 'station'; name: string; near: GeoPoint; exact: boolean; kind: string; color: string; transfer: boolean; transferMinutes?: number | null }
   | { type: 'walk'; minutes: number | null; last: boolean }
   | { type: 'ride'; step: TransitStep; color: string }
 
@@ -86,10 +86,17 @@ function buildItems(steps: TransitStep[], fromName: string, toName: string, from
     const color = s.line_color ?? FALLBACK
     const isFirst = rides[0] === s
     const prev = items[items.length - 1]
+    const before = items[items.length - 2]
     // Bajar y subir en la misma estación: un único punto de transbordo.
     if (prev?.type === 'station' && s.from_station && prev.name === s.from_station) {
       prev.transfer = true
       prev.color = color
+    } else if (prev?.type === 'walk' && before?.type === 'station' && s.from_station && before.name === s.from_station) {
+      // Igual, con unos minutos a pie por dentro: se cuentan en el propio punto.
+      items.pop()
+      before.transfer = true
+      before.transferMinutes = prev.minutes
+      before.color = color
     } else if (s.from_station) {
       items.push({ type: 'station', name: s.from_station, near: s.from_coords ?? (isFirst ? from : to), exact: !!s.from_coords, kind: s.kind, color, transfer: !isFirst })
     }
@@ -216,7 +223,7 @@ function Timeline({ items }: { items: Item[] }) {
                   <span className="block text-sm font-semibold leading-tight group-hover:text-primary truncate">{main}</span>
                   {(sub || it.transfer) && (
                     <span className="block text-[11px] text-muted-foreground leading-tight truncate">
-                      {[sub, it.transfer ? 'transbordo' : null].filter(Boolean).join(' · ')}
+                      {[sub, it.transfer ? `transbordo${it.transferMinutes ? ` · ${it.transferMinutes} min a pie` : ''}` : null].filter(Boolean).join(' · ')}
                     </span>
                   )}
                 </span>
@@ -343,7 +350,7 @@ function Compare({ rows }: { rows: CompareRow[] }) {
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground sm:pl-[6rem]">
           <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm" style={{ background: WALK_FILL }} />andando</span>
           <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm" style={{ background: WAIT_FILL }} />esperando</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm" style={{ background: 'var(--primary)' }} />a bordo</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm" style={{ background: rows.find(r => r.parts)?.parts?.color ?? 'var(--primary)' }} />a bordo</span>
         </p>
       )}
     </div>
@@ -398,9 +405,10 @@ export function TransitSteps(props: TransitStepsProps) {
         )}
         <div className="flex flex-col gap-1 min-w-0">
           <LineChips steps={steps} />
-          <span className="flex items-center gap-2.5 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1"><Clock size={11} aria-hidden="true" />puerta a puerta</span>
-            {route.fare_text && <span className="flex items-center gap-1 truncate"><Ticket size={11} aria-hidden="true" />{route.fare_text}</span>}
+          {/* En el móvil el precio largo no cabe al lado: baja a su línea. */}
+          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1 whitespace-nowrap"><Clock size={11} className="shrink-0" aria-hidden="true" />puerta a puerta</span>
+            {route.fare_text && <span className="flex items-center gap-1 min-w-0"><Ticket size={11} className="shrink-0" aria-hidden="true" />{route.fare_text}</span>}
           </span>
         </div>
       </div>
