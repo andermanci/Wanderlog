@@ -939,6 +939,40 @@ export type Database = {
         }
         Relationships: []
       }
+      transit_routes: {
+        // Cómo hacer un trayecto en transporte público (062). Ver
+        // src/lib/transit/exchange.ts y src/lib/queries/transitRoutes.ts.
+        Row: {
+          id: string
+          trip_id: string
+          from_activity_id: string
+          to_activity_id: string
+          coords_sig: string
+          worth_it: boolean
+          total_minutes: number | null
+          summary: string | null
+          fare_text: string | null
+          note: string | null
+          steps: TransitStep[]
+          generated_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          from_activity_id: string
+          to_activity_id: string
+          coords_sig: string
+          worth_it: boolean
+          total_minutes?: number | null
+          summary?: string | null
+          fare_text?: string | null
+          note?: string | null
+          steps?: TransitStep[]
+          generated_at?: string
+        }
+        Update: never
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -1055,6 +1089,19 @@ export type Trip = Database['public']['Tables']['trips']['Row']
 export type ItineraryDay = Database['public']['Tables']['itinerary_days']['Row']
 export type Activity = Database['public']['Tables']['activities']['Row']
 export type ItineraryVersion = Database['public']['Tables']['itinerary_versions']['Row']
+export type TransitRoute = Database['public']['Tables']['transit_routes']['Row']
+// Un tramo de una ruta en transporte público: a pie, o en una línea concreta.
+export interface TransitStep {
+  kind: 'walk' | 'metro' | 'train' | 'bus' | 'tram' | 'ferry' | 'other'
+  line: string | null
+  operator: string | null
+  line_color: string | null
+  from_station: string | null
+  to_station: string | null
+  stops: number | null
+  minutes: number | null
+  direction: string | null
+}
 // Una actividad dentro de la foto de una versión: lleva la FECHA de su día en
 // lugar de day_id/end_day_id, y las claves de day_orders también son fechas.
 export type SnapshotActivity =

@@ -1,6 +1,8 @@
 import type { Activity } from '@/types/database'
 
-export type TravelMode = 'WALKING' | 'DRIVING'
+// TRANSIT no lo decide chooseMode: aparece cuando un trayecto en coche tiene
+// una ruta en transporte público guardada que compensa (ver transitRoutes.ts).
+export type TravelMode = 'WALKING' | 'DRIVING' | 'TRANSIT'
 
 export interface GeoPoint {
   lat: number
@@ -64,6 +66,13 @@ export function entryPoint(a: Activity): GeoPoint | null {
 
 export function pairKey(fromId: string, toId: string): string {
   return `${fromId}->${toId}`
+}
+
+// Huella de los dos extremos de un trayecto. Si una actividad cambia de sitio,
+// la sugerencia de transporte público guardada deja de valer.
+export function transitSig(from: GeoPoint, to: GeoPoint): string {
+  const r4 = (n: number) => n.toFixed(4)
+  return `${r4(from.lat)},${r4(from.lng)}|${r4(to.lat)},${r4(to.lng)}`
 }
 
 export function formatTravelLeg(leg: TravelLeg): string {

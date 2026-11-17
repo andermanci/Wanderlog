@@ -6,7 +6,7 @@ import {
   type GeoPoint, type TravelLeg, type TravelMode,
 } from '@/lib/travelTime'
 
-interface PendingLeg {
+export interface PendingLeg {
   fromId: string
   toId: string
   mode: TravelMode
@@ -16,7 +16,7 @@ interface PendingLeg {
 
 // Tramos entre paradas consecutivas de un día con coordenadas válidas, con
 // el modo ya decidido (línea recta, sin llamar a la API todavía).
-function legsForDay(items: Activity[]): PendingLeg[] {
+export function legsForDay(items: Activity[]): PendingLeg[] {
   const legs: PendingLeg[] = []
   for (let i = 0; i < items.length - 1; i++) {
     const origin = exitPoint(items[i])

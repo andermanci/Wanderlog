@@ -10,7 +10,7 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, Headphones, MapPin, Pencil, Eye, Layers } from 'lucide-react'
+import { Plus, ChevronDown, ChevronsDownUp, ChevronsUpDown, Route, BookOpen, CornerDownRight, BedDouble, GripVertical, Headphones, MapPin, Pencil, Eye, Layers, TrainFront } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -32,7 +32,10 @@ import {
   useRehostGoogleCovers,
 } from '@/lib/queries/itinerary'
 import { useTripRole, canEditRole } from '@/lib/queries/sharing'
-import { useTripTravelTimes } from '@/lib/queries/travelTime'
+import { useTripTravelTimes, legsForDay, type PendingLeg } from '@/lib/queries/travelTime'
+import { useTransitRoutes, dayTransit, effectiveLeg, type DayTransit } from '@/lib/queries/transitRoutes'
+import type { TransitLegInput } from '@/lib/transit/exchange'
+import { TransitPromptDialog } from '@/components/itinerary/TransitPromptDialog'
 import { pairKey, formatDayTotal, isMove } from '@/lib/travelTime'
 import { useBackfillTimezones } from '@/lib/queries/timezones'
 import { detectTripConflicts } from '@/lib/conflicts'
@@ -213,6 +216,49 @@ function ItineraryPageInner() {
   const routesLib = useMapsLibrary('routes')
   const travelTimes = useTripTravelTimes({ days, combinedItemsFor, collapsedDays, routesLib })
 
+  // Transporte público: para cada trayecto en coche, la ruta guardada (si la
+  // hay y sigue vigente) y los que faltan por sugerir. Si una ruta compensa,
+  // sustituye al coche en el conector, en el total del día y en los conflictos.
+  const { data: transitRows } = useTransitRoutes(tripId)
+  const [transitScope, setTransitScope] = useState<{ dayIds: string[]; label: string } | null>(null)
+  const transitByDay = useMemo(() => {
+    const rowsByPair = new Map((transitRows ?? []).map(r => [pairKey(r.from_activity_id, r.to_activity_id), r]))
+    const map = new Map<string, DayTransit & { legs: Map<string, PendingLeg> }>()
+    for (const day of days ?? []) {
+      const driving = legsForDay(combinedItemsFor(day.id)).filter(l => l.mode === 'DRIVING')
+      map.set(day.id, {
+        ...dayTransit(driving, rowsByPair),
+        legs: new Map(driving.map(l => [pairKey(l.fromId, l.toId), l])),
+      })
+    }
+    return map
+  }, [days, activities, transitRows]) // eslint-disable-line react-hooks/exhaustive-deps
+  const legs = useMemo(() => {
+    const merged = new Map(travelTimes)
+    transitByDay.forEach(dt => dt.routes.forEach((route, k) => {
+      const eff = effectiveLeg(travelTimes.get(k), route, dt.legs.get(k))
+      if (eff) merged.set(k, eff)
+    }))
+    return merged
+  }, [travelTimes, transitByDay])
+  const transitPendingTotal = useMemo(
+    () => [...transitByDay.values()].reduce((n, dt) => n + dt.pending.length, 0),
+    [transitByDay],
+  )
+
+  // Trayectos que van en el prompt de transporte público (un día o el viaje
+  // entero): los que están en coche y aún no tienen una ruta vigente.
+  const transitLegs = useMemo((): TransitLegInput[] => {
+    if (!transitScope) return []
+    const byId = new Map((activities ?? []).map(a => [a.id, a]))
+    return transitScope.dayIds.flatMap(dayId => (transitByDay.get(dayId)?.pending ?? []).flatMap(leg => {
+      const from = byId.get(leg.fromId)
+      const to = byId.get(leg.toId)
+      return from && to ? [{ leg, from, to, drive: travelTimes.get(pairKey(leg.fromId, leg.toId)) }] : []
+    }))
+  }, [transitScope, transitByDay, activities, travelTimes])
+
+
   // Husos horarios: resuelve los que falten (en segundo plano) y deduce en qué
   // zona está cada día. Sin esto, un vuelo Madrid–Tokio da una duración absurda
   // y los conflictos entre husos distintos no se pueden calcular.
@@ -236,10 +282,10 @@ function ItineraryPageInner() {
     arrivalsFor: (dayId: string) => arrivalsByDay.get(dayId) ?? [],
     dateByDayId: new Map((days ?? []).map(d => [d.id, d.date])),
     zones,
-    legs: travelTimes,
+    legs,
     today: format(new Date(), 'yyyy-MM-dd'),
     bookedIds,
-  }), [days, activities, arrivalsByDay, zones, travelTimes, bookedIds]) // eslint-disable-line react-hooks/exhaustive-deps
+  }), [days, activities, arrivalsByDay, zones, legs, bookedIds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -302,6 +348,16 @@ function ItineraryPageInner() {
       <TripHeader tripId={tripId!} section="Itinerario" />
       {trip && days && (
         <VersionsSheet open={versionsOpen} onOpenChange={setVersionsOpen} trip={trip} days={days} live={liveSnapshot} canEdit={canEdit} />
+      )}
+      {trip && (
+        <TransitPromptDialog
+          open={!!transitScope}
+          onOpenChange={(o) => { if (!o) setTransitScope(null) }}
+          tripId={tripId!}
+          tripLabel={[trip.name, trip.destination].filter(Boolean).join(' — ')}
+          scopeLabel={transitScope?.label ?? ''}
+          legs={transitLegs}
+        />
       )}
       {/* Dos niveles: el título con la acción principal, y debajo una barra de
           herramientas de una sola altura (el modo a la izquierda, las
@@ -370,6 +426,18 @@ function ItineraryPageInner() {
                 <span className="hidden sm:inline">Ver recorrido</span>
               </Link>
             )}
+            {canEdit && transitPendingTotal > 0 && (
+              <button
+                type="button"
+                onClick={() => setTransitScope({ dayIds: (days ?? []).map(d => d.id), label: 'en todo el viaje' })}
+                aria-label="Sugerir transporte público en todo el viaje"
+                title={`Sugerir transporte público en los ${transitPendingTotal} trayectos en coche del viaje`}
+                className={`${TOOL} disabled:opacity-60`}
+              >
+                <TrainFront size={14} />
+                <span className="hidden sm:inline">Transporte público</span>
+              </button>
+            )}
             <button type="button" onClick={() => setVersionsOpen(true)} aria-label="Versiones" title="Guardar y comparar versiones" className={TOOL}>
               <Layers size={14} />
               <span className="hidden sm:inline">Versiones</span>
@@ -406,7 +474,7 @@ function ItineraryPageInner() {
                 // Suma de los tramos con tiempo ya resuelto (los que faltan por
                 // cargar o sin coordenadas simplemente no cuentan).
                 const dayTravelTotalSeconds = dayItems.slice(0, -1).reduce((sum, it, i) => {
-                  const leg = travelTimes.get(pairKey(it.id, dayItems[i + 1].id))
+                  const leg = legs.get(pairKey(it.id, dayItems[i + 1].id))
                   return leg ? sum + leg.durationSeconds : sum
                 }, 0)
                 const collapsed = collapsedDays.has(day.id)
@@ -546,6 +614,18 @@ function ItineraryPageInner() {
                             <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--primary)' }} />
                           )}
                         </Button>
+                        {editMode && (transitByDay.get(day.id)?.pending.length ?? 0) > 0 && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="w-7 h-7"
+                            aria-label="Sugerir transporte público para este día"
+                            title={`Sugerir transporte público (${transitByDay.get(day.id)!.pending.length} trayectos en coche)`}
+                            onClick={(e) => { e.stopPropagation(); setTransitScope({ dayIds: [day.id], label: format(parseISO(day.date), "'el' EEEE d", { locale: es }) }) }}
+                          >
+                            <TrainFront size={14} />
+                          </Button>
+                        )}
                         {editMode && (
                           <Button
                             size="icon"
@@ -642,11 +722,19 @@ function ItineraryPageInner() {
                                   const next = dayItems[i + 1]
                                   if (!next) return [card]
                                   const key = pairKey(it.id, next.id)
+                                  const dt = transitByDay.get(day.id)
+                                  const driving = dt?.legs.get(key)
                                   return [card, (
                                     <TravelConnector
                                       key={`conn-${it.id}-${next.id}`}
-                                      leg={travelTimes.get(key)}
+                                      leg={legs.get(key)}
                                       severity={legSeverity.get(key)}
+                                      transit={dt?.routes.get(key)}
+                                      drive={travelTimes.get(key)}
+                                      from={driving?.origin}
+                                      to={driving?.destination}
+                                      fromName={it.act?.title ?? it.lodge?.activity.title}
+                                      toName={next.act?.title ?? next.lodge?.activity.title}
                                     />
                                   )]
                                 })
