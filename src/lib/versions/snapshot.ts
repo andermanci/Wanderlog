@@ -40,6 +40,20 @@ export function itemsOn(snap: SnapshotActivity[], date: string): SnapshotActivit
     .sort((x, y) => orderOn(x, date) - orderOn(y, date))
 }
 
+/**
+ * El día tal como lo pinta el itinerario: las actividades y, intercalados en
+ * su posición, los hoteles que cubren esa fecha (entrada, noches y salida).
+ * Es la secuencia de la que salen los trayectos (ver lodging.ts y
+ * combinedItemsFor en Itinerary.tsx).
+ */
+export function sequenceOn(snap: SnapshotActivity[], date: string): SnapshotActivity[] {
+  const hotels = snap.filter(a => a.type === 'hotel' && a.date <= date && (a.end_date ?? a.date) >= date)
+  return [...itemsOn(snap, date), ...hotels]
+    .map((a, i) => ({ a, i, o: orderOn(a, date) }))
+    .sort((x, y) => x.o - y.o || x.i - y.i)
+    .map(x => x.a)
+}
+
 /** Hotel en el que se duerme la noche de `date` (entra ese día o antes y sale después). */
 export function hotelFor(snap: SnapshotActivity[], date: string): SnapshotActivity | null {
   return snap.find(a => a.type === 'hotel' && a.date <= date && (a.end_date ?? a.date) > date) ?? null

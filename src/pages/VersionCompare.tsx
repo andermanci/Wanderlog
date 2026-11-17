@@ -24,11 +24,12 @@ import { citiesLabel } from '@/lib/cities'
 import { toLiveSnapshot, hotelFor, hhmm } from '@/lib/versions/snapshot'
 import { diffItineraries, totalsOf } from '@/lib/versions/diff'
 import { versionMetrics } from '@/lib/versions/metrics'
-import type { ItineraryVersion, SnapshotActivity } from '@/types/database'
+import type { ItineraryVersion, SnapshotActivity, VersionTransit } from '@/types/database'
+import { useTransitRoutes } from '@/lib/queries/transitRoutes'
 
 const LIVE = 'actual'
 
-interface Option { id: string; name: string; snap: SnapshotActivity[]; version: ItineraryVersion | null }
+interface Option { id: string; name: string; snap: SnapshotActivity[]; transit: VersionTransit[] | null; version: ItineraryVersion | null }
 
 // Comparador de dos versiones del itinerario: marcador arriba, tira de días y,
 // por cada día que cambia, los dos horarios con su croquis superpuesto. Abajo,
@@ -41,6 +42,7 @@ export function VersionComparePage() {
   const { data: days } = useItineraryDays(tripId!)
   const { data: activities } = useActivities(tripId!)
   const { data: versions } = useItineraryVersions(tripId!)
+  const { data: liveTransit } = useTransitRoutes(tripId)
   const { data: role } = useTripRole(tripId!)
   const canEdit = canEditRole(role)
   const restore = useRestoreVersion(tripId!)
@@ -50,10 +52,10 @@ export function VersionComparePage() {
   const options = useMemo<Option[]>(() => {
     if (!days || !activities) return []
     return [
-      { id: LIVE, name: 'Itinerario actual', snap: toLiveSnapshot(activities, days), version: null },
-      ...(versions ?? []).map(v => ({ id: v.id, name: v.name, snap: v.snapshot, version: v })),
+      { id: LIVE, name: 'Itinerario actual', snap: toLiveSnapshot(activities, days), transit: liveTransit ?? [], version: null },
+      ...(versions ?? []).map(v => ({ id: v.id, name: v.name, snap: v.snapshot, transit: v.transit ?? null, version: v })),
     ]
-  }, [days, activities, versions])
+  }, [days, activities, versions, liveTransit])
 
   // Por defecto: una propuesta de Claude se mira como candidata (B) frente al
   // actual; una foto guardada es el "antes" (A) y el actual el "ahora" (B).
@@ -67,7 +69,7 @@ export function VersionComparePage() {
 
   const view = useMemo(() => {
     if (!A || !B) return null
-    const diff = diffItineraries(A.snap, B.snap, dates)
+    const diff = diffItineraries(A.snap, B.snap, dates, A.transit, B.transit)
     return { diff, totals: totalsOf(diff), mA: versionMetrics(A.snap, dates), mB: versionMetrics(B.snap, dates) }
   }, [A, B, dates])
 
@@ -215,7 +217,8 @@ export function VersionComparePage() {
             <AlertDialogTitle>¿Usar «{confirm?.name}»?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="flex flex-col gap-2">
-                <p>{confirm && changesSentence(totalsOf(diffItineraries(options[0].snap, confirm.snap, dates)))}</p>
+                <p>{confirm && changesSentence(totalsOf(diffItineraries(options[0].snap, confirm.snap, dates, options[0].transit, confirm.transit)))}</p>
+                {confirm?.transit && <p>Los trayectos en transporte público pasan a ser los de esta versión.</p>}
                 <p>Antes se guarda tu itinerario actual como versión, así que puedes deshacerlo.</p>
               </div>
             </AlertDialogDescription>

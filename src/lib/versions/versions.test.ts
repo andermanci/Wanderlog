@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import type { Activity, ItineraryDay, SnapshotActivity } from '@/types/database'
-import { hotelFor, itemsOn, toLiveSnapshot } from './snapshot'
+import type { Activity, ItineraryDay, SnapshotActivity, VersionTransit } from '@/types/database'
+import { hotelFor, itemsOn, sequenceOn, toLiveSnapshot } from './snapshot'
+import { indexTransit, legsOn } from './transit'
 import { diffItineraries, totalsOf } from './diff'
 import { dayMetrics, versionMetrics } from './metrics'
 
@@ -81,7 +82,7 @@ describe('diffItineraries', () => {
 
   it('cuenta los cambios por día y en total', () => {
     expect(diff.map(d => d.changes)).toEqual([1, 3, 1])
-    expect(totalsOf(diff)).toEqual({ moved: 1, time: 1, added: 1, removed: 1, daysChanged: 3 })
+    expect(totalsOf(diff)).toEqual({ moved: 1, time: 1, added: 1, removed: 1, placed: 0, transit: 0, daysChanged: 3 })
   })
 
   it('un día con lo mismo en otro orden cuenta como un cambio', () => {
@@ -131,5 +132,49 @@ describe('métricas', () => {
     expect(m.lateDays).toBe(1)
     expect(m.avgStart).toBe('08:30')
     expect(m.visits).toBe(3)
+  })
+})
+
+describe('trayectos y ubicaciones entre versiones', () => {
+  const D = '2026-11-21'
+  const hotel = snap({ id: 'h', type: 'hotel', date: '2026-11-20', end_date: '2026-11-24', lat: 35.6863, lng: 139.6927, day_orders: { [D]: 9 } })
+  const senso = snap({ id: 'senso', date: D, order_index: 0, ...ASAKUSA })
+  const shibuya = snap({ id: 'shibuya', date: D, order_index: 1, ...SHIBUYA })
+  const route = (from: SnapshotActivity, to: SnapshotActivity, line: string, total = 40): VersionTransit => ({
+    from_activity_id: from.id, to_activity_id: to.id,
+    coords_sig: `${from.lat!.toFixed(4)},${from.lng!.toFixed(4)}|${to.lat!.toFixed(4)},${to.lng!.toFixed(4)}`,
+    worth_it: true, total_minutes: total, summary: line, fare_text: null, note: null, skip_reason: null, alternative: null, generated_at: '',
+    steps: [{ kind: 'walk', minutes: 4 }, { kind: 'metro', line, minutes: 30, from_station: 'A', to_station: 'B' }] as VersionTransit['steps'],
+  })
+
+  it('la secuencia del día intercala el hotel donde lo tenga puesto', () => {
+    expect(sequenceOn([hotel, shibuya, senso], D).map(a => a.id)).toEqual(['senso', 'shibuya', 'h'])
+    expect(sequenceOn([{ ...hotel, day_orders: { [D]: -1 } }, senso], D).map(a => a.id)).toEqual(['h', 'senso'])
+  })
+
+  it('una ruta solo vale si los extremos siguen donde estaban', () => {
+    const routes = indexTransit([route(senso, shibuya, 'Ginza Line')])
+    expect(legsOn([senso, shibuya], routes, D)[0].route?.summary).toBe('Ginza Line')
+    const moved = { ...shibuya, lat: 35.6700 }
+    expect(legsOn([senso, moved], routes, D)[0].route).toBeNull()
+  })
+
+  it('cuenta rutas nuevas, distintas y la ubicación corregida', () => {
+    const a = [hotel, senso, shibuya]
+    const sensoFixed = { ...senso, lat: 35.7186 }
+    const b = [hotel, sensoFixed, shibuya]
+    const tA = [route(senso, shibuya, 'Ginza Line')]
+    const tB = [route(sensoFixed, shibuya, 'Asakusa Line'), route(shibuya, hotel, 'JR Yamanote Line', 23)]
+    const [day] = diffItineraries(a, b, [D], tA, tB)
+    expect([...day.transit.changes.values()].sort()).toEqual(['changed', 'new'])
+    expect(day.b.find(c => c.activity.id === 'senso')?.place).toBeGreaterThan(400)
+    expect(day.changes).toBe(3)
+    expect(totalsOf([day])).toMatchObject({ placed: 1, transit: 2 })
+  })
+
+  it('si un lado no sabe de trayectos, no se cuentan como cambios', () => {
+    const [day] = diffItineraries([senso, shibuya], [senso, shibuya], [D], null, [route(senso, shibuya, 'Ginza Line')])
+    expect(day.changes).toBe(0)
+    expect(day.transit.b[0].route).not.toBeNull()
   })
 })

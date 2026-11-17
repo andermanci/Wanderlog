@@ -279,8 +279,21 @@ export interface TransitVerdict {
   alternative: TransitAlternative | null
   /** Por qué compensa: llegas antes, o tardas parecido pero andas mucho menos. */
   why: 'faster' | 'less_walking' | null
+  /** Minutos andando que se muestran (los de la IA si las coordenadas no cuadran). */
   walkMinutes: number
   breakdown: TransitBreakdown | null
+  /**
+   * Las coordenadas no cuadran con lo que dice la IA: el mapa da 318 min
+   * andando y la IA 5. Casi siempre es una actividad mal ubicada (el ferry
+   * marcado en Hiroshima en vez de en Miyajimaguchi).
+   */
+  coordsSuspect: boolean
+}
+
+// Sin vehículos, el total de la IA es su tiempo andando. Si el mapa da más del
+// doble (y 10 min de margen), algo está mal ubicado.
+function suspectCoords(route: TransitRoute, b: TransitBreakdown | null, W: number): boolean {
+  return !b && route.total_minutes != null && W > route.total_minutes * 2 + 10
 }
 
 // Lo que se muestra, decidido aquí y no solo por la IA, comparando con ir
@@ -288,9 +301,10 @@ export interface TransitVerdict {
 // guardadas. Solo se corrige a la IA cuando el motivo es la distancia (o no
 // lo dio): si dijo "a esa hora no hay servicio", manda ella.
 export function transitVerdict(route: TransitRoute, from: GeoPoint, to: GeoPoint): TransitVerdict {
-  const W = walkMinutes(from, to)
   const b = transitBreakdown(route)
-  const base = { walkMinutes: W, breakdown: b }
+  const suspect = suspectCoords(route, b, walkMinutes(from, to))
+  const W = suspect ? route.total_minutes! : walkMinutes(from, to)
+  const base = { walkMinutes: W, breakdown: b, coordsSuspect: suspect }
   const aboutDistance = route.worth_it || route.skip_reason == null || route.skip_reason === 'cerca'
   if (b && aboutDistance) {
     const faster = b.total + WALK_TIE_MIN < W
@@ -303,7 +317,10 @@ export function transitVerdict(route: TransitRoute, from: GeoPoint, to: GeoPoint
     }
   }
   if (route.worth_it) return { ...base, worth: true, reason: null, alternative: null, why: null }
-  return { ...base, worth: false, reason: route.skip_reason ?? 'otro', alternative: bestAlternative(route, from, to), why: null }
+  return {
+    ...base, worth: false, reason: route.skip_reason ?? 'otro', why: null,
+    alternative: suspect ? route.alternative ?? 'walk' : bestAlternative(route, from, to),
+  }
 }
 
 export function bestAlternative(
@@ -317,8 +334,11 @@ export function bestAlternative(
 
 // Minutos andando entre dos puntos si las coordenadas son creíbles; si no, lo
 // que dijo la IA.
+// Si la IA también dio su cifra, manda la mayor: la nuestra no sabe del paseo
+// por dentro de las estaciones grandes (bajar al andén de la Fukutoshin en
+// Shibuya son varios minutos) y la de la IA a veces se queda corta en la calle.
 function walkBetween(a: GeoPoint | null, b: GeoPoint | null, fallback: number | null, maxKm = MAX_STATION_KM): number | null {
-  if (a && b && haversineKm(a, b) <= maxKm) return walkMinutes(a, b)
+  if (a && b && haversineKm(a, b) <= maxKm) return Math.max(walkMinutes(a, b), fallback ?? 0)
   return fallback
 }
 

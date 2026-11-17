@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { haversineKm, pairKey, transitSig, type TravelLeg } from '@/lib/travelTime'
 import type { PendingLeg } from '@/lib/queries/travelTime'
 import type { TransitRoute } from '@/types/database'
-import { transitVerdict, walkMeters, walkMinutes, type TransitRow } from '@/lib/transit/exchange'
+import { transitVerdict, walkMeters, type TransitRow } from '@/lib/transit/exchange'
 
 // Sugerencias de transporte público para los trayectos "en coche" del
 // itinerario (tabla transit_routes, 062). Se generan una vez, al organizar el
@@ -88,10 +88,12 @@ export function effectiveLeg(drive: TravelLeg | undefined, route: TransitRoute |
     return { mode: 'TRANSIT', distanceMeters, durationSeconds: route.total_minutes * 60 }
   }
   if (pending && verdict?.alternative === 'walk') {
+    // Con coordenadas dudosas, los minutos son los de la IA y la distancia se
+    // estima con ellos (la del mapa sería la de la actividad mal ubicada).
     return {
       mode: 'WALKING',
-      distanceMeters: walkMeters(pending.origin, pending.destination),
-      durationSeconds: walkMinutes(pending.origin, pending.destination) * 60,
+      distanceMeters: verdict.coordsSuspect ? verdict.walkMinutes * 75 : walkMeters(pending.origin, pending.destination),
+      durationSeconds: verdict.walkMinutes * 60,
     }
   }
   return drive

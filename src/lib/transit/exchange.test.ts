@@ -220,3 +220,23 @@ describe('andar menos también cuenta', () => {
     expect(transitVerdict(r, a, b)).toMatchObject({ worth: false, reason: 'horario' })
   })
 })
+
+describe('casos reales del viaje a Japón', () => {
+  it('ferry marcado en Hiroshima: no 318 min andando, sino los 5 de la IA y aviso', () => {
+    const r = { worth_it: false, skip_reason: 'cerca', alternative: 'walk', total_minutes: 5, steps: [] } as unknown as Parameters<typeof transitVerdict>[0]
+    const v = transitVerdict(r, { lat: 34.3122, lng: 132.3036 }, { lat: 34.3963, lng: 132.4596 })
+    expect(v).toMatchObject({ worth: false, alternative: 'walk', walkMinutes: 5, coordsSuspect: true })
+  })
+
+  it('andar dentro de la estación: si la IA da más que el mapa, manda la IA', () => {
+    const omote = act('o', 'Omote-sando', 35.667355, 139.707743)
+    const hachi = act('h', 'Hachiko', 35.6590579, 139.7006293)
+    const leg: TransitLegInput = { from: omote, to: hachi, leg: { fromId: 'o', toId: 'h', mode: 'DRIVING', origin: { lat: omote.lat!, lng: omote.lng! }, destination: { lat: hachi.lat!, lng: hachi.lng! } } }
+    const resp = JSON.stringify({ trayectos: [{
+      ref: 'T1', compensa: true, a_pie_hasta_estacion: 5, a_pie_hasta_destino: 6,
+      tramos: [{ tipo: 'metro', linea: 'Fukutoshin Line (F)', sube: 'Meiji-jingumae', sube_coords: [35.6685, 139.7056], baja: 'Shibuya', baja_coords: [35.6595, 139.7009], minutos: 2 }],
+    }] })
+    const steps = parseTransitResponse(resp, [leg]).rows[0].steps
+    expect(steps[steps.length - 1]).toMatchObject({ kind: 'walk', minutes: 6 }) // no 1
+  })
+})

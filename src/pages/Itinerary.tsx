@@ -373,7 +373,7 @@ function ItineraryPageInner() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <TripHeader tripId={tripId!} section="Itinerario" />
       {trip && days && (
-        <VersionsSheet open={versionsOpen} onOpenChange={setVersionsOpen} trip={trip} days={days} live={liveSnapshot} canEdit={canEdit} />
+        <VersionsSheet open={versionsOpen} onOpenChange={setVersionsOpen} trip={trip} days={days} live={liveSnapshot} liveTransit={transitRows ?? []} canEdit={canEdit} />
       )}
       {trip && (
         <TransitPromptDialog

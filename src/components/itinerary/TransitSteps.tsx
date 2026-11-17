@@ -4,7 +4,7 @@ import type { GeoPoint, TravelLeg } from '@/lib/travelTime'
 import { stationMapUrl, directionsUrl } from '@/lib/directions'
 import { transitVerdict, walkMeters, type TransitVerdict } from '@/lib/transit/exchange'
 import type { TransitAlternative, TransitRoute, TransitStep } from '@/types/database'
-import { ALTERNATIVE_TITLE, SKIP_REASON, verdictExplanation } from '@/lib/transit/labels'
+import { ALTERNATIVE_TITLE, SKIP_REASON, verdictExplanation, WALK_RELEVANT_MAX_MIN } from '@/lib/transit/labels'
 
 const FALLBACK = 'var(--primary)'
 
@@ -359,7 +359,10 @@ function compareRows(route: TransitRoute, v: TransitVerdict, from: GeoPoint, to:
   const km = (walkMeters(from, to) / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })
   const rows: (CompareRow | null)[] = [
     b ? { key: 'transit', icon: TrainFront, label: 'Transporte', minutes: b.total, best: v.worth, parts: { ...b, color: rideColor }, detail: `${b.walk} andando` } : null,
-    { key: 'walk', icon: Footprints, label: 'Andando', minutes: v.walkMinutes, best: !v.worth && v.alternative === 'walk', detail: `${km} km` },
+    // Andar a más de una hora no es una opción: su barra solo aplastaría al resto.
+    v.walkMinutes <= WALK_RELEVANT_MAX_MIN || (!v.worth && v.alternative === 'walk')
+      ? { key: 'walk', icon: Footprints, label: 'Andando', minutes: v.walkMinutes, best: !v.worth && v.alternative === 'walk', detail: v.coordsSuspect ? 'según la IA' : `${km} km` }
+      : null,
     driveMin != null
       ? { key: 'car', icon: v.alternative === 'taxi' ? CarTaxiFront : Car, label: v.alternative === 'taxi' ? 'Taxi' : 'Coche', minutes: driveMin, best: !v.worth && v.alternative !== 'walk' }
       : null,
@@ -442,6 +445,16 @@ function SkipCard({ route, from, to, fromName, toName, drive, onRedo }: TransitS
       </div>
 
       <Explanation text={verdictExplanation(verdict, firstLine)} />
+      {verdict.coordsSuspect && (
+        <p className="mx-4 mb-3 flex gap-2 rounded-xl px-3 py-2.5 text-xs leading-relaxed"
+          style={{ background: 'color-mix(in srgb, var(--warning) 12%, transparent)' }}>
+          <AlertTriangle size={14} className="shrink-0 mt-px" style={{ color: 'var(--warning)' }} aria-hidden="true" />
+          <span>
+            En el mapa «{fromName}» y «{toName}» están a {(walkMeters(from, to) / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} km,
+            pero la IA dice {verdict.walkMinutes} min andando: seguramente una de las dos está mal ubicada. Corrige su dirección y se recalcula.
+          </span>
+        </p>
+      )}
       {rows.length > 1 && <Compare rows={rows} />}
 
       {route.note && <Tip text={route.note} />}

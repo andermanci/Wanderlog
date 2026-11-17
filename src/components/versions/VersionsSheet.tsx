@@ -17,7 +17,7 @@ import {
 } from '@/lib/queries/versions'
 import { diffItineraries, totalsOf } from '@/lib/versions/diff'
 import { versionMetrics } from '@/lib/versions/metrics'
-import type { ItineraryDay, ItineraryVersion, SnapshotActivity, Trip } from '@/types/database'
+import type { ItineraryDay, ItineraryVersion, SnapshotActivity, Trip, VersionTransit } from '@/types/database'
 import { SOURCE_LABEL, soft } from './versionStyle'
 import { ClaudeExportDialog } from './ClaudeExportDialog'
 import { ClaudeImportDialog } from './ClaudeImportDialog'
@@ -29,6 +29,8 @@ interface Props {
   trip: Trip
   days: ItineraryDay[]
   live: SnapshotActivity[]
+  /** Rutas en transporte público del itinerario actual, para comparar. */
+  liveTransit: VersionTransit[]
   canEdit: boolean
 }
 
@@ -37,7 +39,7 @@ const SOURCE_ICON = { manual: Bookmark, auto: History, claude: Sparkles } as con
 // Panel de versiones del itinerario: guardar cómo está ahora, ver las fotos
 // guardadas, compararlas con el actual y volver a una. La comparación detallada
 // vive en su propia página (VersionCompare); aquí solo se resume.
-export function VersionsSheet({ open, onOpenChange, trip, days, live, canEdit }: Props) {
+export function VersionsSheet({ open, onOpenChange, trip, days, live, liveTransit, canEdit }: Props) {
   const navigate = useNavigate()
   const { data: versions, isLoading } = useItineraryVersions(trip.id)
   const save = useSaveVersion(trip.id)
@@ -62,8 +64,8 @@ export function VersionsSheet({ open, onOpenChange, trip, days, live, canEdit }:
   }
 
   const restoreTotals = useMemo(
-    () => restoreTarget && totalsOf(diffItineraries(live, restoreTarget.snapshot, dates)),
-    [restoreTarget, live, dates],
+    () => restoreTarget && totalsOf(diffItineraries(live, restoreTarget.snapshot, dates, liveTransit, restoreTarget.transit)),
+    [restoreTarget, live, dates, liveTransit],
   )
 
   return (
@@ -120,7 +122,7 @@ export function VersionsSheet({ open, onOpenChange, trip, days, live, canEdit }:
                     {versions.map(v => (
                       <motion.li key={v.id} layout={!reduce}
                         initial={reduce ? false : { opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                        <VersionCard version={v} live={live} dates={dates} canEdit={canEdit} tripId={trip.id}
+                        <VersionCard version={v} live={live} liveTransit={liveTransit} dates={dates} canEdit={canEdit} tripId={trip.id}
                           onCompare={() => compare(v)} onRestore={() => setRestoreTarget(v)} onDelete={() => setDeleteTarget(v)} />
                       </motion.li>
                     ))}
@@ -201,9 +203,10 @@ export function VersionsSheet({ open, onOpenChange, trip, days, live, canEdit }:
   )
 }
 
-function VersionCard({ version: v, live, dates, canEdit, tripId, onCompare, onRestore, onDelete }: {
+function VersionCard({ version: v, live, liveTransit, dates, canEdit, tripId, onCompare, onRestore, onDelete }: {
   version: ItineraryVersion
   live: SnapshotActivity[]
+  liveTransit: VersionTransit[]
   dates: string[]
   canEdit: boolean
   tripId: string
@@ -218,12 +221,12 @@ function VersionCard({ version: v, live, dates, canEdit, tripId, onCompare, onRe
 
   // Cuánto se aleja del actual: lo que ayuda a reconocer cada versión.
   const { changes, kmDelta } = useMemo(() => {
-    const t = totalsOf(diffItineraries(live, v.snapshot, dates))
+    const t = totalsOf(diffItineraries(live, v.snapshot, dates, liveTransit, v.transit))
     return {
-      changes: t.moved + t.time + t.added + t.removed,
+      changes: t.moved + t.time + t.added + t.removed + t.placed + t.transit,
       kmDelta: versionMetrics(v.snapshot, dates).km - versionMetrics(live, dates).km,
     }
-  }, [v.snapshot, live, dates])
+  }, [v.snapshot, v.transit, live, liveTransit, dates])
 
   return (
     <div className="rounded-2xl border bg-card p-3.5 flex flex-col gap-3">

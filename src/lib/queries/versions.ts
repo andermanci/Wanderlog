@@ -83,6 +83,8 @@ export function useRestoreVersion(tripId: string) {
     onSuccess: ({ version }) => {
       qc.invalidateQueries({ queryKey: itineraryKeys.activities(tripId) })
       qc.invalidateQueries({ queryKey: versionKeys.all(tripId) })
+      // La versión puede traer sus propios trayectos en transporte público.
+      qc.invalidateQueries({ queryKey: ['transitRoutes', tripId] })
       toast.success(`Ahora usas «${version.name}». Tu itinerario anterior quedó guardado como versión.`)
     },
     // P0001: la versión tiene días que ya no existen; el mensaje lo explica.

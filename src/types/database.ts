@@ -920,6 +920,9 @@ export type Database = {
           summary: string | null
           explanations: Record<string, string>
           snapshot: SnapshotActivity[]
+          // Rutas en transporte público de la versión (065). null = la versión
+          // no sabe nada de trayectos (anteriores a 065 o propuestas sin ellos).
+          transit: VersionTransit[] | null
           created_by: string | null
           created_at: string
         }
@@ -931,6 +934,7 @@ export type Database = {
           summary?: string | null
           explanations?: Record<string, string>
           snapshot: SnapshotActivity[]
+          transit?: VersionTransit[] | null
           created_by?: string | null
           created_at?: string
         }
@@ -1094,6 +1098,8 @@ export type ItineraryDay = Database['public']['Tables']['itinerary_days']['Row']
 export type Activity = Database['public']['Tables']['activities']['Row']
 export type ItineraryVersion = Database['public']['Tables']['itinerary_versions']['Row']
 export type TransitRoute = Database['public']['Tables']['transit_routes']['Row']
+// Una ruta dentro de una versión: la fila sin id ni viaje.
+export type VersionTransit = Omit<TransitRoute, 'id' | 'trip_id'>
 // Por qué no compensa el transporte público (063) y qué es mejor en su lugar.
 export type TransitSkipReason = 'cerca' | 'sin_linea' | 'transbordos' | 'lento' | 'horario' | 'otro'
 export type TransitAlternative = 'walk' | 'taxi' | 'car'

@@ -2,6 +2,9 @@ import type { GeoPoint } from '@/lib/travelTime'
 import type { TransitAlternative, TransitRoute, TransitSkipReason } from '@/types/database'
 import { transitVerdict, type TransitVerdict } from './exchange'
 
+// Más allá de esto (en minutos andando) no se compara con ir a pie.
+export const WALK_RELEVANT_MAX_MIN = 60
+
 // Textos de por qué no compensa el transporte público y qué hacer en su lugar.
 
 export const SKIP_REASON: Record<TransitSkipReason, string> = {
@@ -21,9 +24,10 @@ export const ALTERNATIVE_TITLE: Record<TransitAlternative, string> = {
 
 /** "Está muy cerca: mejor andando". Para la línea bajo la píldora. */
 export function skipSummary(route: TransitRoute, from: GeoPoint, to: GeoPoint): string {
-  const { reason, alternative } = transitVerdict(route, from, to)
+  const { reason, alternative, coordsSuspect } = transitVerdict(route, from, to)
   const text = SKIP_REASON[reason ?? 'otro']
-  return alternative ? `${text}: ${ALTERNATIVE_TITLE[alternative].toLowerCase()}` : text
+  const base = alternative ? `${text}: ${ALTERNATIVE_TITLE[alternative].toLowerCase()}` : text
+  return coordsSuspect ? `${base} · revisa la ubicación` : base
 }
 
 /** "Ginza Line: Oshiage → Inaricho; a pie al final". Para recordarle a la IA qué propuso. */
@@ -43,8 +47,13 @@ export function verdictExplanation(v: TransitVerdict, lineName: string | null): 
   const b = v.breakdown
   const W = v.walkMinutes
   if (!b) return null
+  // Lejos, andar no es una opción real: lo útil es saber cuánto se camina.
+  if (v.worth && W > WALK_RELEVANT_MAX_MIN) {
+    return b.walk > 0 ? `Caminas ${b.walk} de los ${b.total} min.` : null
+  }
   if (v.worth && v.why === 'faster') {
-    return `Llegas ${W - b.total} min antes que andando (${W} min)${b.walk > 0 ? ` y solo caminas ${b.walk}` : ''}.`
+    const walkText = b.walk === 0 ? '' : b.walk <= W / 2 ? ` y solo caminas ${b.walk}` : ` (aunque caminas ${b.walk})`
+    return `Llegas ${W - b.total} min antes que andando (${W} min)${walkText}.`
   }
   if (v.worth && v.why === 'less_walking') {
     return b.total <= W

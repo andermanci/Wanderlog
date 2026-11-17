@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { ArrowRight, ArrowLeft, BedDouble, ChevronDown, Lightbulb, Maximize2, TrainFront, Plane } from 'lucide-react'
+import { ArrowRight, ArrowLeft, BedDouble, ChevronDown, Footprints, Lightbulb, MapPin, Maximize2, TrainFront, Plane } from 'lucide-react'
 import type { DayDiff, ItemChange } from '@/lib/versions/diff'
 import type { DayMetrics } from '@/lib/versions/metrics'
 import { hhmm } from '@/lib/versions/snapshot'
@@ -10,6 +10,9 @@ import type { SketchPoint } from '@/lib/versions/sketch'
 import { RouteSketch } from './RouteSketch'
 import { RouteMapDialog } from './RouteMapDialog'
 import { CHANGE, SIDE, soft } from './versionStyle'
+import type { LegChange, VersionLeg } from '@/lib/versions/transit'
+import { LineChips, TransitSteps } from '@/components/itinerary/TransitSteps'
+import { SKIP_REASON } from '@/lib/transit/labels'
 
 const isMove = (a: SnapshotActivity) => a.type === 'transport' || a.type === 'flight'
 const short = (date: string) => format(parseISO(date), 'd MMM', { locale: es })
@@ -93,14 +96,20 @@ export function DayCompareCard({ diff, mA, mB, cities, hotel, explanation }: Pro
             const out = diff.movedOut.find(m => m.activity.id === a.id)
             const gone = diff.removed.some(r => r.id === a.id)
             return (
-              <Row key={a.id} activity={a} n={numA.get(a.id)} side="a" faded={!!out || gone}
-                tag={out ? { ...CHANGE.out, label: `Pasa al ${short(out.toDate)}`, icon: ArrowRight } : gone ? CHANGE.removed : undefined} />
+              <WithLegs key={a.id} id={a.id} legs={diff.transit.a} dropped={diff.transit.dropped}>
+                <Row activity={a} n={numA.get(a.id)} side="a" faded={!!out || gone}
+                  tag={out ? { ...CHANGE.out, label: `Pasa al ${short(out.toDate)}`, icon: ArrowRight } : gone ? CHANGE.removed : undefined} />
+              </WithLegs>
             )
           })}
         </Column>
         <Column side="b" hiddenOnMobile={side !== 'b'}>
           {diff.b.length === 0 && <Empty />}
-          {diff.b.map(c => <Row key={c.activity.id} activity={c.activity} n={numB.get(c.activity.id)} side="b" tag={tagFor(c)} />)}
+          {diff.b.map(c => (
+            <WithLegs key={c.activity.id} id={c.activity.id} legs={diff.transit.b} changes={diff.transit.changes}>
+              <Row activity={c.activity} n={numB.get(c.activity.id)} side="b" tag={tagFor(c)} extra={placeTag(c)} />
+            </WithLegs>
+          ))}
         </Column>
         <div className="md:col-span-2 lg:col-span-1">
           {/* Todo el croquis abre el mapa grande; el botón lo hace evidente. */}
@@ -135,7 +144,82 @@ function tagFor(c: ItemChange): Tag | undefined {
   return undefined
 }
 
+function placeTag(c: ItemChange): Tag | undefined {
+  if (c.place == null) return undefined
+  if (c.place === 'new') return { ...CHANGE.place, label: 'Ubicación añadida', icon: MapPin }
+  const dist = c.place >= 1000 ? `${(c.place / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} km` : `${c.place} m`
+  return { ...CHANGE.place, label: `Ubicación corregida · ${dist}`, icon: MapPin }
+}
+
 interface Tag { label: string; color: string; icon?: typeof ArrowRight }
+
+// Una fila con sus trayectos: el que llega desde el hotel (si el día empieza
+// en él) y el que sale hacia la siguiente parada o hacia el hotel. Solo se
+// pintan los que tienen ruta guardada en esa versión.
+function WithLegs({ id, legs, changes, dropped, children }: {
+  id: string
+  legs: VersionLeg[]
+  changes?: Map<string, LegChange>
+  dropped?: Set<string>
+  children: ReactNode
+}) {
+  const before = legs.find(l => l.to.id === id && l.from.type === 'hotel' && l.route)
+  const after = legs.find(l => l.from.id === id && l.route)
+  return (
+    <>
+      {before && <><HotelRow hotel={before.from} /><LegRow leg={before} change={changes?.get(before.key)} dropped={dropped?.has(before.key)} /></>}
+      {children}
+      {after && <LegRow leg={after} change={changes?.get(after.key)} dropped={dropped?.has(after.key)} />}
+      {after?.to.type === 'hotel' && <HotelRow hotel={after.to} />}
+    </>
+  )
+}
+
+function HotelRow({ hotel }: { hotel: SnapshotActivity }) {
+  return (
+    <li className="grid grid-cols-[42px_22px_minmax(0,1fr)] gap-2 items-center py-1.5 text-muted-foreground">
+      <span />
+      <span className="w-[22px] h-[22px] rounded-full grid place-items-center border"><BedDouble size={11} /></span>
+      <p className="text-sm leading-snug break-words">{hotel.title}</p>
+    </li>
+  )
+}
+
+// El trayecto entre dos filas: las líneas con su color y los minutos (o que es
+// mejor ir andando), y si la ruta es nueva o distinta respecto a la otra
+// versión. Se despliega con la ficha completa del itinerario.
+function LegRow({ leg, change, dropped }: { leg: VersionLeg; change?: LegChange; dropped?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const { route, verdict } = leg
+  if (!route || !verdict) return null
+  const tag: Tag | undefined = change === 'new' ? CHANGE.legNew : change === 'changed' ? CHANGE.legChanged : dropped ? CHANGE.legDropped : undefined
+  const hasRides = (route.steps ?? []).some(s => s.kind !== 'walk')
+  return (
+    <li className="grid grid-cols-[42px_22px_minmax(0,1fr)] gap-2 items-start">
+      <span />
+      <span className="justify-self-center w-px self-stretch min-h-6" style={{ borderLeft: '1.5px dashed var(--border)' }} aria-hidden />
+      <div className="min-w-0 py-0.5">
+        <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
+          className="inline-flex items-center gap-1.5 max-w-full rounded-full border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-secondary transition-colors"
+          style={tag ? { borderColor: soft(tag.color, 45), background: soft(tag.color, 8) } : undefined}>
+          {verdict.worth && hasRides ? (
+            <><LineChips steps={route.steps} max={3} pill /><span className="shrink-0">{route.total_minutes} min</span></>
+          ) : verdict.alternative === 'walk' ? (
+            <><Footprints size={11} className="shrink-0" /><span className="truncate">{verdict.walkMinutes} min andando</span></>
+          ) : (
+            <span className="truncate">{SKIP_REASON[verdict.reason ?? 'otro']}</span>
+          )}
+          {tag && <span className="shrink-0 font-semibold" style={{ color: tag.color }}>· {tag.label}</span>}
+          <ChevronDown size={11} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <TransitSteps route={{ ...route, id: leg.key, trip_id: '' }} from={leg.origin} to={leg.destination}
+            fromName={leg.from.title} toName={leg.to.title} />
+        )}
+      </div>
+    </li>
+  )
+}
 
 function Column({ side, hiddenOnMobile, children }: { side: 'a' | 'b'; hiddenOnMobile: boolean; children: ReactNode }) {
   return (
@@ -148,12 +232,14 @@ function Column({ side, hiddenOnMobile, children }: { side: 'a' | 'b'; hiddenOnM
   )
 }
 
-function Row({ activity: a, n, side, tag, faded }: { activity: SnapshotActivity; n?: number; side: 'a' | 'b'; tag?: Tag; faded?: boolean }) {
+function Row({ activity: a, n, side, tag, extra, faded }: { activity: SnapshotActivity; n?: number; side: 'a' | 'b'; tag?: Tag; extra?: Tag; faded?: boolean }) {
+  const tags = [tag, extra].filter((t): t is Tag => !!t)
+  const tint = tag ?? extra
   const move = isMove(a)
   const Icon = a.type === 'flight' ? Plane : TrainFront
   return (
     <li className="grid grid-cols-[42px_22px_minmax(0,1fr)] gap-2 items-start py-1.5 rounded-lg"
-      style={{ opacity: faded ? 0.55 : 1, background: tag && !faded ? soft(tag.color, 7) : undefined }}>
+      style={{ opacity: faded ? 0.55 : 1, background: tint && !faded ? soft(tint.color, 7) : undefined }}>
       <span className="text-xs text-muted-foreground tabular-nums text-right pt-0.5">{hhmm(a.start_time) ?? '—'}</span>
       {move ? (
         <span className="w-[22px] h-[22px] rounded-full grid place-items-center border text-muted-foreground"><Icon size={11} /></span>
@@ -167,10 +253,14 @@ function Row({ activity: a, n, side, tag, faded }: { activity: SnapshotActivity;
       )}
       <div className="min-w-0">
         <p className={`text-sm leading-snug break-words ${move ? 'text-muted-foreground' : 'font-medium'} ${faded ? 'line-through decoration-1' : ''}`}>{a.title}</p>
-        {tag && (
-          <span className="inline-flex items-center gap-1 mt-0.5 text-[11px] font-semibold px-1.5 py-px rounded-full"
-            style={{ background: soft(tag.color, 16), color: tag.color }}>
-            {tag.icon && <tag.icon size={10} />}{tag.label}
+        {tags.length > 0 && (
+          <span className="flex flex-wrap gap-1 mt-0.5">
+            {tags.map(t => (
+              <span key={t.label} className="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-px rounded-full"
+                style={{ background: soft(t.color, 16), color: t.color }}>
+                {t.icon && <t.icon size={10} />}{t.label}
+              </span>
+            ))}
           </span>
         )}
       </div>

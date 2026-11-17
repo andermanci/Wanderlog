@@ -9,12 +9,19 @@ export const SIDE = {
   b: { color: 'var(--primary)', soft: 'color-mix(in srgb, var(--primary) 12%, transparent)' },
 } as const
 
-export const CHANGE: Record<Exclude<ChangeKind, 'same'> | 'removed' | 'out', { label: string; color: string }> = {
+export const CHANGE: Record<
+  Exclude<ChangeKind, 'same'> | 'removed' | 'out' | 'place' | 'legNew' | 'legChanged' | 'legDropped',
+  { label: string; color: string }
+> = {
   moved: { label: 'Cambiado de día', color: 'var(--chart-2)' },
   time: { label: 'Nueva hora', color: 'var(--warning)' },
   added: { label: 'Añadido', color: 'var(--success)' },
   removed: { label: 'Quitado', color: 'var(--destructive)' },
   out: { label: 'Se va a otro día', color: 'var(--muted-foreground)' },
+  place: { label: 'Ubicación corregida', color: 'var(--info)' },
+  legNew: { label: 'Ruta nueva', color: 'var(--success)' },
+  legChanged: { label: 'Ruta distinta', color: 'var(--warning)' },
+  legDropped: { label: 'No sigue en B', color: 'var(--muted-foreground)' },
 }
 
 export const SOURCE_LABEL: Record<ItineraryVersion['source'], string> = {

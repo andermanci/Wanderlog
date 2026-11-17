@@ -11,6 +11,8 @@ export function changesSentence(t: DiffTotals): string {
   }
   if (t.added) parts.push(`${t.added} ${t.added === 1 ? 'es nueva' : 'son nuevas'}`)
   if (t.removed) parts.push(`${t.removed} ${t.removed === 1 ? 'se quita' : 'se quitan'}`)
+  if (t.placed) parts.push(`${t.placed} ${t.placed === 1 ? 'cambia de sitio en el mapa' : 'cambian de sitio en el mapa'}`)
+  if (t.transit) parts.push(`${t.transit} ${t.transit === 1 ? 'trayecto tiene ruta nueva o distinta' : 'trayectos tienen ruta nueva o distinta'}`)
   if (!parts.length) return t.daysChanged ? 'Solo cambia el orden de algunas visitas.' : 'No hay cambios.'
   const last = parts.pop()!
   const s = parts.length ? `${parts.join(', ')} y ${last}` : last
