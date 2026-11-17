@@ -1,6 +1,13 @@
 import type { Document, ActivityAttachment, Activity } from '@/types/database'
-import type { WalletAttachment } from '@/components/wallet/WalletCode'
 import { PERSONAL_DOC_CATEGORIES } from '@/lib/utils'
+
+/** Billete adjunto (imagen o PDF) donde vive el código escaneable de verdad. */
+export interface WalletAttachment {
+  /** Valor guardado en BD: path del bucket privado o URL pública del adjunto. */
+  value: string
+  isPdf: boolean
+  name: string
+}
 
 // Un "pase" es la forma normalizada que consume el modal estilo cartera: sale de
 // una reserva (tabla documents) o de un adjunto del itinerario (activity_attachments).

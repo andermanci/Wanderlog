@@ -1,0 +1,361 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..700;1,14..32,300..600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&display=swap');
+
+@import "tailwindcss";
+
+/* El modo oscuro va por la clase .dark que pone a11yStore, no por el sistema. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   ESCALAS
+   Todo lo que se pinta sale de aquí. Si hace falta un valor que no
+   está, se añade aquí con nombre; no se escribe suelto en un componente.
+   ============================================================ */
+@theme inline {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Fraunces', Georgia, serif;
+  --font-heading: 'Fraunces', Georgia, serif;
+  --font-mono: ui-monospace, monospace;
+
+  /* Un tamaño por debajo de text-xs para etiquetas de apoyo (11 px). */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  /* Radios: sm controles pequeños · md campos · lg tarjetas · xl paneles. */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 1.75rem;
+
+  /* Sombras cálidas (tintadas con el tono del texto, no negro puro). */
+  --shadow-card: 0 1px 2px var(--shade-1), 0 2px 8px -2px var(--shade-1);
+  --shadow-raised: 0 2px 4px var(--shade-1), 0 10px 24px -8px var(--shade-2);
+  --shadow-float: 0 4px 10px var(--shade-1), 0 24px 48px -12px var(--shade-3);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sunken: var(--sunken);
+
+  /* «Tono»: el color de la cosa que se está pintando (un tipo de actividad,
+     un estado, una categoría). Se fija con data-tone="…" en el elemento o en
+     un antepasado, y se usa con text-tone / bg-tone / bg-tone-soft / border-tone. */
+  --color-tone: var(--tone);
+  --color-tone-soft: color-mix(in oklab, var(--tone) 13%, transparent);
+  --color-tone-line: color-mix(in oklab, var(--tone) 32%, transparent);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --animate-overlay-in: fade-in 180ms ease-out;
+  --animate-overlay-out: fade-out 140ms ease-in;
+  --animate-pop-in: pop-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-pop-out: pop-out 120ms ease-in;
+  --animate-sheet-in: sheet-up 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-sheet-out: sheet-down 200ms ease-in;
+  --animate-side-in: side-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-side-out: side-out 200ms ease-in;
+  --animate-rise: rise 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes fade-in { from { opacity: 0 } }
+  @keyframes fade-out { to { opacity: 0 } }
+  @keyframes pop-in { from { opacity: 0; transform: translateY(6px) scale(0.97) } }
+  @keyframes pop-out { to { opacity: 0; transform: translateY(4px) scale(0.98) } }
+  @keyframes sheet-up { from { transform: translateY(100%) } }
+  @keyframes sheet-down { to { transform: translateY(100%) } }
+  @keyframes side-in { from { transform: translateX(100%) } }
+  @keyframes side-out { to { transform: translateX(100%) } }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px) } }
+}
+
+/* ============================================================
+   TEMA CLARO — papel cálido + terracota (la misma familia de siempre)
+   ============================================================ */
+:root {
+  --background: oklch(0.978 0.008 80);
+  --foreground: oklch(0.25 0.025 50);
+  --card: oklch(0.998 0.003 90);
+  --card-foreground: oklch(0.25 0.025 50);
+  --popover: oklch(0.998 0.003 90);
+  --popover-foreground: oklch(0.25 0.025 50);
+  --primary: oklch(0.55 0.155 40);
+  --primary-foreground: oklch(0.99 0.005 85);
+  --primary-soft: oklch(0.945 0.03 50);
+  --secondary: oklch(0.952 0.012 80);
+  --secondary-foreground: oklch(0.32 0.025 50);
+  --muted: oklch(0.952 0.012 80);
+  --muted-foreground: oklch(0.46 0.02 55);
+  --accent: oklch(0.94 0.03 50);
+  --accent-foreground: oklch(0.42 0.13 40);
+  --destructive: oklch(0.56 0.21 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.55 0.13 70);
+  --warning-soft: color-mix(in srgb, var(--warning) 14%, transparent);
+  --success: oklch(0.52 0.13 150);
+  --info: oklch(0.5 0.16 260);
+  --border: oklch(0.905 0.015 75);
+  --border-strong: oklch(0.84 0.02 70);
+  --input: oklch(0.905 0.015 75);
+  --ring: oklch(0.55 0.155 40);
+  --sunken: oklch(0.962 0.01 80);
+  --radius: 0.75rem;
+
+  --shade-1: oklch(0.3 0.04 50 / 0.07);
+  --shade-2: oklch(0.3 0.04 50 / 0.12);
+  --shade-3: oklch(0.3 0.04 50 / 0.2);
+
+  /* Tipos de actividad */
+  --act-flight: oklch(0.52 0.16 275);
+  --act-hotel: oklch(0.6 0.13 75);
+  --act-restaurant: oklch(0.6 0.16 45);
+  --act-activity: oklch(0.55 0.13 150);
+  --act-transport: oklch(0.56 0.1 215);
+  --act-place: oklch(0.54 0.16 310);
+  --act-other: oklch(0.5 0.02 60);
+  /* Categorías de lugar que no coinciden con un tipo de actividad */
+  --cat-cafe: oklch(0.52 0.1 55);
+  --cat-bar: oklch(0.56 0.17 355);
+  --cat-shop: oklch(0.56 0.1 215);
+
+  --chart-1: oklch(0.55 0.155 40);
+  --chart-2: oklch(0.58 0.10 200);
+  --chart-3: oklch(0.60 0.10 130);
+  --chart-4: oklch(0.72 0.12 85);
+  --chart-5: oklch(0.52 0.14 15);
+
+  --gradient-primary: linear-gradient(135deg, oklch(0.55 0.155 40), oklch(0.65 0.145 58));
+  --gradient-primary-subtle: linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, transparent), color-mix(in srgb, var(--primary) 26%, transparent));
+
+  --tone: var(--primary);
+}
+
+/* ============================================================
+   TEMA OSCURO
+   ============================================================ */
+.dark {
+  --background: oklch(0.175 0.01 55);
+  --foreground: oklch(0.95 0.012 80);
+  --card: oklch(0.215 0.012 55);
+  --card-foreground: oklch(0.95 0.012 80);
+  --popover: oklch(0.235 0.012 55);
+  --popover-foreground: oklch(0.95 0.012 80);
+  --primary: oklch(0.68 0.14 45);
+  --primary-foreground: oklch(0.13 0.02 55);
+  --primary-soft: oklch(0.3 0.045 45);
+  --secondary: oklch(0.27 0.012 55);
+  --secondary-foreground: oklch(0.95 0.012 80);
+  --muted: oklch(0.27 0.012 55);
+  --muted-foreground: oklch(0.75 0.015 70);
+  --accent: oklch(0.30 0.04 45);
+  --accent-foreground: oklch(0.92 0.03 60);
+  --destructive: oklch(0.64 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.78 0.13 78);
+  --success: oklch(0.74 0.14 150);
+  --info: oklch(0.72 0.11 255);
+  --border: oklch(0.305 0.012 55);
+  --border-strong: oklch(0.38 0.015 55);
+  --input: oklch(0.305 0.012 55);
+  --ring: oklch(0.68 0.14 45);
+  --sunken: oklch(0.155 0.01 55);
+
+  --shade-1: oklch(0 0 0 / 0.25);
+  --shade-2: oklch(0 0 0 / 0.35);
+  --shade-3: oklch(0 0 0 / 0.5);
+
+  --act-flight: oklch(0.74 0.12 275);
+  --act-hotel: oklch(0.8 0.12 80);
+  --act-restaurant: oklch(0.76 0.13 50);
+  --act-activity: oklch(0.76 0.13 150);
+  --act-transport: oklch(0.76 0.09 215);
+  --act-place: oklch(0.76 0.12 310);
+  --act-other: oklch(0.72 0.015 70);
+  --cat-cafe: oklch(0.74 0.08 60);
+  --cat-bar: oklch(0.76 0.13 355);
+  --cat-shop: oklch(0.76 0.09 215);
+
+  --chart-1: oklch(0.68 0.14 45);
+  --chart-2: oklch(0.66 0.10 200);
+  --chart-3: oklch(0.68 0.10 130);
+  --chart-4: oklch(0.78 0.12 85);
+  --chart-5: oklch(0.62 0.14 15);
+
+  --gradient-primary: linear-gradient(135deg, oklch(0.66 0.14 45), oklch(0.72 0.13 62));
+
+}
+
+/* ============================================================
+   TONOS
+   ============================================================ */
+[data-tone="primary"] { --tone: var(--primary); }
+[data-tone="neutral"] { --tone: var(--muted-foreground); }
+[data-tone="success"] { --tone: var(--success); }
+[data-tone="warning"] { --tone: var(--warning); }
+[data-tone="danger"] { --tone: var(--destructive); }
+[data-tone="info"] { --tone: var(--info); }
+/* Tipos de actividad */
+[data-tone="flight"] { --tone: var(--act-flight); }
+[data-tone="hotel"] { --tone: var(--act-hotel); }
+[data-tone="restaurant"] { --tone: var(--act-restaurant); }
+[data-tone="activity"], [data-tone="attraction"] { --tone: var(--act-activity); }
+[data-tone="transport"] { --tone: var(--act-transport); }
+[data-tone="place"] { --tone: var(--act-place); }
+[data-tone="other"] { --tone: var(--act-other); }
+/* Categorías de lugar */
+[data-tone="cafe"] { --tone: var(--cat-cafe); }
+[data-tone="bar"] { --tone: var(--cat-bar); }
+[data-tone="shop"] { --tone: var(--cat-shop); }
+/* Estado del viaje */
+[data-tone="planning"] { --tone: var(--muted-foreground); }
+[data-tone="confirmed"] { --tone: var(--info); }
+[data-tone="in_progress"] { --tone: var(--success); }
+[data-tone="completed"] { --tone: var(--primary); }
+
+/* ============================================================
+   BASE
+   ============================================================ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  /* 16 px de base y opción «Texto grande» (18 px): todo va en rem. */
+  html { font-size: 16px; }
+  html.text-grande { font-size: 18px; }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.015em;
+  }
+
+  #root { min-height: 100dvh; }
+
+  /* Los inputs nativos de fecha/hora tienen un ancho mínimo intrínseco (sobre
+     todo en iOS) que ignora width:100% y desborda en móvil. */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"],
+  input[type="month"],
+  input[type="week"] {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+}
+
+/* ============================================================
+   UTILIDADES PROPIAS
+   ============================================================ */
+
+/* Títulos: una escala, no tamaños sueltos. */
+@utility title-hero { font-family: var(--font-serif); font-size: clamp(1.875rem, 1.4rem + 2vw, 2.75rem); line-height: 1.08; font-weight: 500; letter-spacing: -0.025em; }
+@utility title-page { font-family: var(--font-serif); font-size: clamp(1.5rem, 1.3rem + 0.9vw, 2rem); line-height: 1.15; font-weight: 500; letter-spacing: -0.02em; }
+@utility title-section { font-family: var(--font-serif); font-size: 1.25rem; line-height: 1.25; font-weight: 500; letter-spacing: -0.015em; }
+@utility title-card { font-family: var(--font-sans); font-size: 1rem; line-height: 1.35; font-weight: 600; letter-spacing: -0.005em; }
+/* Rótulo pequeño en mayúsculas (encima de un grupo). */
+@utility eyebrow { font-size: var(--text-2xs); line-height: 1rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted-foreground); }
+
+/* Controles SOBRE una foto: siempre oscuros y con texto blanco. */
+@utility on-photo {
+  background: rgb(20 14 10 / 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgb(255 255 255 / 0.22);
+  color: #fff;
+}
+/* Degradado para que el texto se lea encima de una foto. */
+@utility photo-scrim {
+  background: linear-gradient(to bottom, rgb(10 10 15 / 0.15) 0%, transparent 28%, rgb(10 10 15 / 0.55) 68%, rgb(10 10 15 / 0.88) 100%);
+}
+/* Barras flotantes (navegación): translúcidas sobre el contenido. */
+@utility bar-glass {
+  background: color-mix(in srgb, var(--card) 86%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+}
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+@utility pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+@utility pt-safe { padding-top: env(safe-area-inset-top); }
+
+/* Impresión: solo el contenido (Recuerdo del viaje → PDF). */
+@media print {
+  nav, header[data-shell], .no-print { display: none !important; }
+  main { overflow: visible !important; }
+  body { background: #fff; }
+}
+
+/* FullCalendar */
+.fc {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--card);
+  --fc-list-event-hover-bg-color: var(--secondary);
+  --fc-today-bg-color: color-mix(in srgb, var(--primary) 8%, transparent);
+  --fc-event-border-color: transparent;
+}
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number { color: var(--muted-foreground); text-decoration: none; }
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: var(--primary); }
+@media (max-width: 640px) {
+  .fc .fc-toolbar { flex-direction: column; align-items: stretch; gap: 0.6rem; }
+  .fc .fc-toolbar-chunk { display: flex; justify-content: center; }
+  .fc .fc-toolbar-title { font-size: 1.2em; text-align: center; }
+}

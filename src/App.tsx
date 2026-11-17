@@ -1,64 +1,70 @@
 import { useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createIdbPersister, debePersistirse } from '@/lib/queryPersister'
-import { MotionConfig } from 'framer-motion'
 import { toast } from 'sonner'
-import { Toaster } from '@/components/ui/sonner'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Skeleton, Toaster } from '@/design'
+import { ErrorBoundary } from '@/shell/ErrorBoundary'
 import { flushOutbox } from '@/lib/offline'
-import { Analytics } from '@/components/Analytics'
-import { RouteMemory, StartRoute } from '@/components/RouteMemory'
+import { Analytics } from '@/shell/Analytics'
+import { RouteMemory, StartRoute } from '@/shell/RouteMemory'
 
 import { useAuthListener } from '@/hooks/useAuth'
-import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
-import { AppLayout } from '@/components/layout/AppLayout'
+import { AdminRoute, ProtectedRoute } from '@/shell/guards'
+import { AppShell } from '@/shell/AppShell'
 // El guard del admin NO va diferido: son cuatro líneas, y hasta que devuelve
 // <Outlet/> React Router no monta lo que envuelve, así que quien no
 // administra no llega a descargar ningún chunk del panel.
-import { AdminRoute } from '@/components/admin/AdminRoute'
 
 // El login es la pantalla de arranque en frío: va en el bundle principal.
-import { LoginPage } from '@/pages/Login'
-import { AuthCallback } from '@/pages/AuthCallback'
+import { LoginPage } from '@/features/auth/LoginPage'
+import { AuthCallback } from '@/features/auth/AuthCallback'
 
 // El resto, por ruta. Sin esto, quien abre /login se descarga FullCalendar,
 // Recharts y Google Maps antes de poder escribir su email.
-const PrivacidadPage = lazy(() => import('@/pages/Privacidad').then(m => ({ default: m.PrivacidadPage })))
-const InvitePage = lazy(() => import('@/pages/InvitePage').then(m => ({ default: m.InvitePage })))
-const RevolutCallback = lazy(() => import('@/pages/RevolutCallback').then(m => ({ default: m.RevolutCallback })))
-const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })))
-const TripDetail = lazy(() => import('@/pages/TripDetail').then(m => ({ default: m.TripDetail })))
-const VersionComparePage = lazy(() => import('@/pages/VersionCompare').then(m => ({ default: m.VersionComparePage })))
-const ItineraryPage = lazy(() => import('@/pages/Itinerary').then(m => ({ default: m.ItineraryPage })))
-const ActivityFormPage = lazy(() => import('@/pages/ActivityFormPage').then(m => ({ default: m.ActivityFormPage })))
-const ActivityDetailPage = lazy(() => import('@/pages/ActivityDetailPage').then(m => ({ default: m.ActivityDetailPage })))
-const AudioguidePage = lazy(() => import('@/pages/AudioguidePage').then(m => ({ default: m.AudioguidePage })))
-const TripMemoryPage = lazy(() => import('@/pages/TripMemoryPage').then(m => ({ default: m.TripMemoryPage })))
-const MapViewPage = lazy(() => import('@/pages/MapView').then(m => ({ default: m.MapViewPage })))
-const SavedPlacesPage = lazy(() => import('@/pages/SavedPlacesPage').then(m => ({ default: m.SavedPlacesPage })))
-const ImportSharedPage = lazy(() => import('@/pages/ImportSharedPage').then(m => ({ default: m.ImportSharedPage })))
-const DocumentsPage = lazy(() => import('@/pages/Documents').then(m => ({ default: m.DocumentsPage })))
-const CalendarPage = lazy(() => import('@/pages/CalendarPage').then(m => ({ default: m.CalendarPage })))
-const RemindersPage = lazy(() => import('@/pages/RemindersPage').then(m => ({ default: m.RemindersPage })))
-const PackingPage = lazy(() => import('@/pages/PackingPage').then(m => ({ default: m.PackingPage })))
-const ExpensesPage = lazy(() => import('@/pages/ExpensesPage').then(m => ({ default: m.ExpensesPage })))
-const GuidePage = lazy(() => import('@/pages/GuidePage').then(m => ({ default: m.GuidePage })))
-const TripSettingsPage = lazy(() => import('@/pages/TripSettingsPage').then(m => ({ default: m.TripSettingsPage })))
-const SettingsPage = lazy(() => import('@/pages/Settings').then(m => ({ default: m.SettingsPage })))
+const page = <T extends Record<string, unknown>, K extends keyof T>(load: () => Promise<T>, name: K) =>
+  lazy(() => load().then(m => ({ default: m[name] as React.ComponentType })))
+
+const PrivacidadPage = page(() => import('@/features/auth/PrivacidadPage'), 'PrivacidadPage')
+const InvitePage = page(() => import('@/features/auth/InvitePage'), 'InvitePage')
+const RevolutCallback = page(() => import('@/features/money/RevolutCallback'), 'RevolutCallback')
+const TripsHome = page(() => import('@/features/trips/TripsHome'), 'TripsHome')
+const TripHome = page(() => import('@/features/home/TripHome'), 'TripHome')
+const TripSettingsPage = page(() => import('@/features/trips/TripSettingsPage'), 'TripSettingsPage')
+const PlanPage = page(() => import('@/features/plan/PlanPage'), 'PlanPage')
+const VersionComparePage = page(() => import('@/features/versions/VersionComparePage'), 'VersionComparePage')
+const GuidePage = page(() => import('@/features/guide/GuidePage'), 'GuidePage')
+const AudioguidePage = page(() => import('@/features/guide/AudioguidePage'), 'AudioguidePage')
+const WalletPage = page(() => import('@/features/wallet/WalletPage'), 'WalletPage')
+const ExpensesPage = page(() => import('@/features/money/ExpensesPage'), 'ExpensesPage')
+const PackingPage = page(() => import('@/features/packing/PackingPage'), 'PackingPage')
+const RemindersPage = page(() => import('@/features/reminders/RemindersPage'), 'RemindersPage')
+const TripMemoryPage = page(() => import('@/features/memory/TripMemoryPage'), 'TripMemoryPage')
+const ImportSharedPage = page(() => import('@/features/import/ImportSharedPage'), 'ImportSharedPage')
+const CalendarPage = page(() => import('@/features/calendar/CalendarPage'), 'CalendarPage')
+const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'SettingsPage')
 
 // Panel de administración: otra aplicación dentro de esta, con layout propio.
-const AdminLayout = lazy(() => import('@/components/admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
-const AdminOverviewPage = lazy(() => import('@/pages/admin/AdminOverview').then(m => ({ default: m.AdminOverviewPage })))
-const AdminUsersPage = lazy(() => import('@/pages/admin/AdminUsers').then(m => ({ default: m.AdminUsersPage })))
-const AdminUserDetailPage = lazy(() => import('@/pages/admin/AdminUserDetail').then(m => ({ default: m.AdminUserDetailPage })))
-const AdminTripsPage = lazy(() => import('@/pages/admin/AdminTrips').then(m => ({ default: m.AdminTripsPage })))
-const AdminTripDetailPage = lazy(() => import('@/pages/admin/AdminTripDetail').then(m => ({ default: m.AdminTripDetailPage })))
-const AdminVisitsPage = lazy(() => import('@/pages/admin/AdminVisits').then(m => ({ default: m.AdminVisitsPage })))
-const AdminEventsPage = lazy(() => import('@/pages/admin/AdminEvents').then(m => ({ default: m.AdminEventsPage })))
-const AdminAuditPage = lazy(() => import('@/pages/admin/AdminAudit').then(m => ({ default: m.AdminAuditPage })))
+const AdminLayout = page(() => import('@/features/admin/AdminLayout'), 'AdminLayout')
+const AdminOverviewPage = page(() => import('@/features/admin/AdminOverview'), 'AdminOverviewPage')
+const AdminUsersPage = page(() => import('@/features/admin/AdminUsers'), 'AdminUsersPage')
+const AdminUserDetailPage = page(() => import('@/features/admin/AdminUserDetail'), 'AdminUserDetailPage')
+const AdminTripsPage = page(() => import('@/features/admin/AdminTrips'), 'AdminTripsPage')
+const AdminTripDetailPage = page(() => import('@/features/admin/AdminTripDetail'), 'AdminTripDetailPage')
+const AdminVisitsPage = page(() => import('@/features/admin/AdminVisits'), 'AdminVisitsPage')
+const AdminEventsPage = page(() => import('@/features/admin/AdminEvents'), 'AdminEventsPage')
+const AdminAuditPage = page(() => import('@/features/admin/AdminAudit'), 'AdminAuditPage')
+
+// Rutas de la interfaz anterior que ahora viven dentro del Plan. Se conservan
+// como redirecciones para que los enlaces guardados sigan funcionando.
+function ToPlan({ extra }: { extra: Record<string, string> }) {
+  const { tripId } = useParams()
+  const [params] = useSearchParams()
+  const next = new URLSearchParams(params)
+  for (const [k, v] of Object.entries(extra)) next.set(k, v)
+  return <Navigate to={{ pathname: `/trips/${tripId}/itinerary`, search: next.toString() }} replace />
+}
 
 // Versión del FORMATO de la caché persistida, no de la aplicación.
 //
@@ -107,9 +113,6 @@ const queryClient = new QueryClient({
 // se vea a que el viaje aparezca a medias.
 const persister = createIdbPersister()
 
-// En móvil los toasts van centrados arriba (arriba-derecha choca con el notch).
-const IS_MOBILE = window.matchMedia('(max-width: 767px)').matches
-
 function AuthListener() {
   useAuthListener()
   return null
@@ -146,10 +149,6 @@ export default function App() {
         },
       }}
     >
-      {/* framer-motion anima con estilos en línea, así que el bloque
-          @media (prefers-reduced-motion) de index.css no lo frena: hay que
-          decírselo aquí para que respete la preferencia del sistema. */}
-      <MotionConfig reducedMotion="user">
       <BrowserRouter>
         <AuthListener />
         <OfflineSync />
@@ -176,7 +175,7 @@ export default function App() {
 
           {/* Protegidas */}
           <Route element={<ProtectedRoute />}>
-            {/* Callback de importación bancaria (pantalla completa, sin sidebar) */}
+            {/* Callback de importación bancaria (pantalla completa, sin armazón) */}
             <Route path="/import/revolut/callback" element={<RevolutCallback />} />
 
             {/* Administración: fuera de AppLayout, con su propio layout. */}
@@ -193,33 +192,41 @@ export default function App() {
               </Route>
             </Route>
 
-            <Route element={<AppLayout />}>
+            <Route element={<AppShell />}>
               {/* `/` es donde aterriza el arranque en frío de la PWA: ahí se
                   decide si toca el dashboard o la pantalla donde te quedaste. */}
               <Route index element={<StartRoute />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              {/* Destino del "Compartir" de TikTok/Instagram y del pegar-enlace. */}
+              <Route path="/dashboard" element={<TripsHome />} />
+              {/* Destino del «Compartir» de TikTok/Instagram y del pegar-enlace. */}
               <Route path="/import/shared" element={<ImportSharedPage />} />
 
-              <Route path="/trips/:tripId" element={<TripDetail />} />
-              <Route path="/trips/:tripId/itinerary" element={<ItineraryPage />} />
+              {/* Las cinco pestañas del viaje */}
+              <Route path="/trips/:tripId" element={<TripHome />} />
+              {/* El Plan no se desmonta al abrir una actividad: el panel sale
+                  de la ruta hija y la lista y el mapa se quedan donde estaban. */}
+              <Route path="/trips/:tripId/itinerary" element={<PlanPage />}>
+                <Route index element={null} />
+                <Route path="new" element={null} />
+                <Route path=":activityId" element={null} />
+                <Route path=":activityId/edit" element={null} />
+              </Route>
               <Route path="/trips/:tripId/itinerary/compare" element={<VersionComparePage />} />
-              <Route path="/trips/:tripId/itinerary/new" element={<ActivityFormPage />} />
-              <Route path="/trips/:tripId/itinerary/:activityId" element={<ActivityDetailPage />} />
-              <Route path="/trips/:tripId/itinerary/:activityId/edit" element={<ActivityFormPage />} />
+              <Route path="/trips/:tripId/guide" element={<GuidePage />} />
               <Route path="/trips/:tripId/itinerary/:activityId/audioguide" element={<AudioguidePage />} />
               {/* Audioguía de la ciudad del día. Cuelga de /dias y no de
                   /itinerary/:dayId/... para que no compita con :activityId. */}
               <Route path="/trips/:tripId/dias/:dayId/audioguide" element={<AudioguidePage />} />
-              <Route path="/trips/:tripId/memory" element={<TripMemoryPage />} />
-              <Route path="/trips/:tripId/map" element={<MapViewPage />} />
-              <Route path="/trips/:tripId/places" element={<SavedPlacesPage />} />
-              <Route path="/trips/:tripId/documents" element={<DocumentsPage />} />
-              <Route path="/trips/:tripId/reminders" element={<RemindersPage />} />
-              <Route path="/trips/:tripId/packing" element={<PackingPage />} />
+              <Route path="/trips/:tripId/documents" element={<WalletPage />} />
               <Route path="/trips/:tripId/expenses" element={<ExpensesPage />} />
-              <Route path="/trips/:tripId/guide" element={<GuidePage />} />
+
+              {/* Lo que cuelga de Inicio */}
+              <Route path="/trips/:tripId/packing" element={<PackingPage />} />
+              <Route path="/trips/:tripId/reminders" element={<RemindersPage />} />
+              <Route path="/trips/:tripId/memory" element={<TripMemoryPage />} />
               <Route path="/trips/:tripId/settings" element={<TripSettingsPage />} />
+
+              <Route path="/trips/:tripId/map" element={<ToPlan extra={{ vista: 'mapa' }} />} />
+              <Route path="/trips/:tripId/places" element={<ToPlan extra={{ tab: 'ideas' }} />} />
 
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/settings" element={<SettingsPage />} />
@@ -231,18 +238,8 @@ export default function App() {
         </Suspense>
         </ErrorBoundary>
 
-        <Toaster
-          position={IS_MOBILE ? 'top-center' : 'top-right'}
-          toastOptions={{
-            style: {
-              background: 'var(--card)',
-              border: '1px solid var(--border)',
-              color: 'var(--foreground)',
-            },
-          }}
-        />
+        <Toaster />
       </BrowserRouter>
-      </MotionConfig>
     </PersistQueryClientProvider>
   )
 }
