@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { haversineKm, pairKey, transitSig, type TravelLeg } from '@/lib/travelTime'
 import type { PendingLeg } from '@/lib/queries/travelTime'
 import type { TransitRoute } from '@/types/database'
-import type { TransitRow } from '@/lib/transit/exchange'
+import { transitVerdict, walkMeters, walkMinutes, type TransitRow } from '@/lib/transit/exchange'
 
 // Sugerencias de transporte público para los trayectos "en coche" del
 // itinerario (tabla transit_routes, 062). Se generan una vez, al organizar el
@@ -77,10 +77,22 @@ export function dayTransit(drivingLegs: PendingLeg[], rowsByPair: Map<string, Tr
 }
 
 // El trayecto tal como se usa para pintar el conector, sumar el día y detectar
-// conflictos: si hay una ruta en transporte público que compensa, manda ella.
+// conflictos: si hay una ruta en transporte público que compensa, manda ella;
+// si no compensa y lo mejor es ir andando, el trayecto pasa a ser a pie.
 export function effectiveLeg(drive: TravelLeg | undefined, route: TransitRoute | undefined, pending?: PendingLeg): TravelLeg | undefined {
-  if (!route?.worth_it || route.total_minutes == null) return drive
-  const distanceMeters = drive?.distanceMeters
-    ?? (pending ? haversineKm(pending.origin, pending.destination) * 1000 : 0)
-  return { mode: 'TRANSIT', distanceMeters, durationSeconds: route.total_minutes * 60 }
+  if (!route) return drive
+  const verdict = pending ? transitVerdict(route, pending.origin, pending.destination) : null
+  if ((verdict ? verdict.worth : route.worth_it) && route.total_minutes != null) {
+    const distanceMeters = drive?.distanceMeters
+      ?? (pending ? haversineKm(pending.origin, pending.destination) * 1000 : 0)
+    return { mode: 'TRANSIT', distanceMeters, durationSeconds: route.total_minutes * 60 }
+  }
+  if (pending && verdict?.alternative === 'walk') {
+    return {
+      mode: 'WALKING',
+      distanceMeters: walkMeters(pending.origin, pending.destination),
+      durationSeconds: walkMinutes(pending.origin, pending.destination) * 60,
+    }
+  }
+  return drive
 }

@@ -35,6 +35,7 @@ import { useTripRole, canEditRole } from '@/lib/queries/sharing'
 import { useTripTravelTimes, legsForDay, type PendingLeg } from '@/lib/queries/travelTime'
 import { useTransitRoutes, dayTransit, effectiveLeg, type DayTransit } from '@/lib/queries/transitRoutes'
 import type { TransitLegInput } from '@/lib/transit/exchange'
+import { describeRoute } from '@/lib/transit/labels'
 import { TransitPromptDialog } from '@/components/itinerary/TransitPromptDialog'
 import { pairKey, formatDayTotal, isMove } from '@/lib/travelTime'
 import { useBackfillTimezones } from '@/lib/queries/timezones'
@@ -220,7 +221,8 @@ function ItineraryPageInner() {
   // hay y sigue vigente) y los que faltan por sugerir. Si una ruta compensa,
   // sustituye al coche en el conector, en el total del día y en los conflictos.
   const { data: transitRows } = useTransitRoutes(tripId)
-  const [transitScope, setTransitScope] = useState<{ dayIds: string[]; label: string } | null>(null)
+  // `onlyKey`: corregir un único trayecto (desde su ficha).
+  const [transitScope, setTransitScope] = useState<{ dayIds: string[]; label: string; onlyKey?: string } | null>(null)
   const transitByDay = useMemo(() => {
     const rowsByPair = new Map((transitRows ?? []).map(r => [pairKey(r.from_activity_id, r.to_activity_id), r]))
     const map = new Map<string, DayTransit & { legs: Map<string, PendingLeg> }>()
@@ -255,6 +257,19 @@ function ItineraryPageInner() {
   const transitLegs = useMemo((): TransitLegInput[] => {
     if (!transitScope) return []
     const byId = new Map((activities ?? []).map(a => [a.id, a]))
+    // La fecha de cada día va al prompt: con las horas de las actividades, la
+    // IA sabe cuándo se hace cada trayecto.
+    const dateOf = new Map((days ?? []).map(d => [d.id, d.date]))
+    if (transitScope.onlyKey) {
+      const dt = transitByDay.get(transitScope.dayIds[0])
+      const leg = dt?.legs.get(transitScope.onlyKey)
+      const from = leg && byId.get(leg.fromId)
+      const to = leg && byId.get(leg.toId)
+      const saved = dt?.routes.get(transitScope.onlyKey)
+      return leg && from && to
+        ? [{ leg, from, to, drive: travelTimes.get(transitScope.onlyKey), previous: saved ? describeRoute(saved) : undefined, date: dateOf.get(transitScope.dayIds[0]) }]
+        : []
+    }
     // Si en esos días ya está todo pedido, es para rehacerlo: van todos los
     // trayectos en coche y las rutas nuevas sustituyen a las guardadas.
     const pendingInScope = transitScope.dayIds.some(id => (transitByDay.get(id)?.pending.length ?? 0) > 0)
@@ -265,9 +280,9 @@ function ItineraryPageInner() {
     return transitScope.dayIds.flatMap(dayId => legsOf(dayId).flatMap(leg => {
       const from = byId.get(leg.fromId)
       const to = byId.get(leg.toId)
-      return from && to ? [{ leg, from, to, drive: travelTimes.get(pairKey(leg.fromId, leg.toId)) }] : []
+      return from && to ? [{ leg, from, to, drive: travelTimes.get(pairKey(leg.fromId, leg.toId)), date: dateOf.get(dayId) }] : []
     }))
-  }, [transitScope, transitByDay, activities, travelTimes])
+  }, [transitScope, transitByDay, activities, travelTimes, days])
 
 
   // Husos horarios: resuelve los que falten (en segundo plano) y deduce en qué
@@ -367,7 +382,7 @@ function ItineraryPageInner() {
           tripId={tripId!}
           tripLabel={[trip.name, trip.destination].filter(Boolean).join(' — ')}
           scopeLabel={transitScope?.label ?? ''}
-          redo={!!transitScope && transitScope.dayIds.every(id => !(transitByDay.get(id)?.pending.length))}
+          redo={!!transitScope && (!!transitScope.onlyKey || transitScope.dayIds.every(id => !(transitByDay.get(id)?.pending.length)))}
           legs={transitLegs}
         />
       )}
@@ -751,6 +766,7 @@ function ItineraryPageInner() {
                                       to={driving?.destination}
                                       fromName={it.act?.title ?? it.lodge?.activity.title}
                                       toName={next.act?.title ?? next.lodge?.activity.title}
+                      onRedoTransit={canEdit ? () => setTransitScope({ dayIds: [day.id], label: 'para corregirlo', onlyKey: key }) : undefined}
                                     />
                                   )]
                                 })

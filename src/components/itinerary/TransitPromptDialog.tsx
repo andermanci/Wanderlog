@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { AlertTriangle, Check, ChevronDown, ClipboardCopy, ClipboardPaste, TrainFront, ArrowRight, FileDown, FileUp, Car } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ClipboardCopy, ClipboardPaste, TrainFront, ArrowRight, FileDown, FileUp, Car, MapPinned } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -13,8 +13,10 @@ import {
 import { useSaveTransitRoutes } from '@/lib/queries/transitRoutes'
 import { LineChips } from './TransitSteps'
 
-// Sin Gemini a propósito: la idea es no depender de Google para esto.
-const PROVIDERS = AUDIOGUIDE_AI_PROVIDERS.filter(p => p.id !== 'gemini')
+// Las mismas IAs que las audioguías. Gemini (la app, gratis) es la única que
+// consulta Google Maps de verdad, y se marca para que se sepa.
+const PROVIDERS = AUDIOGUIDE_AI_PROVIDERS
+const MAPS_AWARE: AudioguideAiProvider[] = ['gemini']
 // A partir de aquí el prompt es largo para pegarlo en el chat (y la respuesta
 // también): se ofrece como archivo y la respuesta se sube como archivo.
 const FILE_THRESHOLD = 12
@@ -118,7 +120,9 @@ export function TransitPromptDialog({ open, onOpenChange, tripId, tripLabel, sco
           <DialogDescription>
             {legs.length} {legs.length === 1 ? 'trayecto en coche' : 'trayectos en coche'} {scopeLabel}.{' '}
             {redo
-              ? 'Ya tienen ruta guardada: la que traigas ahora la sustituye.'
+              ? legs.length === 1
+                ? 'El prompt incluye lo que se propuso antes para que la IA lo revise. La respuesta nueva sustituye a la guardada.'
+                : 'Ya tienen ruta guardada: la que traigas ahora la sustituye.'
               : 'Tu IA te dice qué metro, tren o bus coger y aquí se guarda.'}
           </DialogDescription>
         </DialogHeader>
@@ -133,6 +137,7 @@ export function TransitPromptDialog({ open, onOpenChange, tripId, tripLabel, sco
                     type="button"
                     role="radio"
                     aria-checked={provider === p.id}
+                    title={MAPS_AWARE.includes(p.id) ? 'Consulta Google Maps para comprobar las rutas' : undefined}
                     onClick={() => setProvider(p.id)}
                     className={cn(
                       'h-8 px-3 rounded-full text-xs font-medium border transition-colors',
@@ -141,6 +146,9 @@ export function TransitPromptDialog({ open, onOpenChange, tripId, tripLabel, sco
                     style={provider === p.id ? { background: 'color-mix(in srgb, var(--primary) 10%, transparent)' } : undefined}
                   >
                     {p.label}
+                    {MAPS_AWARE.includes(p.id) && (
+                      <MapPinned size={12} className="inline ml-1 -mt-px" aria-label="consulta Google Maps" />
+                    )}
                   </button>
                 ))}
               </div>

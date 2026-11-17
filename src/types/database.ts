@@ -955,6 +955,8 @@ export type Database = {
           note: string | null
           steps: TransitStep[]
           generated_at: string
+          skip_reason: TransitSkipReason | null
+          alternative: TransitAlternative | null
         }
         Insert: {
           id?: string
@@ -969,6 +971,8 @@ export type Database = {
           note?: string | null
           steps?: TransitStep[]
           generated_at?: string
+          skip_reason?: TransitSkipReason | null
+          alternative?: TransitAlternative | null
         }
         Update: never
         Relationships: []
@@ -1090,6 +1094,9 @@ export type ItineraryDay = Database['public']['Tables']['itinerary_days']['Row']
 export type Activity = Database['public']['Tables']['activities']['Row']
 export type ItineraryVersion = Database['public']['Tables']['itinerary_versions']['Row']
 export type TransitRoute = Database['public']['Tables']['transit_routes']['Row']
+// Por qué no compensa el transporte público (063) y qué es mejor en su lugar.
+export type TransitSkipReason = 'cerca' | 'sin_linea' | 'transbordos' | 'lento' | 'horario' | 'otro'
+export type TransitAlternative = 'walk' | 'taxi' | 'car'
 // Un tramo de una ruta en transporte público: a pie, o en una línea concreta.
 export interface TransitStep {
   kind: 'walk' | 'metro' | 'train' | 'bus' | 'tram' | 'ferry' | 'other'
@@ -1101,6 +1108,15 @@ export interface TransitStep {
   stops: number | null
   minutes: number | null
   direction: string | null
+  /** Entrada de la estación donde se sube / se baja (las rutas viejas no las tienen). */
+  from_coords?: { lat: number; lng: number } | null
+  to_coords?: { lat: number; lng: number } | null
+  /** Todas las estaciones del tramo, de la subida a la bajada. */
+  stations?: string[] | null
+  /** La lista de estaciones no empieza o no acaba donde se sube o se baja. */
+  doubtful?: boolean
+  /** Espera media en el andén a esa hora, según la IA. */
+  wait?: number | null
 }
 // Una actividad dentro de la foto de una versión: lleva la FECHA de su día en
 // lugar de day_id/end_day_id, y las claves de day_orders también son fechas.

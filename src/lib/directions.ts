@@ -30,14 +30,18 @@ export function navAppsFor(target: DirectionsTarget): { name: string; href: stri
 // nombre lo da la IA y sus coordenadas no son de fiar, así que se busca por
 // nombre en Google Maps, centrado cerca del extremo del trayecto.
 // "Shibuya (渋谷)" → busca "Shibuya station".
-export function stationMapUrl(name: string, near: { lat: number; lng: number }, kind: string): string {
+// Con `exact` (la IA dio las coordenadas de la entrada) se acerca más el mapa.
+export function stationMapUrl(name: string, near: { lat: number; lng: number }, kind: string, exact = false): string {
   const plain = name.replace(/\s*\(.*?\)\s*/g, ' ').trim() || name
   const q = `${plain} ${kind === 'bus' ? 'bus stop' : 'station'}`
-  return `https://www.google.com/maps/search/${encodeURIComponent(q)}/@${near.lat},${near.lng},15z`
+  return `https://www.google.com/maps/search/${encodeURIComponent(q)}/@${near.lat},${near.lng},${exact ? 17 : 15}z`
 }
 
-// El mismo trayecto en transporte público en la app de Google Maps, que sí
-// tiene horarios reales (también en Japón), para contrastar o para el día.
-export function transitDirectionsUrl(from: { lat: number; lng: number }, to: { lat: number; lng: number }): string {
-  return `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&travelmode=transit`
+// El mismo trayecto en la app de Google Maps (en transporte público tiene
+// horarios reales, también en Japón), para contrastar o para el día.
+export function directionsUrl(
+  from: { lat: number; lng: number }, to: { lat: number; lng: number },
+  mode: 'transit' | 'walking' | 'driving' = 'transit',
+): string {
+  return `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&travelmode=${mode}`
 }

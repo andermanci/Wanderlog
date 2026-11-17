@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Footprints, Car, TrainFront, ChevronDown } from 'lucide-react'
+import { Footprints, Car, TrainFront, ChevronDown, Info } from 'lucide-react'
 import { formatTravelLeg, type GeoPoint, type TravelLeg } from '@/lib/travelTime'
 import type { ConflictSeverity } from '@/lib/conflicts'
 import type { TransitRoute } from '@/types/database'
 import { TransitSteps, LineChips } from './TransitSteps'
+import { skipSummary } from '@/lib/transit/labels'
+import { transitVerdict } from '@/lib/transit/exchange'
 
 interface TravelConnectorProps {
   leg: TravelLeg | undefined
@@ -18,6 +20,8 @@ interface TravelConnectorProps {
   to?: GeoPoint
   fromName?: string
   toName?: string
+  /** Volver a pedir solo este trayecto a la IA. */
+  onRedoTransit?: () => void
 }
 
 // Línea entre dos actividades consecutivas del día con el tiempo/modo de
@@ -32,12 +36,15 @@ interface TravelConnectorProps {
 // Cuando el trayecto no cabe en el hueco entre las dos actividades, se pinta en
 // rojo (no llegas) o en ámbar (vas justo). En ese caso deja de ser aria-hidden:
 // un aviso no puede quedar oculto a un lector de pantalla.
-export function TravelConnector({ leg, severity, transit, drive, from, to, fromName, toName }: TravelConnectorProps) {
+export function TravelConnector({ leg, severity, transit, drive, from, to, fromName, toName, onRedoTransit }: TravelConnectorProps) {
   const [open, setOpen] = useState(false)
   if (!leg) return <div className="h-2" aria-hidden="true" />
 
   const isTransit = leg.mode === 'TRANSIT' && !!transit
-  const expandable = !!transit && !!from && !!to && (isTransit || !!transit.note)
+  const verdict = transit && from && to ? transitVerdict(transit, from, to) : null
+  // Con ruta guardada siempre se puede desplegar: o los pasos, o por qué no
+  // compensa y la comparación con andar y el coche.
+  const expandable = !!transit && !!from && !!to
   const Icon = isTransit ? TrainFront : leg.mode === 'WALKING' ? Footprints : Car
   const color = severity === 'error' ? 'var(--destructive)'
     : severity === 'warning' ? 'var(--warning)'
@@ -87,16 +94,25 @@ export function TravelConnector({ leg, severity, transit, drive, from, to, fromN
         <span className={pillClass} style={pillStyle}>{pillContent}</span>
       )}
       {/* El coche como alternativa, o el aviso de que no hay buena opción. */}
-      {isTransit && drive && (
+      {/* La alternativa con la que se ha comparado: andando si el transporte
+          gana porque te ahorra caminar; si no, el coche. */}
+      {isTransit && verdict?.why === 'less_walking' ? (
+        <span className="flex items-center gap-1 text-[10px] text-muted-foreground opacity-80">
+          <Footprints size={10} aria-hidden="true" /> {verdict.walkMinutes} min andando
+        </span>
+      ) : isTransit && drive && (
         <span className="flex items-center gap-1 text-[10px] text-muted-foreground opacity-80">
           <Car size={10} aria-hidden="true" /> {formatTravelLeg(drive)}
         </span>
       )}
-      {transit && !isTransit && (
-        <span className="text-[10px] text-muted-foreground opacity-80">Sin buena opción en transporte público</span>
+      {transit && !isTransit && expandable && (
+        <button type="button" onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-1 text-[10px] text-muted-foreground opacity-80 hover:opacity-100">
+          <Info size={10} aria-hidden="true" /> {skipSummary(transit, from!, to!)}
+        </button>
       )}
       {open && expandable && (
-        <TransitSteps route={transit!} from={from!} to={to!} fromName={fromName ?? 'Salida'} toName={toName ?? 'Llegada'} />
+        <TransitSteps route={transit!} from={from!} to={to!} fromName={fromName ?? 'Salida'} toName={toName ?? 'Llegada'} drive={drive} onRedo={onRedoTransit} />
       )}
       <div className="w-px flex-1 min-h-[6px]"
         style={{ borderLeft: `1.5px dashed ${color ?? 'var(--border)'}` }} />
