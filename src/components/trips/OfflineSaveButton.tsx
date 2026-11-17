@@ -71,14 +71,28 @@ export function OfflineSaveButton({ tripId }: { tripId: string }) {
     setAsk(null)
     setSaving(true)
     try {
-      await prefetchTripOffline(qc, tripId, { includePhotos, includeAudio, onProgress: setProgress })
+      const missing = await prefetchTripOffline(qc, tripId, { includePhotos, includeAudio, onProgress: setProgress })
       const idx = readOfflineIndex(tripId)
       setIndex(idx)
       // Descargar un viaje entero no deja ninguna fila en la base: es el tipo
       // de hecho que solo existe aquí.
       emitirUso('trip.offline_downloaded',
         { fotos: includePhotos, audios: includeAudio, bytes: idx?.bytes ?? 0 }, tripId)
-      toast.success('Viaje disponible sin conexión', {
+      // Si algo no ha bajado se dice, con nombre: un «disponible sin conexión»
+      // a secas con media descarga fallida es justo lo que no se descubre
+      // hasta estar sin cobertura.
+      const faltan = [
+        ...missing.data,
+        missing.docs > 0 ? `${missing.docs} documento${missing.docs > 1 ? 's' : ''}` : '',
+        missing.photos > 0 ? `${missing.photos} foto${missing.photos > 1 ? 's' : ''}` : '',
+        missing.audios > 0 ? `${missing.audios} audio${missing.audios > 1 ? 's' : ''}` : '',
+      ].filter(Boolean)
+      if (faltan.length > 0) {
+        toast.warning('Viaje guardado, pero falta algo', {
+          description: `No se ha podido descargar: ${faltan.join(', ')}. Vuelve a tocar «actualizar» con buena conexión.`,
+          duration: 12000,
+        })
+      } else toast.success('Viaje disponible sin conexión', {
         description: 'Consejo: descarga también el área del destino en Google Maps (Mapas sin conexión) para navegar sin datos.',
         duration: 8000,
       })

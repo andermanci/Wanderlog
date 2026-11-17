@@ -34,7 +34,7 @@ import {
 import { useTripRole, canEditRole } from '@/lib/queries/sharing'
 import { useTripTravelTimes, legsForDay, type PendingLeg } from '@/lib/queries/travelTime'
 import { useTransitRoutes, dayTransit, effectiveLeg, type DayTransit } from '@/lib/queries/transitRoutes'
-import { estimatedWalkLeg, type TransitLegInput } from '@/lib/transit/exchange'
+import { estimatedDriveLeg, estimatedWalkLeg, type TransitLegInput } from '@/lib/transit/exchange'
 import { describeRoute } from '@/lib/transit/labels'
 import { TransitPromptDialog } from '@/components/itinerary/TransitPromptDialog'
 import { pairKey, formatDayTotal, isMove } from '@/lib/travelTime'
@@ -255,12 +255,18 @@ function ItineraryPageInner() {
   }, [days, activities, transitRows]) // eslint-disable-line react-hooks/exhaustive-deps
   const legs = useMemo(() => {
     const merged = new Map(travelTimes)
-    // Trayectos a pie que Google no ha devuelto: se estiman, para que entre
-    // dos sitios cercanos nunca falte la distancia.
-    transitByDay.forEach(dt => dt.walking.forEach(l => {
-      const k = pairKey(l.fromId, l.toId)
-      if (!merged.has(k)) merged.set(k, estimatedWalkLeg(l.origin, l.destination))
-    }))
+    // Trayectos que Google no ha devuelto (sin conexión, cuota agotada): a pie
+    // se estiman distancia y tiempo; en coche, solo la distancia. Así nunca
+    // falta el conector, y con él la ficha de transporte público del trayecto.
+    transitByDay.forEach(dt => {
+      dt.walking.forEach(l => {
+        const k = pairKey(l.fromId, l.toId)
+        if (!merged.has(k)) merged.set(k, estimatedWalkLeg(l.origin, l.destination))
+      })
+      dt.legs.forEach((l, k) => {
+        if (!merged.has(k)) merged.set(k, estimatedDriveLeg(l.origin, l.destination))
+      })
+    })
     transitByDay.forEach(dt => dt.routes.forEach((route, k) => {
       const eff = effectiveLeg(travelTimes.get(k), route, dt.legs.get(k))
       if (eff) merged.set(k, eff)

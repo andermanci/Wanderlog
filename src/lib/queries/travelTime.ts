@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import type { Activity, ItineraryDay } from '@/types/database'
 import {
   chooseMode, entryPoint, exitPoint, haversineKm, pairKey,
@@ -90,17 +90,33 @@ interface UseTripTravelTimesParams {
 // cambia el orden o las coordenadas de ese día) y no gasta llamadas en días
 // colapsados. Devuelve un Map<pairKey(fromId,toId), TravelLeg> con todos los
 // días juntos.
+// Los trayectos que Google no ha devuelto (cuota del día agotada, un corte de
+// red a media consulta) se vuelven a pedir pasado este rato. Antes el día se
+// daba por calculado para siempre y ese trayecto no volvía a salir.
+const RETRY_MISSING_MS = 1000 * 60 * 10
+
 export function useTripTravelTimes({ days, combinedItemsFor, collapsedDays, routesLib }: UseTripTravelTimesParams) {
+  const qc = useQueryClient()
   const results = useQueries({
     queries: (days ?? []).map(day => {
       const items = combinedItemsFor(day.id)
       const legs = legsForDay(items)
       const signature = daySignature(items)
+      const queryKey = ['travelTimes', day.id, signature] as const
+      const missingIn = (data: Record<string, TravelLeg> | undefined) =>
+        legs.filter(l => !data?.[pairKey(l.fromId, l.toId)])
       return {
-        queryKey: ['travelTimes', day.id, signature] as const,
-        queryFn: () => fetchDayLegs(legs, routesLib!),
+        queryKey,
+        // Solo se piden a Google los trayectos que faltan; los que ya se
+        // tienen se conservan, también si esta tanda vuelve a fallar.
+        queryFn: async () => {
+          const previous = qc.getQueryData<Record<string, TravelLeg>>(queryKey) ?? {}
+          const fetched = await fetchDayLegs(missingIn(previous), routesLib!)
+          return { ...previous, ...fetched }
+        },
         enabled: !!routesLib && legs.length > 0 && !collapsedDays.has(day.id),
-        staleTime: Infinity,
+        staleTime: (query: { state: { data?: unknown } }) =>
+          missingIn(query.state.data as Record<string, TravelLeg> | undefined).length === 0 ? Infinity : RETRY_MISSING_MS,
         gcTime: 1000 * 60 * 60 * 24 * 7,
       }
     }),

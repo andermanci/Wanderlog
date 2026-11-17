@@ -66,7 +66,12 @@ export async function cachePhoto(url: string): Promise<number> {
   if (!cache) return 0
   const hit = await cache.match(url)
   if (hit?.headers.get(MARK) === '1') return 0
-  const res = await fetch(url)
+  // Una foto que ya se ha visto en pantalla está en la caché del service
+  // worker como respuesta opaca (la pidió un <img>, sin CORS), y con ella este
+  // fetch falla. No es una foto perdida: sin conexión se sigue viendo, solo
+  // que sin reducir. Se da por buena en vez de contarla como fallo.
+  const res = await fetch(url).catch((err) => { if (hit) return null; throw err })
+  if (!res) return 0
   if (!res.ok) throw new Error(`foto ${res.status}`)
   const original = await res.blob()
   const blob = await compressImage(original)

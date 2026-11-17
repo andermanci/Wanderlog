@@ -13,6 +13,7 @@ import { transitVerdict, walkMeters, type TransitRow } from '@/lib/transit/excha
 // las rutas siguen disponibles sin conexión.
 
 const key = (tripId: string) => ['transitRoutes', tripId] as const
+export const transitRoutesKey = key
 
 export function useTransitRoutes(tripId: string | undefined) {
   return useQuery({
