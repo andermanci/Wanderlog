@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronRight, Paperclip, QrCode, Ticket } from 'lucide-react'
-import { Badge, Button, Card, DocIcon, Empty, Section, Segmented } from '@/design'
+import { Badge, Button, DocIcon, Empty, Section, Segmented } from '@/design'
 import { buildAttachmentPass, buildDocPass, type WalletPass } from '@/lib/wallet/pass'
 import { formatDate } from '@/lib/utils'
 import { useWalletPassStore } from '@/store/walletPassStore'
@@ -10,53 +10,65 @@ type Grouping = 'fecha' | 'tipo'
 
 interface TicketRowProps {
   category: string
+  /** Rótulo pequeño sobre el título: qué es (Vuelo, Entrada, Adjunto…). */
+  kind: string
   title: string
-  /** Primera línea: cuándo. */
+  /** Cuándo. */
   when: ReactNode
-  /** Segunda línea: con quién y con qué código. */
+  /** Con quién, trayecto, asiento. */
   meta: ReactNode
+  /** Localizador o número de confirmación: va en el talón, bien visible. */
+  code?: string | null
   pass: WalletPass | null
   onOpen: () => void
 }
 
-// Fila de billete: icono del tipo, título, fecha y datos, y el botón «Mostrar código»
-// (a la derecha en escritorio, debajo en el móvil para que no le quite sitio al título).
-function TicketRow({ category, title, when, meta, pass, onOpen }: TicketRowProps) {
+// Un billete con forma de billete: a la izquierda qué es y cuándo; a la derecha,
+// separado por la línea de corte, el talón con el localizador y «Mostrar código».
+function TicketRow({ category, kind, title, when, meta, code, pass, onOpen }: TicketRowProps) {
   const openPass = useWalletPassStore(s => s.openPass)
   return (
-    <div className="flex flex-wrap items-center md:flex-nowrap">
+    <article data-tone={toneOf(category)} className="relative flex overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+      <span aria-hidden="true" className="w-1.5 shrink-0 bg-tone" />
       <button
-        type="button"
-        onClick={onOpen}
-        className="flex min-h-15 min-w-0 flex-1 basis-full cursor-pointer items-center gap-3.5 px-4 py-3 text-left transition-colors duration-150 hover:bg-secondary/70 md:basis-0"
+        type="button" onClick={onOpen}
+        className="min-w-0 flex-1 cursor-pointer px-4 py-3.5 text-left transition-colors duration-150 hover:bg-secondary/60"
       >
-        <span data-tone={toneOf(category)} className="grid size-10 shrink-0 place-items-center rounded-full bg-tone-soft text-tone">
-          <DocIcon category={category} className="size-5" />
+        <span className="eyebrow flex items-center gap-1.5 text-tone">
+          <DocIcon category={category} className="size-3.5" /> {kind}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.9375rem] font-medium text-foreground">{title}</span>
-          {when && <span className="block truncate text-sm text-foreground/80">{when}</span>}
-          {meta && <span className="block truncate text-sm text-muted-foreground">{meta}</span>}
-        </span>
-        <ChevronRight className="size-4.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+        <span className="mt-1 block font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2">{title}</span>
+        {when && <span className="mt-1 block text-sm font-medium first-letter:uppercase">{when}</span>}
+        {meta && <span className="mt-0.5 block text-sm text-muted-foreground line-clamp-2">{meta}</span>}
       </button>
-      {pass && (
-        <div className="basis-full px-4 pb-3 pl-[4.375rem] md:basis-auto md:p-0 md:pr-3">
-          <Button variant="soft" className="md:h-9 md:px-3.5 md:text-sm" onClick={() => openPass(pass)}>
-            <QrCode /> Mostrar código
-          </Button>
-        </div>
-      )}
-    </div>
+      {/* Talón, con las dos muescas de la línea de corte */}
+      <div className="relative flex w-28 shrink-0 flex-col items-center justify-center gap-2 border-l-2 border-dashed border-border-strong px-2 py-3 before:absolute before:-left-2.5 before:-top-2.5 before:size-5 before:rounded-full before:bg-background after:absolute after:-bottom-2.5 after:-left-2.5 after:size-5 after:rounded-full after:bg-background md:w-36">
+        {code && <span className="max-w-full truncate font-mono text-sm font-semibold tracking-wider">{code}</span>}
+        {pass ? (
+          <button
+            type="button" onClick={() => openPass(pass)}
+            className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-primary-soft"
+          >
+            <span className="grid size-11 place-items-center rounded-xl bg-primary-soft"><QrCode className="size-6" aria-hidden="true" /></span>
+            Mostrar código
+          </button>
+        ) : (
+          <button type="button" onClick={onOpen} className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground hover:text-foreground">
+            Ver <ChevronRight className="size-4" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+    </article>
   )
 }
 
-function ItemRow({ item, showType, onOpen }: { item: TicketItem; showType: boolean; onOpen: (item: TicketItem) => void }) {
+function ItemRow({ item, onOpen }: { item: TicketItem; onOpen: (item: TicketItem) => void }) {
   if (item.kind === 'attachment') {
     const { att, activity } = item
     return (
       <TicketRow
         category={item.category}
+        kind="Adjunto"
         title={att.name}
         when={item.day ? `${formatDate(item.day, 'EEE d MMM')}${activity?.start_time ? ` · ${activity.start_time.slice(0, 5)}` : ''}` : null}
         meta={<><Paperclip className="mr-1 inline size-3.5 align-[-0.125em]" aria-hidden="true" />Adjunto de «{activity?.title ?? 'una actividad'}»</>}
@@ -69,26 +81,15 @@ function ItemRow({ item, showType, onOpen }: { item: TicketItem; showType: boole
   const route = doc.origin || doc.destination
     ? `${doc.origin ?? ''}${doc.origin && doc.destination ? ' → ' : ''}${doc.destination ?? ''}`
     : null
-  const meta = [
-    showType ? GROUP_LABELS[doc.category] : null,
-    doc.provider,
-    doc.flight_number,
-    route,
-    doc.seat ? `Asiento ${doc.seat}` : null,
-  ].filter(Boolean).join(' · ')
-  const code = doc.locator || doc.confirmation_number
+  const meta = [doc.provider, doc.flight_number, route, doc.seat ? `Asiento ${doc.seat}` : null].filter(Boolean).join(' · ')
   return (
     <TicketRow
       category={item.category}
+      kind={GROUP_LABELS[doc.category] ?? 'Reserva'}
       title={doc.title}
       when={whenLabel(doc.datetime_start, doc.datetime_end)}
-      meta={(meta || code) ? (
-        <>
-          {meta}
-          {meta && code ? ' · ' : ''}
-          {code && <span className="font-mono font-medium text-foreground/80">{code}</span>}
-        </>
-      ) : null}
+      meta={meta || null}
+      code={doc.locator || doc.confirmation_number}
       pass={buildDocPass(doc)}
       onOpen={() => onOpen(item)}
     />
@@ -152,11 +153,9 @@ export function TicketsSection({ items, now, canEdit, onOpen, onAdd, onImport }:
                 <span className="eyebrow">{group.label}</span>
                 <Badge>{group.items.length}</Badge>
               </h3>
-              <Card pad="none" className="divide-y divide-border overflow-hidden">
-                {group.items.map(item => (
-                  <ItemRow key={item.key} item={item} showType={grouping === 'fecha'} onOpen={onOpen} />
-                ))}
-              </Card>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {group.items.map(item => <ItemRow key={item.key} item={item} onOpen={onOpen} />)}
+              </div>
             </div>
           ))}
         </div>

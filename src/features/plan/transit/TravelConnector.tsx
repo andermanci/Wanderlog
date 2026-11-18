@@ -73,7 +73,6 @@ export function TravelConnector({ leg, severity, transit, drive, from, to, fromN
       ? 'border-tone-line bg-linear-to-r from-tone-soft to-tone-soft text-tone'
       : 'border-border text-muted-foreground',
   )
-  const line = cn('min-h-2 w-0 flex-1 border-l-2 border-dashed', tone ? 'border-tone-line' : 'border-border-strong')
 
   const content = (
     <>
@@ -91,21 +90,22 @@ export function TravelConnector({ leg, severity, transit, drive, from, to, fromN
   return (
     <div
       data-tone={tone}
-      className="flex flex-col items-center py-0.5"
+      // Alineado a la izquierda: va en la columna de contenido de la línea de
+      // tiempo del día, que es quien dibuja el raíl.
+      className="flex flex-col items-start gap-1 py-1"
       aria-hidden={severity || expandable || label ? undefined : 'true'}
     >
-      <div className={line} />
-      {label && <span className="max-w-full truncate bg-background px-2 py-0.5 text-xs text-muted-foreground">{label}</span>}
+      {label && <span className="max-w-full truncate text-xs text-muted-foreground">{label}</span>}
       {expandable ? (
         <button
           type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
           // El «before» agranda la zona táctil a 44 px sin engordar la píldora.
-          className={cn(pill, 'my-0.5 transition hover:brightness-95 before:absolute before:-inset-x-2 before:-inset-y-2.5 before:content-[""]')}
+          className={cn(pill, 'transition hover:brightness-95 before:absolute before:-inset-x-2 before:-inset-y-2.5 before:content-[""]')}
         >
           {content}
         </button>
       ) : (
-        <span className={cn(pill, 'my-0.5')}>{content}</span>
+        <span className={pill}>{content}</span>
       )}
       {/* La alternativa con la que se ha comparado: andando si el transporte
           gana porque te ahorra caminar; si no, el coche. */}
@@ -130,7 +130,6 @@ export function TravelConnector({ leg, severity, transit, drive, from, to, fromN
       {open && expandable && (
         <TransitSteps route={transit!} from={from!} to={to!} fromName={fromName ?? 'Salida'} toName={toName ?? 'Llegada'} drive={drive} onRedo={onRedoTransit} />
       )}
-      <div className={line} />
     </div>
   )
 }

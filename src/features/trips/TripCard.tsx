@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { CalendarDays, Copy, Pencil, Trash2, Users } from 'lucide-react'
+import { ArrowRight, Copy, Pencil, Trash2, Users } from 'lucide-react'
 import { Badge, Menu, type Tone } from '@/design'
 import { cn, countdownLabel, daysUntil, effectiveStatus, formatDate, STATUS_LABELS } from '@/lib/utils'
 import { fallbackCover } from '@/lib/coverFallbacks'
@@ -14,59 +14,69 @@ interface TripCardProps {
   onDuplicate: (trip: Trip) => void
   /** Cuenta suspendida: no se ofrecen acciones de escritura. */
   readOnly?: boolean
-  /** Tarjeta grande (el viaje en curso). */
+  /** Tarjeta panorámica (el viaje en curso). */
   featured?: boolean
 }
 
-/** Un viaje en la lista: la foto manda, el nombre va encima y las acciones en un menú «⋯» siempre visible. */
+/**
+ * Un viaje como un póster: la foto a sangre y todo lo demás encima.
+ * Las acciones van en un menú «⋯» siempre visible.
+ */
 export function TripCard({ trip, onEdit, onDelete, onDuplicate, readOnly, featured }: TripCardProps) {
   const { user } = useAuthStore()
   const status = effectiveStatus(trip)
   const shared = !!user && trip.user_id !== user.id
   const upcoming = daysUntil(trip.start_date) >= 0 && status !== 'completed'
+  const past = status === 'completed'
 
   return (
     <article className="group relative h-full">
       <Link
         to={`/trips/${trip.id}`}
-        className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card transition-[box-shadow,transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-raised"
+        className={cn(
+          'relative block overflow-hidden rounded-3xl bg-secondary shadow-card transition-[box-shadow,transform] duration-300 hover:-translate-y-1 hover:shadow-float',
+          featured ? 'aspect-[4/5] sm:aspect-[3/1]' : 'aspect-[4/5]',
+        )}
       >
-        <div className={cn('relative overflow-hidden', featured ? 'h-64 md:h-80' : 'h-52')}>
-          <img
-            src={trip.cover_image_url || fallbackCover(trip.id)}
-            alt=""
-            loading="lazy"
-            className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
-          />
-          <div className="photo-scrim absolute inset-0" />
-          <div className="absolute left-3 top-3 flex items-center gap-1.5">
-            <Badge tone={status as Tone} solid>{STATUS_LABELS[status]}</Badge>
-            {shared && (
-              <span className="on-photo inline-flex h-6 items-center gap-1 rounded-full px-2.5 text-xs font-semibold">
-                <Users className="size-3.5" aria-hidden="true" /> Compartido
+        <img
+          src={trip.cover_image_url || fallbackCover(trip.id)}
+          alt="" loading="lazy"
+          className={cn('absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-105', past && 'saturate-[0.6]')}
+        />
+        <div className="photo-scrim absolute inset-0" />
+
+        <div className="absolute left-4 top-4 flex flex-wrap items-center gap-1.5 pr-14">
+          <Badge tone={status as Tone} solid>{STATUS_LABELS[status]}</Badge>
+          {shared && (
+            <span className="on-photo inline-flex h-6 items-center gap-1 rounded-full px-2.5 text-xs font-semibold">
+              <Users className="size-3.5" aria-hidden="true" /> Compartido
+            </span>
+          )}
+        </div>
+
+        <div className={cn('absolute text-white', featured ? 'inset-x-5 bottom-5 sm:inset-x-8 sm:bottom-7' : 'inset-x-3.5 bottom-3.5 sm:inset-x-5 sm:bottom-5')}>
+          {upcoming && (
+            <p className="mb-2 inline-flex h-7 items-center rounded-full bg-white px-3 text-xs font-bold text-black">{countdownLabel(trip.start_date)}</p>
+          )}
+          <h3 className={cn('font-serif font-medium leading-[1.05] tracking-tight line-clamp-3', featured ? 'text-4xl sm:text-5xl' : 'text-xl sm:text-3xl')}>
+            {trip.name}
+          </h3>
+          <p className="mt-1.5 truncate text-sm font-medium text-white/90">{trip.destination}</p>
+          <p className="mt-0.5 flex items-center justify-between gap-3 text-sm text-white/75">
+            <span className="truncate tabular-nums">{dateRange(trip.start_date, trip.end_date, formatDate)}</span>
+            {featured && (
+              <span className="on-photo hidden h-9 items-center gap-1.5 rounded-full px-4 text-sm font-semibold sm:inline-flex">
+                Abrir viaje <ArrowRight className="size-4" aria-hidden="true" />
               </span>
             )}
-          </div>
-          <div className="absolute inset-x-4 bottom-3.5 text-white">
-            <h3 className={cn('font-serif font-medium leading-tight tracking-tight line-clamp-2', featured ? 'text-3xl md:text-4xl' : 'text-2xl')}>
-              {trip.name}
-            </h3>
-            <p className="mt-0.5 truncate text-sm text-white/85">{trip.destination}</p>
-          </div>
-        </div>
-        <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3.5">
-          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <CalendarDays className="size-4" aria-hidden="true" />
-            {dateRange(trip.start_date, trip.end_date, formatDate)}
-          </span>
-          {upcoming && <Badge tone="primary" className="ml-auto">{countdownLabel(trip.start_date)}</Badge>}
+          </p>
           {trip.tags.length > 0 && (
-            <span className="flex w-full flex-wrap gap-1.5">
+            <p className={cn('mt-2.5 flex-wrap gap-1.5', featured ? 'flex' : 'hidden sm:flex')}>
               {trip.tags.slice(0, 3).map(tag => (
-                <span key={tag} className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">{tag}</span>
+                <span key={tag} className="on-photo rounded-full px-2.5 py-0.5 text-xs font-medium">{tag}</span>
               ))}
-              {trip.tags.length > 3 && <span className="text-xs text-muted-foreground">+{trip.tags.length - 3}</span>}
-            </span>
+              {trip.tags.length > 3 && <span className="self-center text-xs text-white/75">+{trip.tags.length - 3}</span>}
+            </p>
           )}
         </div>
       </Link>
@@ -74,7 +84,7 @@ export function TripCard({ trip, onEdit, onDelete, onDuplicate, readOnly, featur
       {/* Con la cuenta suspendida no se enseñan (en vez de deshabilitarlas): RLS
           filtra la escritura en silencio y un botón visible parecería funcionar. */}
       {!readOnly && (
-        <div className="absolute right-2.5 top-2.5">
+        <div className="absolute right-3 top-3">
           <Menu
             label={`Opciones de ${trip.name}`}
             triggerVariant="photo"

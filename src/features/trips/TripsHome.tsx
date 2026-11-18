@@ -137,7 +137,7 @@ export function TripsHome() {
         {bloqueoCrear && <p className="text-sm text-muted-foreground">{bloqueoCrear}</p>}
 
         {(hasToday || hasReminders) && (
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-2">
             {hasToday && (
               <Section title="Hoy" description="Lo que tienes planeado para hoy.">
                 <RowList>
@@ -187,7 +187,7 @@ export function TripsHome() {
 
         {isLoading ? (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-72 rounded-2xl" />)}
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="aspect-[4/5] rounded-3xl" />)}
           </div>
         ) : (trips?.length ?? 0) === 0 ? (
           <Empty
@@ -233,7 +233,7 @@ export function TripsHome() {
                 <Button onClick={() => { setSearch(''); setStatusFilter('all') }}>Ver todos los viajes</Button>
               </Empty>
             ) : filtering ? (
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
                 {filtered.map(t => <TripCard key={t.id} trip={t} {...cardProps} />)}
               </div>
             ) : (
@@ -245,11 +245,11 @@ export function TripsHome() {
                 return (
                   <Section key={g.key} title={g.title}>
                     {g.key === 'now' ? (
-                      <div className="grid gap-5 lg:grid-cols-2">
+                      <div className="grid gap-5">
                         {ordered.map(t => <TripCard key={t.id} trip={t} featured {...cardProps} />)}
                       </div>
                     ) : (
-                      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
                         {ordered.map(t => <TripCard key={t.id} trip={t} {...cardProps} />)}
                       </div>
                     )}

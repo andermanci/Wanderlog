@@ -14,7 +14,8 @@ import { dayCities, resolveNames } from '@/lib/cities'
 import { dayOrderOf, type Lodging } from '@/lib/lodging'
 import type { Activity, DestinationGuide, ItineraryDay } from '@/types/database'
 import { TravelConnector } from './transit/TravelConnector'
-import { ActivityCard, LodgingRow } from './ActivityCard'
+import { ActivityCard, LodgingRow, TimelineGap } from './ActivityCard'
+import { TIMELINE } from './timeline'
 import { DayAlerts } from './DayAlerts'
 import { ConflictBadge, DayCities, DayConflicts, DayDriftNote } from './DayBits'
 import type { PlanData } from './usePlanData'
@@ -85,8 +86,8 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
   ].filter(Boolean).join(' · ')
 
   const connector = (key: string, fromName?: string, toName?: string, label?: string) => (
+    <TimelineGap key={`conn-${key}`}>
     <TravelConnector
-      key={`conn-${key}`}
       leg={legs.get(key)}
       severity={legSeverity.get(key)}
       transit={dt?.routes.get(key)}
@@ -98,42 +99,41 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
       label={label}
       onRedoTransit={canEdit ? () => setTransitScope({ dayIds: [day.id], label: 'para corregirlo', onlyKey: key }) : undefined}
     />
+    </TimelineGap>
   )
 
   return (
     <section id={`day-${day.date}`} data-day={day.id} className="scroll-mt-4" aria-label={format(date, "EEEE d 'de' MMMM", { locale: es })}>
-      <header className="flex items-start gap-3">
-        <span className={cn(
-          'flex size-14 shrink-0 flex-col items-center justify-center rounded-2xl leading-none',
-          isToday ? 'bg-primary text-primary-foreground shadow-card' : 'border border-border bg-card',
-          isPast && 'opacity-70',
-        )}>
-          {/* Día y MES: el día de la semana abreviado («mar») se confunde con marzo. */}
-          <span className="text-xl font-semibold tabular-nums">{format(date, 'd')}</span>
-          <span className="mt-0.5 text-2xs font-semibold uppercase tracking-wider opacity-80">{format(date, 'MMM', { locale: es }).replace('.', '')}</span>
-        </span>
+      {/* Cabecera pegada arriba mientras se recorre el día: siempre se sabe en cuál estás. */}
+      <header className={cn('sticky top-0 z-20 -mx-4 flex items-center gap-3 bg-background px-4 pb-2 pt-3 md:-mx-6 md:px-6', isPast && 'opacity-70')}>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="title-section first-letter:uppercase">{format(date, "EEEE d 'de' MMMM", { locale: es })}</h2>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className={cn('eyebrow', isToday && 'text-accent-foreground')}>Día {index + 1}</span>
             {isToday && <Badge tone="primary" solid>Hoy</Badge>}
             <ConflictBadge conflicts={conflicts} />
-          </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">Día {index + 1} · {meta}</p>
+          </p>
+          <h2 className="mt-0.5 font-serif text-xl font-medium leading-tight tracking-tight md:text-[1.75rem]">
+            <span className="first-letter:uppercase inline-block">{format(date, 'EEEE d', { locale: es })}</span>
+            {/* En móvil el mes va abreviado para que la fecha quepa en una línea. */}
+            <span className="text-muted-foreground/70 sm:hidden"> {format(date, 'MMM', { locale: es }).replace('.', '')}</span>
+            <span className="hidden text-muted-foreground/70 sm:inline"> de {format(date, 'MMMM', { locale: es })}</span>
+          </h2>
         </div>
         {weather && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-sm" aria-label={`Previsión: máxima ${weather.tmax} grados, mínima ${weather.tmin}`}>
-            <span className="text-base leading-none" aria-hidden="true">{weatherIcon(weather.code)}</span>
+          <span className="flex shrink-0 items-center gap-1 text-sm" aria-label={`Previsión: máxima ${weather.tmax} grados, mínima ${weather.tmin}`}>
+            <span className="text-xl leading-none" aria-hidden="true">{weatherIcon(weather.code)}</span>
             <span className="font-semibold tabular-nums">{weather.tmax}°</span>
-            <span className="hidden tabular-nums text-muted-foreground sm:inline">{weather.tmin}°</span>
+            <span className="tabular-nums text-muted-foreground">{weather.tmin}°</span>
           </span>
         )}
-        <IconButton label={collapsed ? 'Desplegar el día' : 'Plegar el día'} size="sm" aria-expanded={!collapsed} onClick={() => plan.toggleDay(day.id)}>
+        <IconButton label={collapsed ? 'Desplegar el día' : 'Plegar el día'} size="sm" variant="secondary" aria-expanded={!collapsed} onClick={() => plan.toggleDay(day.id)}>
           <ChevronDown className={cn('transition-transform duration-200', collapsed && '-rotate-90')} />
         </IconButton>
       </header>
 
       {!collapsed && (
-        <div className="mt-3 space-y-3">
+        <div className="mt-1 space-y-3">
+          <p className="text-sm text-muted-foreground">{meta}</p>
           <DayCities
             tripId={tripId} cities={cities} guides={guides} editMode={editMode}
             onChange={next => updateDayCities.mutate({ id: day.id, cities: next, tripId })}
@@ -197,7 +197,7 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
                   </button>
                 ) : <p className="py-2 text-sm text-muted-foreground">Día libre: no hay nada planeado.</p>
               ) : (
-                <>
+                <div className={TIMELINE}>
                   {morningHotel && morningKey && legs.get(morningKey)
                     && connector(morningKey, morningHotel.title, titleOf(items[0]), `Sales de ${morningHotel.title}`)}
                   {items.flatMap((it, i) => {
@@ -218,7 +218,7 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
                     const next = items[i + 1]
                     return next ? [card, connector(pairKey(it.id, next.id), titleOf(it), titleOf(next))] : [card]
                   })}
-                </>
+                </div>
               )}
             </SortableContext>
           </Droppable>

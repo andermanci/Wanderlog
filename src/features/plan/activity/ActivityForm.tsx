@@ -226,7 +226,10 @@ export function ActivityForm({
   const endDayLabel = isMove ? 'Día de llegada' : isHotel ? 'Día de salida' : 'Día en que termina'
   const depDate = days.find(d => d.id === w.day_id)?.date ?? ''
   const endDayOptions = days.filter(d => d.date > depDate || d.id === w.end_day_id)
-  const dayLabel = (d: ItineraryDay) => `${formatDate(d.date, 'EEEE d MMM')} · Día ${days.indexOf(d) + 1}`
+  const dayLabel = (d: ItineraryDay) => {
+    const date = formatDate(d.date, 'EEEE d MMM')
+    return `${date.charAt(0).toUpperCase()}${date.slice(1)} · Día ${days.indexOf(d) + 1}`
+  }
   const coverShown = displayCover(coverUrl)
   const currency = currencySymbol(trip?.default_currency ?? undefined)
 

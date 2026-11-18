@@ -8,7 +8,7 @@ import {
   CalendarRange, ChevronsDownUp, ChevronsUpDown, Eye, Layers, Lightbulb, Map as MapIcon, Pencil, Plus, Route, TrainFront,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, Confirm, Empty, Progress, Segmented, Skeleton, useIsMobile } from '@/design'
+import { Button, Confirm, Empty, Segmented, Skeleton, useIsMobile } from '@/design'
 import { cn, effectiveStatus } from '@/lib/utils'
 import { useDeleteActivity } from '@/lib/queries/itinerary'
 import { useJournalPhotos } from '@/lib/queries/journal'
@@ -102,15 +102,28 @@ function PlanInner() {
   // Al entrar: salta al día de ?day= (fecha o id), o al de hoy si el viaje está en curso.
   const scrolled = useRef(false)
   useEffect(() => {
-    if (scrolled.current || !days?.length || view !== 'dias') return
+    // Se espera a tener las actividades: sin ellas los días miden menos y el salto se queda corto.
+    if (scrolled.current || !days?.length || plan.loading || view !== 'dias') return
     const target = searchParams.get('day') || todayStr
     const day = days.find(d => d.date === target || d.id === target)
     if (!day) return
-    scrolled.current = true
-    const t = setTimeout(() => scrollToDay(day), 350)
+    // Se da por hecho DENTRO del temporizador: si los datos se refrescan antes de
+    // que salte, este efecto se repite y vuelve a programarlo en vez de perderlo.
+    const t = setTimeout(() => { scrolled.current = true; scrollToDay(day) }, 350)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- una sola vez, cuando llegan los días
-  }, [days, view])
+  }, [days, view, plan.loading])
+
+  // Con el viaje en curso, el mapa arranca enseñando el día de hoy (todo el
+  // viaje junto suele incluir el vuelo y deja la ciudad en un punto).
+  const mapSeeded = useRef(false)
+  useEffect(() => {
+    if (mapSeeded.current || !days?.length) return
+    mapSeeded.current = true
+    const today = days.find(d => d.date === todayStr)
+    if (today && mapDayId === 'all') setMapDay(today.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una sola vez
+  }, [days])
 
   // «Nota de diario» del botón «+»: abre el diario de hoy.
   useEffect(() => {
@@ -152,8 +165,7 @@ function PlanInner() {
               </Button>
             )}
           </div>
-          {elapsed > 0 && days && <Progress value={(elapsed / days.length) * 100} label="Días del viaje transcurridos" className="hidden md:block" />}
-
+          
           <Segmented<View>
             label="Vista del plan" block value={view} onChange={setView}
             options={[
@@ -166,7 +178,7 @@ function PlanInner() {
           {view === 'dias' && (days?.length ?? 0) > 0 && (
             <>
               {/* Herramientas del plan, cada una con su nombre */}
-              <div className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
+              <div className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 md:-mx-6 md:px-6">
                 {canEdit && (
                   <Segmented
                     label="Modo del plan" size="sm" value={editMode ? 'edit' : 'view'}
@@ -195,10 +207,6 @@ function PlanInner() {
                     <Route /> Ver recorrido
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={plan.toggleAllDays}>
-                  {plan.allDaysCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
-                  {plan.allDaysCollapsed ? 'Desplegar todo' : 'Plegar todo'}
-                </Button>
               </div>
 
               {/* Tira de días: salta a uno y dibuja su recorrido en el mapa */}
@@ -215,7 +223,7 @@ function PlanInner() {
                       onClick={() => { setMapDay(selected ? 'all' : d.id); scrollToDay(d) }}
                       className={cn(
                         'flex h-14 w-12 shrink-0 flex-col items-center justify-center rounded-xl border leading-none transition-colors',
-                        selected ? 'border-foreground bg-foreground text-background'
+                        selected ? 'border-primary bg-primary text-primary-foreground shadow-card'
                           : today ? 'border-primary bg-primary-soft text-accent-foreground'
                             : 'border-border bg-card hover:bg-secondary',
                       )}
@@ -225,6 +233,10 @@ function PlanInner() {
                     </button>
                   )
                 })}
+                <Button variant="ghost" size="sm" className="ml-auto shrink-0 self-center" onClick={plan.toggleAllDays}>
+                  {plan.allDaysCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+                  {plan.allDaysCollapsed ? 'Desplegar' : 'Plegar'} todo
+                </Button>
               </nav>
             </>
           )}
@@ -232,7 +244,7 @@ function PlanInner() {
 
         {/* Contenido con scroll propio */}
         {view !== 'mapa' && (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-28 pt-5 md:px-6 md:pb-10">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-28 pt-2 md:px-6 md:pb-10">
             {view === 'ideas' ? (
               <IdeasList tripId={tripId} />
             ) : plan.loading ? (
@@ -241,7 +253,7 @@ function PlanInner() {
               <Empty icon={CalendarRange} title="Preparando los días…" description="Estamos creando un día por cada fecha del viaje." />
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={plan.handleDragEnd}>
-                <div className="space-y-10">
+                <div className="space-y-8">
                   {days.map((day, i) => (
                     <DayCard
                       key={day.id} tripId={tripId} day={day} index={i} plan={plan} guides={guides}
@@ -266,7 +278,8 @@ function PlanInner() {
       {panelMode && (
         <ActivityPanel
           tripId={tripId} mode={panelMode} activityId={activityId}
-          defaultDayId={searchParams.get('day') ?? undefined} onClose={closePanel}
+          // Sin día indicado, lo nuevo va al día de hoy si el viaje está en curso.
+          defaultDayId={searchParams.get('day') ?? days?.find(d => d.date === todayStr)?.id} onClose={closePanel}
         />
       )}
       {trip && days && (

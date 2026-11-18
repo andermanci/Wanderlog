@@ -58,12 +58,14 @@ interface SectionProps {
 export function Section({ title, description, action, className, children }: SectionProps) {
   return (
     <section className={cn('space-y-3', className)}>
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="title-section">{title}</h2>
-          {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+      {/* Título y acción en la misma línea; la descripción debajo, a todo el ancho:
+          en móvil, al lado de un botón quedaba partida en una columna estrecha. */}
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <h2 className="title-section min-w-0">{title}</h2>
+          {action && <div className="shrink-0">{action}</div>}
         </div>
-        {action && <div className="shrink-0">{action}</div>}
+        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
       {children}
     </section>
