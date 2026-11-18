@@ -1,8 +1,8 @@
 import { CloudOff, Landmark, Pencil, Receipt, Trash2 } from 'lucide-react'
-import { Badge, Empty, Menu, Row, RowList } from '@/design'
+import { Empty, Menu } from '@/design'
 import type { PendingExpense } from '@/lib/queries/expenses'
 import { sumConverted } from '@/lib/queries/rates'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import type { Traveler } from '@/types/database'
 import { categoryLook } from './categories'
 
@@ -17,7 +17,10 @@ interface ExpenseListProps {
   onDelete: (expense: PendingExpense) => void
 }
 
-/** Vista «Lista»: los gastos agrupados por día, del más reciente al más antiguo. */
+/**
+ * Vista «Lista»: un libro de cuentas. Cada día es una página con su fecha fija
+ * arriba y el total a la derecha; cada gasto, un apunte en una línea.
+ */
 export function ExpenseList({ expenses, travelers, currency, rates, canEdit, onEdit, onDelete }: ExpenseListProps) {
   if (expenses.length === 0) {
     return (
@@ -42,42 +45,69 @@ export function ExpenseList({ expenses, travelers, currency, rates, canEdit, onE
         const items = byDate.get(date)!
         const { total, missing } = sumConverted(items, currency, rates)
         return (
-          <section key={date} className="space-y-2">
-            <div className="flex items-baseline justify-between gap-3 px-1">
-              <h3 className="title-card first-letter:uppercase">{formatDate(date, "EEEE d 'de' MMMM")}</h3>
+          <section key={date}>
+            {/* La fecha se queda pegada arriba mientras se recorren sus apuntes. */}
+            <header className="sticky top-0 z-10 -mx-4 flex items-end justify-between gap-3 bg-background px-4 pb-2 pt-3 md:-mx-8 md:px-8">
+              <div className="min-w-0">
+                <p className="eyebrow first-letter:uppercase">{formatDate(date, 'EEEE')}</p>
+                <h3 className="font-serif text-xl font-medium leading-tight tracking-tight">{formatDate(date, "d 'de' MMMM")}</h3>
+              </div>
               {missing.length === 0 && (
-                <span className="text-sm text-muted-foreground tabular-nums">{formatCurrency(total, currency)}</span>
+                <p className="shrink-0 text-right">
+                  <span className="eyebrow block">Total del día</span>
+                  <span className="font-serif text-xl font-medium leading-tight tracking-tight tabular-nums">{formatCurrency(total, currency)}</span>
+                </p>
               )}
-            </div>
-            <RowList>
+            </header>
+
+            <ul className="border-t-2 border-foreground/80">
               {items.map(expense => {
                 const look = categoryLook(expense.category)
+                const Icon = look.icon
                 const payer = nameOf(expense.paid_by)
                 const editable = canEdit && !expense._pending
-                return (
-                  <Row
-                    key={expense.id}
-                    icon={look.icon}
-                    tone={look.tone}
-                    title={expense.description}
-                    subtitle={(
-                      <>
-                        {expense.category}
-                        {payer && ` · Pagó ${payer}`}
-                        {expense._pending && ' · Sin subir: se enviará al recuperar la conexión'}
-                      </>
-                    )}
-                    trailing={(
-                      <>
-                        {expense._pending && <Badge tone="warning" icon={CloudOff}>Sin subir</Badge>}
-                        {expense.source === 'revolut' && <Badge tone="info" icon={Landmark}>Revolut</Badge>}
-                        <span className="text-[0.9375rem] font-semibold text-foreground tabular-nums">
-                          {formatCurrency(expense.amount, expense.currency)}
+                const entry = (
+                  <>
+                    <Icon className="size-5 shrink-0 text-tone" aria-hidden="true" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2">{expense.description}</span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+                        <span className="font-semibold text-tone">{expense.category}</span>
+                        {payer && <span>· Pagó {payer}</span>}
+                        {expense.source === 'revolut' && (
+                          <span className="inline-flex items-center gap-1">· <Landmark className="size-3" aria-hidden="true" /> Revolut</span>
+                        )}
+                      </span>
+                      {expense._pending && (
+                        <span data-tone="warning" className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-tone-soft px-2 py-0.5 text-xs font-medium text-tone">
+                          <CloudOff className="size-3.5 shrink-0" aria-hidden="true" /> Sin subir: se enviará al recuperar la conexión
                         </span>
-                      </>
+                      )}
+                    </span>
+                    <span className="shrink-0 pl-1 font-serif text-lg font-medium tracking-tight tabular-nums">
+                      {formatCurrency(expense.amount, expense.currency)}
+                    </span>
+                  </>
+                )
+                const line = '-ml-2 flex min-h-15 min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 pr-1 text-left'
+                return (
+                  <li
+                    key={expense.id}
+                    data-tone={look.tone}
+                    className={cn('flex items-center gap-1 border-b border-border', expense._pending && 'border-dashed')}
+                  >
+                    {editable ? (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(expense)}
+                        className={cn(line, 'rounded-lg transition-colors duration-150 hover:bg-secondary/60')}
+                      >
+                        {entry}
+                      </button>
+                    ) : (
+                      <div className={line}>{entry}</div>
                     )}
-                    onClick={editable ? () => onEdit(expense) : undefined}
-                    after={canEdit && (
+                    {canEdit && (
                       <Menu
                         label={`Opciones de ${expense.description}`}
                         items={[
@@ -86,10 +116,10 @@ export function ExpenseList({ expenses, travelers, currency, rates, canEdit, onE
                         ]}
                       />
                     )}
-                  />
+                  </li>
                 )
               })}
-            </RowList>
+            </ul>
           </section>
         )
       })}

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { BookOpen, CalendarPlus, ExternalLink, Lightbulb, Link2, Pencil, Search, SearchX, Star, Trash2 } from 'lucide-react'
+import { BookOpen, CalendarPlus, ExternalLink, Lightbulb, Link2, Pencil, Search, SearchX, Star, Trash2, MapPinned } from 'lucide-react'
 import {
-  Badge, Button, Chip, Confirm, Empty, Input, Menu, PlaceIcon, Row, RowList, Section, Skeleton, useIsMobile,
+  Badge, Button, Chip, Confirm, Empty, Input, Menu, PlaceIcon, Section, Skeleton, useIsMobile,
 } from '@/design'
 import { useDeleteFavoritePlace, useFavoritePlaces } from '@/lib/queries/places'
 import { useDestinationGuides } from '@/lib/queries/guide'
@@ -38,7 +38,7 @@ export function IdeasList({ tripId }: { tripId: string }) {
   const [adding, setAdding] = useState<PendingPlace | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [pendingAddId, setPendingAddId] = useState<string | null>(null)
-  const rowRefs = useRef(new Map<string, HTMLDivElement>())
+  const rowRefs = useRef(new Map<string, HTMLElement>())
 
   // Contrato de URL: `?place=<id>` lleva hasta ese lugar y lo resalta;
   // `?place=<id>&anadir=1` abre además «Añadir al plan». Se apunta al verlo
@@ -200,52 +200,60 @@ export function IdeasList({ tripId }: { tripId: string }) {
           title={collection === NONE ? 'Sin lista' : collection}
           action={<Badge>{items.length}</Badge>}
         >
-          <RowList>
+          <div className="grid gap-3">
             {items.map(p => {
               const guideName = p.guide_id ? guideNameById.get(p.guide_id) : undefined
               return (
-                <div
+                // Una idea es una chincheta: el color y el icono dicen qué tipo de sitio es.
+                <article
                   key={p.id}
+                  data-tone={p.category}
                   ref={el => { if (el) rowRefs.current.set(p.id, el); else rowRefs.current.delete(p.id) }}
-                  className={cn('transition-colors duration-500', highlightId === p.id && 'bg-primary-soft')}
+                  className={cn(
+                    'flex overflow-hidden rounded-2xl border bg-card shadow-card transition-[background-color,border-color] duration-500',
+                    highlightId === p.id ? 'border-tone-line bg-primary-soft' : 'border-border',
+                  )}
                 >
-                  <Row
-                    onClick={() => showOnMap(p)}
-                    leading={
-                      <span data-tone={p.category} className="grid size-10 shrink-0 place-items-center rounded-full bg-tone-soft text-tone">
-                        <PlaceIcon category={p.category} className="size-5" />
-                      </span>
-                    }
-                    title={p.name}
-                    subtitle={p.notes || p.address || PLACE_CATEGORY_LABELS[p.category]}
-                    trailing={p.rating != null && (
-                      <span className="hidden items-center gap-1 tabular-nums @lg:flex" aria-label={`Valoración ${p.rating} de 5`}>
-                        <Star className="size-3.5" aria-hidden="true" /> {p.rating}
-                      </span>
-                    )}
-                    after={
-                      <>
-                        {canEdit && (
-                          <Button variant="soft" size="sm" aria-label={`Añadir ${p.name} al plan`} onClick={() => setAdding(pendingFromFavorite(p))}>
-                            <CalendarPlus /> Añadir<span className="hidden @lg:inline"> al plan</span>
-                          </Button>
-                        )}
-                        <Menu
-                          label={`Más opciones de ${p.name}`}
-                          items={[
-                            canEdit && { label: 'Editar', hint: 'Lista, nota y enlace', icon: Pencil, onSelect: () => setEditing(p) },
-                            !!p.link && { label: 'Abrir enlace', icon: ExternalLink, onSelect: () => openLink(p.link!) },
-                            !!guideName && { label: `Ver la guía de ${guideName}`, icon: BookOpen, onSelect: () => navigate(`/trips/${tripId}/guide`) },
-                            canEdit && { label: 'Eliminar', icon: Trash2, danger: true, separated: true, onSelect: () => setDeleteTarget(p) },
-                          ]}
-                        />
-                      </>
-                    }
-                  />
-                </div>
+                  <span aria-hidden="true" className="w-1.5 shrink-0 bg-tone" />
+                  <div className="min-w-0 flex-1 py-3 pl-3.5 pr-1.5">
+                    <div className="flex items-start gap-1">
+                      <button type="button" onClick={() => showOnMap(p)} className="min-w-0 flex-1 text-left" title="Ver en el mapa">
+                        <span className="eyebrow flex items-center gap-1.5 text-tone">
+                          <PlaceIcon category={p.category} className="size-3.5" /> {PLACE_CATEGORY_LABELS[p.category] ?? 'Lugar'}
+                          {p.rating != null && (
+                            <span className="ml-1 flex items-center gap-0.5 text-muted-foreground" aria-label={`Valoración ${p.rating} de 5`}>
+                              <Star className="size-3" aria-hidden="true" /> {p.rating}
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-0.5 block font-serif text-lg font-medium leading-snug tracking-tight">{p.name}</span>
+                        {p.address && <span className="mt-0.5 block truncate text-sm text-muted-foreground">{p.address}</span>}
+                      </button>
+                      <Menu
+                        label={`Más opciones de ${p.name}`}
+                        items={[
+                          canEdit && { label: 'Editar', hint: 'Lista, nota y enlace', icon: Pencil, onSelect: () => setEditing(p) },
+                          !!p.link && { label: 'Abrir enlace', icon: ExternalLink, onSelect: () => openLink(p.link!) },
+                          !!guideName && { label: `Ver la guía de ${guideName}`, icon: BookOpen, onSelect: () => navigate(`/trips/${tripId}/guide`) },
+                          canEdit && { label: 'Eliminar', icon: Trash2, danger: true, separated: true, onSelect: () => setDeleteTarget(p) },
+                        ]}
+                      />
+                    </div>
+                    {/* La nota, como apuntada a mano en un pósit. */}
+                    {p.notes && <p className="mt-2 rounded-lg bg-sunken px-3 py-2 text-sm italic">«{p.notes}»</p>}
+                    <div className="mt-2.5 flex flex-wrap gap-2 pr-2">
+                      {canEdit && (
+                        <Button variant="soft" size="sm" onClick={() => setAdding(pendingFromFavorite(p))}>
+                          <CalendarPlus /> Añadir al plan
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => showOnMap(p)}><MapPinned /> Ver en el mapa</Button>
+                    </div>
+                  </div>
+                </article>
               )
             })}
-          </RowList>
+          </div>
         </Section>
       ))}
 

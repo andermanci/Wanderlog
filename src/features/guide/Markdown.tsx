@@ -6,17 +6,17 @@ import remarkGfm from 'remark-gfm'
 // texto se importa de Wikivoyage/Wikipedia y se edita en Markdown.
 export function Markdown({ content }: { content: string }) {
   return (
-    <div className="text-[0.9375rem] leading-relaxed text-foreground/90">
+    <div className="text-base leading-relaxed text-foreground/90">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h4 className="title-card mt-5 mb-1 first:mt-0">{children}</h4>,
-          h2: ({ children }) => <h4 className="title-card mt-5 mb-1 first:mt-0">{children}</h4>,
-          h3: ({ children }) => <h5 className="mt-4 mb-1 text-[0.9375rem] font-semibold text-foreground first:mt-0">{children}</h5>,
-          h4: ({ children }) => <h5 className="mt-4 mb-1 text-[0.9375rem] font-semibold text-foreground first:mt-0">{children}</h5>,
-          p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
-          ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5 marker:text-primary">{children}</ul>,
-          ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5 marker:text-primary">{children}</ol>,
+          h1: ({ children }) => <h4 className="mt-6 mb-1.5 font-serif text-xl font-medium tracking-tight text-foreground first:mt-0">{children}</h4>,
+          h2: ({ children }) => <h4 className="mt-6 mb-1.5 font-serif text-xl font-medium tracking-tight text-foreground first:mt-0">{children}</h4>,
+          h3: ({ children }) => <h5 className="mt-5 mb-1 text-base font-semibold text-foreground first:mt-0">{children}</h5>,
+          h4: ({ children }) => <h5 className="mt-5 mb-1 text-base font-semibold text-foreground first:mt-0">{children}</h5>,
+          p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
+          ul: ({ children }) => <ul className="my-3 list-disc space-y-1.5 pl-5 marker:text-primary">{children}</ul>,
+          ol: ({ children }) => <ol className="my-3 list-decimal space-y-1.5 pl-5 marker:text-primary">{children}</ol>,
           li: ({ children }) => <li className="pl-0.5">{children}</li>,
           a: ({ children, href }) => (
             <a href={href} target="_blank" rel="noreferrer" className="text-accent-foreground underline underline-offset-2 hover:opacity-80">{children}</a>

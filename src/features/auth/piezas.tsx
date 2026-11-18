@@ -3,30 +3,55 @@ import { ArrowLeft, LogIn, Mail, MailCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, Field, Input } from '@/design'
 import { OTP_MIN_LENGTH, OTP_MAX_LENGTH, signInWithGoogle, type useEmailLink } from '@/hooks/useAuth'
+import { FALLBACK_COVERS } from '@/lib/coverFallbacks'
 import { cn } from '@/lib/utils'
 
 type EmailLink = ReturnType<typeof useEmailLink>
 
-/** La marca, igual en todas las pantallas de acceso. */
-export function Marca({ className }: { className?: string }) {
+/** La marca, igual en todas las pantallas de acceso. `lisa`: de un solo color (sobre una foto). */
+export function Marca({ className, lisa }: { className?: string; lisa?: boolean }) {
   return (
     <span className={cn('font-serif font-medium tracking-tight', className)}>
-      Wander<span className="text-primary">log</span>
+      Wander<span className={lisa ? 'opacity-75' : 'text-primary'}>log</span>
     </span>
   )
 }
 
+interface PantallaAccesoProps {
+  /** La foto a sangre. Por defecto, una de las portadas empaquetadas. */
+  foto?: string
+  /** Lo que se lee encima de la foto, abajo: la frase o el viaje al que te invitan. */
+  titular?: ReactNode
+  /** La foto ocupa algo más en el móvil (cuando el titular trae varias líneas). */
+  alta?: boolean
+  children: ReactNode
+}
+
 /**
- * Pantalla completa de las rutas sin armazón (acceso, invitación): fondo cálido
- * con dos manchas suaves y el contenido centrado en una columna estrecha.
+ * Pantalla completa de las rutas sin armazón (acceso, invitación).
+ * Escritorio: dos mitades, la foto a la izquierda y el acceso a la derecha.
+ * Móvil: la foto arriba y el acceso en una hoja redondeada que monta sobre ella.
  */
-export function PantallaAcceso({ children }: { children: ReactNode }) {
+export function PantallaAcceso({ foto = FALLBACK_COVERS[0], titular, alta, children }: PantallaAccesoProps) {
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-background pt-safe">
-      <div aria-hidden="true" className="pointer-events-none absolute -left-40 -top-40 size-[32rem] rounded-full bg-primary/10 blur-3xl" />
-      <div aria-hidden="true" className="pointer-events-none absolute -bottom-48 -right-40 size-[34rem] rounded-full bg-chart-4/15 blur-3xl" />
-      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-10 pb-safe">
-        {children}
+    <div className="min-h-dvh bg-background md:grid md:grid-cols-2">
+      <div className={cn(
+        'relative overflow-hidden bg-secondary text-white md:sticky md:top-0 md:h-dvh',
+        alta ? 'h-[44dvh] min-h-72' : 'h-[36dvh] min-h-60',
+      )}>
+        <img src={foto} alt="" className="absolute inset-0 size-full object-cover" />
+        <div className="photo-scrim absolute inset-0" />
+        <div className="absolute inset-0 pt-safe">
+          <div className="flex h-full flex-col justify-between px-5 pb-12 pt-5 md:p-10 lg:p-14">
+            <p><Marca lisa className="text-2xl md:text-3xl" /></p>
+            {titular && <div className="min-w-0 animate-rise">{titular}</div>}
+          </div>
+        </div>
+      </div>
+      <main className="relative z-10 -mt-7 rounded-t-3xl bg-background px-5 pb-10 pt-8 md:mt-0 md:flex md:min-h-dvh md:items-center md:rounded-none md:px-10 md:py-12">
+        <div className="mx-auto w-full max-w-md pb-safe animate-rise">
+          {children}
+        </div>
       </main>
     </div>
   )
@@ -100,7 +125,7 @@ export function Acceso({ link, email, onEmailChange, onBeforeGoogle, notaEnviado
             placeholder="tu@correo.com"
           />
         </Field>
-        <Button type="submit" variant="primary" size="lg" block loading={sending} disabled={cooldown > 0}>
+        <Button type="submit" variant="primary" size="lg" block className="h-14" loading={sending} disabled={cooldown > 0}>
           {!sending && <Mail aria-hidden="true" />}
           {cooldown > 0 ? `Espera ${cooldown} s para pedir otro` : 'Enviarme el correo'}
         </Button>
@@ -114,15 +139,15 @@ export function Acceso({ link, email, onEmailChange, onBeforeGoogle, notaEnviado
 
   return (
     <div className="space-y-3">
-      <Button variant="outline" size="lg" block onClick={entrarConGoogle}>
+      <Button variant="outline" size="lg" block className="h-14" onClick={entrarConGoogle}>
         <LogoGoogle />
         Continuar con Google
       </Button>
-      <Button variant="secondary" size="lg" block onClick={() => setConCorreo(true)}>
+      <Button variant="secondary" size="lg" block className="h-14" onClick={() => setConCorreo(true)}>
         <Mail aria-hidden="true" />
         Entrar con mi correo
       </Button>
-      {pie && <p className="pt-2 text-center text-sm text-muted-foreground">{pie}</p>}
+      {pie && <p className="pt-2 text-sm leading-relaxed text-muted-foreground">{pie}</p>}
     </div>
   )
 }
@@ -137,16 +162,14 @@ function CorreoEnviado({ link, email, nota }: { link: EmailLink; email: string; 
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3.5">
-        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary-soft text-accent-foreground">
-          <MailCheck className="size-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <h2 className="title-section">Te hemos enviado un correo</h2>
-          <p className="mt-1 text-[0.9375rem] leading-relaxed text-muted-foreground">
-            Está en <strong className="break-all font-semibold text-foreground">{email}</strong>. Pulsa el enlace que trae. {nota}
-          </p>
-        </div>
+      <div>
+        <p className="eyebrow flex items-center gap-1.5 text-accent-foreground">
+          <MailCheck className="size-4" aria-hidden="true" /> Correo enviado
+        </p>
+        <h2 className="title-page mt-1.5">Revisa tu correo</h2>
+        <p className="mt-2 text-[0.9375rem] leading-relaxed text-muted-foreground">
+          Te hemos escrito a <strong className="break-all font-semibold text-foreground">{email}</strong>. Pulsa el enlace que trae. {nota}
+        </p>
       </div>
 
       <form
@@ -167,7 +190,7 @@ function CorreoEnviado({ link, email, nota }: { link: EmailLink; email: string; 
             className="h-13 text-center font-mono text-xl tracking-[0.3em]"
           />
         </Field>
-        <Button type="submit" variant="primary" block loading={verifying} disabled={!completo}>
+        <Button type="submit" variant="primary" size="lg" block loading={verifying} disabled={!completo}>
           {!verifying && <LogIn aria-hidden="true" />}
           Entrar con el código
         </Button>

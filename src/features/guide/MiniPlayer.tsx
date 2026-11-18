@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Headphones, Pause, Play, X } from 'lucide-react'
+import { Pause, Play, X } from 'lucide-react'
 import { IconButton } from '@/design'
 import { mediaUrl } from '@/lib/mediaUrl'
 import { PlaybackHost } from './PlaybackHost'
@@ -59,26 +59,32 @@ function MiniPlayerBar() {
         'md:left-auto md:right-6 md:bottom-6 md:w-96',
       ].join(' ')}
     >
+      {/* Avance de la parada: un hilo en el borde de arriba, sin controles (para eso está el reproductor). */}
+      <div aria-hidden="true" className="h-0.5 bg-secondary">
+        <div className="h-full bg-primary transition-[width] duration-500 ease-linear" style={{ width: `${percent}%` }} />
+      </div>
       <div className="flex h-14 items-center gap-1 pr-1.5">
         <Link
           to={session.route}
           aria-label={`Volver a la audioguía: ${stopTitle ?? session.title}`}
           className="flex h-full min-w-0 flex-1 items-center gap-3 pl-2 pr-1 transition-colors duration-150 hover:bg-secondary/70"
         >
-          <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary-soft text-accent-foreground">
+          <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-primary-soft font-serif text-lg font-medium tabular-nums text-accent-foreground">
             {imagen
               ? <img src={imagen} alt="" className="size-full object-cover" />
-              : <Headphones className="size-5" aria-hidden="true" />}
+              : stopNumber}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-foreground">{stopTitle ?? session.title}</span>
-            <span className="block truncate text-xs text-muted-foreground">
+            <span className="block truncate font-serif text-[0.9375rem] font-medium leading-tight tracking-tight text-foreground">
+              {stopTitle ?? session.title}
+            </span>
+            <span className="mt-0.5 block truncate text-xs tabular-nums text-muted-foreground">
               Parada {stopNumber} de {session.stops.length} · {session.title}
             </span>
           </span>
         </Link>
         <IconButton label={isPlaying ? 'Pausar' : 'Reproducir'} variant="primary" onClick={togglePlay}>
-          {isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
+          {isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" className="ml-0.5" />}
         </IconButton>
         {/* Cerrar solo en pausa: mientras suena, ese hueco es para el título. */}
         {!isPlaying && (
@@ -86,10 +92,6 @@ function MiniPlayerBar() {
             <X />
           </IconButton>
         )}
-      </div>
-      {/* Avance de la parada: un hilo, sin controles (para eso está el reproductor). */}
-      <div aria-hidden="true" className="h-0.5 bg-secondary">
-        <div className="h-full bg-primary transition-[width] duration-500 ease-linear" style={{ width: `${percent}%` }} />
       </div>
     </aside>
   )

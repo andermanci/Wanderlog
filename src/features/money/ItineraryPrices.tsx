@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
-import { ActivityIcon, Button, Row, RowList, Section } from '@/design'
-import { formatCurrency } from '@/lib/utils'
+import { ChevronDown, Plus, Tag } from 'lucide-react'
+import { ActivityIcon, Button } from '@/design'
+import { cn, formatCurrency } from '@/lib/utils'
 import type { Activity } from '@/types/database'
 
 interface ItineraryPricesProps {
@@ -13,48 +13,46 @@ interface ItineraryPricesProps {
   onAddAll: () => void
 }
 
-const PREVIEW = 3
-
-/** «Precios del itinerario»: actividades con precio que aún no se han apuntado como gasto. */
+/**
+ * «Precios del plan»: una franja discreta que avisa de las actividades con precio
+ * que aún no se han apuntado como gasto. Se despliega para convertirlas una a una.
+ */
 export function ItineraryPrices({ activities, currency, saving, onAdd, onAddAll }: ItineraryPricesProps) {
-  const [showAll, setShowAll] = useState(false)
-  const visible = showAll ? activities : activities.slice(0, PREVIEW)
-  const hidden = activities.length - visible.length
+  const [open, setOpen] = useState(false)
+  const one = activities.length === 1
 
   return (
-    <Section
-      title="Precios del plan"
-      description={activities.length === 1
-        ? 'Hay 1 actividad del plan con precio que aún no es un gasto.'
-        : `Hay ${activities.length} actividades del plan con precio que aún no son gastos.`}
-      action={activities.length > 1 && (
-        <Button variant="outline" size="sm" disabled={saving} onClick={onAddAll}>Añadir todas</Button>
-      )}
-    >
-      <RowList>
-        {visible.map(a => (
-          <Row
-            key={a.id}
-            leading={(
-              <span data-tone={a.type} className="grid size-10 shrink-0 place-items-center rounded-full bg-tone-soft text-tone">
-                <ActivityIcon type={a.type} className="size-5" />
-              </span>
-            )}
-            title={a.title}
-            subtitle={<span className="tabular-nums">{formatCurrency(a.price ?? 0, currency)}</span>}
-            after={(
+    <section aria-label="Precios del plan" className="rounded-2xl bg-sunken">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2 pl-4 pr-2">
+        <Tag className="size-4.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <p className="min-w-0 flex-1 basis-48 text-sm">
+          {one
+            ? <>Hay <strong className="font-semibold">1 actividad</strong> del plan con precio que aún no es un gasto.</>
+            : <>Hay <strong className="font-semibold">{activities.length} actividades</strong> del plan con precio que aún no son gastos.</>}
+        </p>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(v => !v)}>
+            {open ? 'Ocultar' : 'Ver cuáles'}
+            <ChevronDown className={cn('transition-transform duration-200', open && 'rotate-180')} aria-hidden="true" />
+          </Button>
+          {!one && <Button variant="outline" size="sm" disabled={saving} onClick={onAddAll}>Añadir todas</Button>}
+        </div>
+      </div>
+
+      {open && (
+        <ul className="border-t border-border px-4">
+          {activities.map(a => (
+            <li key={a.id} data-tone={a.type} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border py-2 last:border-b-0">
+              <ActivityIcon type={a.type} className="size-4.5 shrink-0 text-tone" />
+              <span className="min-w-0 flex-1 basis-40 truncate text-[0.9375rem]">{a.title}</span>
+              <span className="text-sm font-semibold tabular-nums">{formatCurrency(a.price ?? 0, currency)}</span>
               <Button variant="soft" size="sm" disabled={saving} onClick={() => onAdd(a)} aria-label={`Convertir ${a.title} en gasto`}>
                 <Plus aria-hidden="true" /> Convertir en gasto
               </Button>
-            )}
-          />
-        ))}
-      </RowList>
-      {(hidden > 0 || showAll) && activities.length > PREVIEW && (
-        <Button variant="ghost" size="sm" onClick={() => setShowAll(v => !v)}>
-          {showAll ? 'Ver menos' : `Ver ${hidden} más`}
-        </Button>
+            </li>
+          ))}
+        </ul>
       )}
-    </Section>
+    </section>
   )
 }

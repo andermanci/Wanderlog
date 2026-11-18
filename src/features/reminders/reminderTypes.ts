@@ -1,4 +1,4 @@
-import { isPast, parseISO, format } from 'date-fns'
+import { isPast, isThisYear, isToday, isTomorrow, isYesterday, parseISO, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Bell, CalendarClock, FileClock, Plane, TicketCheck, type LucideIcon } from 'lucide-react'
 import type { Tone } from '@/design'
@@ -17,6 +17,16 @@ export const REMINDER_TYPES: Record<string, { label: string; icon: LucideIcon; t
 export const reminderLook = (type: string) => REMINDER_TYPES[type] ?? REMINDER_TYPES.custom
 
 export const formatWhen = (iso: string) => format(parseISO(iso), "d 'de' MMMM 'a las' HH:mm", { locale: es })
+
+/** El cuándo partido en dos, para la línea de tiempo: el día en claro («Hoy», «Mañana», «19 nov») y la hora. */
+export function whenParts(iso: string): { day: string; time: string } {
+  const date = parseISO(iso)
+  const day = isToday(date) ? 'Hoy'
+    : isTomorrow(date) ? 'Mañana'
+      : isYesterday(date) ? 'Ayer'
+        : format(date, isThisYear(date) ? 'd MMM' : 'd MMM yy', { locale: es }).replace('.', '')
+  return { day, time: format(date, 'HH:mm') }
+}
 
 export interface ReminderSuggestion {
   title: string

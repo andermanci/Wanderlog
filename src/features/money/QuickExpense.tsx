@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
-import { Button, Card, Chip, Input } from '@/design'
+import { Button, Chip } from '@/design'
 import { EXPENSE_CATEGORIES } from '@/lib/utils'
+import { categoryLook } from './categories'
 
 interface QuickExpenseProps {
   /** Divisa en la que se apunta (la del viaje). */
@@ -10,7 +11,13 @@ interface QuickExpenseProps {
   onAdd: (values: { amount: number; description: string; category: string }) => void
 }
 
-/** Apuntar un gasto en dos toques: importe y concepto. Fecha de hoy, divisa del viaje. */
+// Los campos van «desnudos» dentro de la barra: el borde y el foco los pinta la barra entera.
+const bare = 'min-w-0 bg-transparent outline-none placeholder:text-muted-foreground/60'
+
+/**
+ * Apuntar un gasto en dos toques, como en una calculadora: el importe en grande,
+ * en qué fue y su categoría. Fecha de hoy, divisa del viaje.
+ */
 export function QuickExpense({ currency, saving, onAdd }: QuickExpenseProps) {
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
@@ -26,38 +33,41 @@ export function QuickExpense({ currency, saving, onAdd }: QuickExpenseProps) {
   }
 
   return (
-    <Card>
-      <form onSubmit={submit} className="space-y-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="title-card">Añadir gasto</h2>
-          <p className="text-sm text-muted-foreground">Hoy, en {currency}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Input
+    <form
+      onSubmit={submit}
+      aria-label="Añadir un gasto de hoy"
+      data-tone={categoryLook(category).tone}
+      className="overflow-hidden rounded-2xl border border-border-strong bg-card shadow-card transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5 pl-4 pr-2.5">
+        <label className="flex min-w-0 items-baseline gap-1.5">
+          <input
             inputMode="decimal"
             placeholder="0,00"
             aria-label={`Importe en ${currency}`}
             value={amount}
             onChange={e => setAmount(e.target.value)}
-            className="w-28 text-base font-semibold tabular-nums"
+            className={`${bare} h-12 w-28 font-serif text-3xl font-medium tracking-tight tabular-nums`}
           />
-          <Input
-            placeholder="¿En qué?"
-            aria-label="Concepto"
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            className="min-w-40 flex-1"
-          />
-          <Button type="submit" variant="soft" loading={saving} disabled={!amount.trim()} className="w-full sm:w-auto">
-            {!saving && <Plus aria-hidden="true" />} Añadir
-          </Button>
-        </div>
-        <div role="group" aria-label="Categoría" className="-mx-5 flex gap-2 overflow-x-auto px-5 no-scrollbar">
-          {EXPENSE_CATEGORIES.map(cat => (
-            <Chip key={cat} selected={category === cat} onClick={() => setCategory(cat)}>{cat}</Chip>
-          ))}
-        </div>
-      </form>
-    </Card>
+          <span className="eyebrow">{currency}</span>
+        </label>
+        <span aria-hidden="true" className="hidden h-8 w-px bg-border sm:block" />
+        <input
+          placeholder="¿En qué? (hoy)"
+          aria-label="Concepto"
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          className={`${bare} h-12 flex-1 basis-32 text-base`}
+        />
+        <Button type="submit" variant="soft" loading={saving} disabled={!amount.trim()}>
+          {!saving && <Plus aria-hidden="true" />} Añadir
+        </Button>
+      </div>
+      <div role="group" aria-label="Categoría" className="no-scrollbar flex gap-2 overflow-x-auto border-t border-border bg-sunken px-3 py-2.5">
+        {EXPENSE_CATEGORIES.map(cat => (
+          <Chip key={cat} icon={categoryLook(cat).icon} selected={category === cat} onClick={() => setCategory(cat)}>{cat}</Chip>
+        ))}
+      </div>
+    </form>
   )
 }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronDown, Luggage, Sparkles } from 'lucide-react'
-import { Button, Card, Empty, Menu, Page, Progress, Skeleton, Stack } from '@/design'
+import { Button, Empty, Menu, Page, Skeleton, Stack } from '@/design'
 import { dedupeAgainst } from '@/lib/packing/suggest'
 import {
   useBulkCreatePackingItems, useCreatePackingItem, useDeletePackingItem, usePackingItems, useTogglePackingItem,
@@ -12,6 +12,7 @@ import { useTrip } from '@/lib/queries/trips'
 import type { PackingItem } from '@/types/database'
 import { PackingAdd } from './PackingAdd'
 import { PackingCategory } from './PackingCategory'
+import { PackingRing } from './PackingRing'
 import { SuggestPanel } from './SuggestPanel'
 import { PACKING_TEMPLATES, type PackingTemplate } from './templates'
 
@@ -34,7 +35,6 @@ export function PackingPage() {
 
   const total = items.length
   const done = items.filter(i => i.is_checked).length
-  const pct = total > 0 ? (done / total) * 100 : 0
   const allDone = total > 0 && done === total
 
   function addItem(name: string, category: string) {
@@ -81,22 +81,34 @@ export function PackingPage() {
     >
       <Stack>
         {total > 0 && (
-          <Card>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <p className="title-section tabular-nums">{done} de {total} en la maleta</p>
-              <p data-tone={allDone ? 'success' : 'neutral'} className="text-sm font-medium text-tone">
-                {allDone ? 'Todo listo' : `${total - done === 1 ? 'Falta 1 cosa' : `Faltan ${total - done} cosas`}`}
+          <section aria-label="Cómo va la maleta" className="flex items-center gap-5 md:gap-8">
+            <PackingRing done={done} total={total} tone={allDone ? 'success' : 'primary'} />
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow">En la maleta</p>
+              <p data-tone={allDone ? 'success' : undefined} className={allDone ? 'title-page text-tone' : 'title-page'}>
+                {allDone ? 'Todo listo' : total - done === 1 ? 'Falta 1 cosa' : `Faltan ${total - done} cosas`}
               </p>
+              {/* Cómo va cada categoría, de un vistazo. */}
+              <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                {categories.map(cat => {
+                  const list = grouped.get(cat)!
+                  const ready = list.filter(i => i.is_checked).length
+                  return (
+                    <li key={cat} className={ready === list.length ? 'text-success' : 'text-muted-foreground'}>
+                      {cat} <span className="font-medium tabular-nums">{ready}/{list.length}</span>
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
-            <Progress value={pct} tone={allDone ? 'success' : 'primary'} label="Equipaje preparado" className="mt-3 h-2.5" />
-          </Card>
+          </section>
         )}
 
         {canEdit && <PackingAdd categories={categories} saving={createItem.isPending} onAdd={addItem} />}
 
         {isLoading ? (
           <div className="space-y-3">
-            {[0, 1, 2].map(i => <Skeleton key={i} className="h-32 rounded-2xl" />)}
+            {[0, 1, 2].map(i => <Skeleton key={i} className="h-14 rounded-md" />)}
           </div>
         ) : total === 0 ? (
           <Empty
@@ -109,7 +121,7 @@ export function PackingPage() {
             {canEdit && suggestButton('soft')}
           </Empty>
         ) : (
-          <div className="space-y-3">
+          <div className="gap-x-12 md:columns-2 [&>*]:mb-8">
             {categories.map(cat => (
               <PackingCategory
                 key={cat}

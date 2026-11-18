@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { format } from 'date-fns'
+import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
   AlertTriangle, Bell, BookHeart, CalendarDays, CalendarRange, CheckCircle2, Circle, Clock, Heart, Luggage,
@@ -18,7 +18,7 @@ import { sumConverted, useExchangeRates } from '@/lib/queries/rates'
 import { canEditRole, canShareRole, useTripRole } from '@/lib/queries/sharing'
 import { useAuthStore } from '@/store/authStore'
 import {
-  cn, countdownLabel, effectiveStatus, formatCurrency, formatDate, PERSONAL_DOC_CATEGORIES, STATUS_LABELS, sumByCurrency,
+  cn, effectiveStatus, formatCurrency, formatDate, PERSONAL_DOC_CATEGORIES, STATUS_LABELS, sumByCurrency,
 } from '@/lib/utils'
 import { fallbackCover } from '@/lib/coverFallbacks'
 import { useUiStore } from '@/shell/uiStore'
@@ -71,6 +71,9 @@ export function TripHome() {
   const isOwner = trip.user_id === user?.id
   const status = effectiveStatus(trip)
   const phase: 'pre' | 'now' | 'past' = status === 'in_progress' ? 'now' : status === 'completed' ? 'past' : 'pre'
+
+  // Días naturales que faltan (mañana = 1), no periodos de 24 horas.
+  const daysLeft = Math.max(0, differenceInCalendarDays(parseISO(trip.start_date), new Date()))
 
   // Lo siguiente que harás (de hoy en adelante).
   const dayDate = new Map((days ?? []).map(d => [d.id, d.date]))
@@ -140,7 +143,6 @@ export function TripHome() {
             <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.9375rem] text-white/90">
               <span className="flex items-center gap-1.5"><MapPin className="size-4" aria-hidden="true" />{trip.destination}</span>
               <span className="flex items-center gap-1.5"><CalendarDays className="size-4" aria-hidden="true" />{dateRange(trip.start_date, trip.end_date, formatDate)}</span>
-              {phase === 'pre' && <span className="font-semibold">{countdownLabel(trip.start_date)}</span>}
             </p>
           </div>
         </div>
@@ -163,6 +165,17 @@ export function TripHome() {
 
             {phase === 'pre' && (
               <>
+                {/* La cuenta atrás, protagonista mientras el viaje no ha empezado. */}
+                <div className="flex items-end gap-4 border-b border-border pb-5">
+                  <p className="font-serif text-7xl font-medium leading-[0.85] tracking-tight tabular-nums text-primary md:text-8xl">
+                    {daysLeft}
+                  </p>
+                  <p className="pb-1">
+                    <span className="eyebrow block">Cuenta atrás</span>
+                    <span className="title-section block">{daysLeft === 1 ? 'día para salir' : 'días para salir'}</span>
+                    <span className="block text-sm text-muted-foreground first-letter:uppercase">Sales el {formatDate(trip.start_date, "EEEE d 'de' MMMM")}</span>
+                  </p>
+                </div>
                 {next ? (
                   <Section title="Lo primero que harás">
                     <RowList>
@@ -249,9 +262,20 @@ export function TripHome() {
             )}
 
             <Section title="Más del viaje">
-              <RowList>
-                {extras.map(e => <Row key={e.label} to={e.to} icon={e.icon} tone={e.tone} title={e.label} subtitle={e.value} chevron />)}
-              </RowList>
+              <div className="grid grid-cols-2 gap-3">
+                {extras.map(e => (
+                  <Link
+                    key={e.label} to={e.to} data-tone={e.tone}
+                    className="flex min-h-24 flex-col justify-between rounded-2xl border border-border bg-card p-3.5 shadow-card transition-[box-shadow,border-color,transform] duration-200 last:odd:col-span-2 hover:-translate-y-0.5 hover:border-tone-line hover:shadow-raised"
+                  >
+                    <e.icon className="size-6 text-tone" aria-hidden="true" />
+                    <span className="mt-3 block">
+                      <span className="block font-serif text-lg font-medium leading-tight">{e.label}</span>
+                      <span className="block text-sm text-muted-foreground">{e.value}</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
             </Section>
 
             <OfflineCard tripId={tripId} />

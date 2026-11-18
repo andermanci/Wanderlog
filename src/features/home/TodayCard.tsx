@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { BedDouble, Check, CloudRain, Coins, Navigation, Plus, Receipt } from 'lucide-react'
-import { ActivityIcon, Button, Card, Empty, Notice, Panel, Progress } from '@/design'
+import { ActivityIcon, Button, Empty, Notice, Panel, Progress } from '@/design'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useDocuments } from '@/lib/queries/documents'
@@ -21,6 +21,7 @@ import { FlightStatusCard } from '@/features/common/FlightStatusCard'
 import { TodayAudioguideRow } from '@/features/guide/TodayAudioguideRow'
 import { TodayTickets } from '@/features/wallet/TodayTickets'
 import { CurrencyConverter } from '@/features/money/Currency'
+import { TIMELINE, TIMELINE_GRID } from '@/features/plan/timeline'
 import { DestinationFacts } from './DestinationFacts'
 
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : null)
@@ -95,13 +96,14 @@ export function TodayCard({ trip, activities, days }: {
     : null
 
   if (!todayDay) return null
+  const dayNumber = (days ?? []).findIndex(d => d.id === todayDay.id) + 1
 
   return (
-    <Card pad="lg" className="space-y-5 border-primary/25 bg-primary-soft/40">
-      <header className="flex items-start justify-between gap-3">
+    <section aria-label="Hoy" className="space-y-6">
+      <header className="flex items-end justify-between gap-3 border-b border-border pb-4">
         <div className="min-w-0">
-          <p className="eyebrow text-accent-foreground">Hoy</p>
-          <h2 className="title-page first-letter:uppercase">{format(parseISO(todayStr), "EEEE d 'de' MMMM", { locale: es })}</h2>
+          <p className="eyebrow text-accent-foreground">Hoy{dayNumber ? ` · día ${dayNumber} de ${days?.length}` : ''}</p>
+          <h2 className="title-hero first-letter:uppercase">{format(parseISO(todayStr), "EEEE d", { locale: es })}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
             {todayWhere && (todayGuide
               ? <Link to={`/trips/${trip.id}/guide`} className="font-medium text-accent-foreground underline-offset-4 hover:underline">{todayWhere}</Link>
@@ -110,9 +112,12 @@ export function TodayCard({ trip, activities, days }: {
           </p>
         </div>
         {w && (
-          <div className="shrink-0 text-right" aria-label={`Tiempo de hoy: máxima ${w.tmax} grados, mínima ${w.tmin}`}>
-            <p className="text-3xl leading-none" aria-hidden="true">{weatherIcon(w.code)}</p>
-            <p className="mt-1 text-sm tabular-nums"><span className="font-semibold">{w.tmax}°</span> <span className="text-muted-foreground">{w.tmin}°</span></p>
+          <div className="flex shrink-0 items-center gap-2" aria-label={`Tiempo de hoy: máxima ${w.tmax} grados, mínima ${w.tmin}`}>
+            <span className="text-4xl leading-none" aria-hidden="true">{weatherIcon(w.code)}</span>
+            <span className="leading-tight">
+              <span className="block font-serif text-2xl font-medium tabular-nums">{w.tmax}°</span>
+              <span className="block text-sm tabular-nums text-muted-foreground">mín. {w.tmin}°</span>
+            </span>
           </div>
         )}
       </header>
@@ -124,7 +129,7 @@ export function TodayCard({ trip, activities, days }: {
       {/* Próximas horas: contexto, no debe competir con el plan. Sangrado hasta
           el borde para que la columna que sobra se lea como «hay más, desliza». */}
       {upcomingHours.length > 1 && (
-        <div className="no-scrollbar -mx-6 flex gap-1 overflow-x-auto px-6 md:-mx-7 md:px-7">
+        <div className="no-scrollbar -mx-4 flex gap-1 overflow-x-auto px-4 md:mx-0 md:px-0">
           {upcomingHours.map(h => (
             <div key={h.time} className="flex w-12 shrink-0 flex-col items-center gap-0.5">
               <span className="text-2xs tabular-nums text-muted-foreground">{h.time.slice(11, 13)} h</span>
@@ -171,11 +176,11 @@ export function TodayCard({ trip, activities, days }: {
           defaultTo={profile?.default_currency ?? 'EUR'}
         />
       </Panel>
-    </Card>
+    </section>
   )
 }
 
-/** El día como un solo hilo cronológico, con una parada destacada: la de ahora. */
+/** El día como un solo hilo, con la misma línea de tiempo que el Plan y una parada destacada: la de ahora. */
 function Timeline({ tripId, entries, focusId, lodging, onDirections }: {
   tripId: string
   entries: DayEntry[]
@@ -184,30 +189,37 @@ function Timeline({ tripId, entries, focusId, lodging, onDirections }: {
   lodging?: Activity | null
   onDirections: (t: DirectionsTarget) => void
 }) {
+  const dot = (cls: string) => (
+    <span className="flex justify-center pt-3.5">
+      <span className={cn('rounded-full ring-4 ring-background', cls)} />
+    </span>
+  )
   return (
-    <ol className="relative">
-      {/* La línea del día */}
-      <span aria-hidden="true" className="absolute bottom-3 left-[3.6rem] top-3 w-px bg-border-strong" />
+    <ol className={TIMELINE}>
       {entries.map(({ activity: a, state, relative, progress }) => {
         const focused = a.id === focusId
         return (
-          <li key={a.id} className="relative flex gap-3 py-1.5">
-            <span className={cn('w-11 shrink-0 pt-2.5 text-right text-xs tabular-nums', state === 'past' ? 'text-muted-foreground/60' : 'text-muted-foreground')}>
+          <li key={a.id} data-tone={a.type} className={cn(TIMELINE_GRID, 'py-1')}>
+            <span className={cn('pr-1 pt-2.5 text-right text-sm tabular-nums', focused ? 'font-semibold' : state === 'past' ? 'text-muted-foreground/60' : 'text-muted-foreground')}>
               {hhmm(a.start_time) ?? ''}
             </span>
-            <span aria-hidden="true" className="relative z-10 mt-3 flex w-4 shrink-0 justify-center">
-              <span className={cn(
-                'rounded-full ring-4 ring-card',
-                focused ? 'size-3.5 bg-primary' : state === 'past' ? 'size-2.5 bg-border-strong' : 'size-2.5 bg-muted-foreground',
-              )} />
-            </span>
-            <div className="min-w-0 flex-1">
+            {focused
+              ? (
+                <span className="flex justify-center pt-1.5">
+                  <span className="block rounded-full bg-background ring-4 ring-background">
+                    <span className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground md:size-10">
+                      <ActivityIcon type={a.type} className="size-[1.125rem] md:size-5" />
+                    </span>
+                  </span>
+                </span>
+              )
+              : dot(state === 'past' ? 'size-2.5 bg-border-strong' : 'size-2.5 bg-tone')}
+            <div className="min-w-0">
               {focused
                 ? <FocusStop tripId={tripId} activity={a} state={state} relative={relative} progress={progress} onDirections={onDirections} />
                 : (
-                  <Link to={`/trips/${tripId}/itinerary/${a.id}`} className="flex min-h-11 items-center gap-2.5 rounded-lg px-2 transition-colors hover:bg-card">
-                    <span data-tone={a.type} className="text-tone"><ActivityIcon type={a.type} className="size-4.5" /></span>
-                    <span className={cn('min-w-0 flex-1 truncate text-[0.9375rem]', (a.done || state === 'past') && 'text-muted-foreground', a.done && 'line-through')}>
+                  <Link to={`/trips/${tripId}/itinerary/${a.id}`} className="flex min-h-11 items-center gap-2 rounded-lg px-2 transition-colors hover:bg-secondary">
+                    <span className={cn('min-w-0 flex-1 truncate font-serif text-base', (a.done || state === 'past') && 'text-muted-foreground', a.done && 'line-through')}>
                       {a.title}
                     </span>
                     {a.done && <Check className="size-4 shrink-0 text-success" aria-label="Hecho" />}
@@ -218,15 +230,16 @@ function Timeline({ tripId, entries, focusId, lodging, onDirections }: {
         )
       })}
       {lodging && (
-        <li className="relative flex gap-3 py-1.5">
-          <span className="w-11 shrink-0" />
-          <span aria-hidden="true" className="relative z-10 mt-3 flex w-4 shrink-0 justify-center">
-            <span className="size-2.5 rounded-full bg-border-strong ring-4 ring-card" />
+        <li data-tone="hotel" className={cn(TIMELINE_GRID, 'py-1')}>
+          <span />
+          <span className="flex justify-center pt-1">
+            <span className="block rounded-full bg-background ring-4 ring-background">
+              <span className="grid size-9 place-items-center rounded-full bg-tone-soft text-tone md:size-10"><BedDouble className="size-[1.125rem]" aria-hidden="true" /></span>
+            </span>
           </span>
-          <Link to={`/trips/${tripId}/itinerary/${lodging.id}`} className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 transition-colors hover:bg-card">
-            <span data-tone="hotel" className="text-tone"><BedDouble className="size-4.5" aria-hidden="true" /></span>
-            <span className="shrink-0 text-sm text-muted-foreground">Esta noche</span>
-            <span className="truncate text-[0.9375rem] font-medium">{lodging.title}</span>
+          <Link to={`/trips/${tripId}/itinerary/${lodging.id}`} className="flex min-h-11 min-w-0 flex-col justify-center rounded-lg px-2 transition-colors hover:bg-secondary">
+            <span className="text-xs text-muted-foreground">Esta noche duermes en</span>
+            <span className="truncate font-serif text-base font-medium">{lodging.title}</span>
           </Link>
         </li>
       )}
@@ -247,34 +260,28 @@ function FocusStop({ tripId, activity: a, state, relative, progress, onDirection
   const label = state === 'current' ? 'Ahora' : state === 'upcoming' ? 'A continuación' : 'Lo último de hoy'
   const target = activityTarget(a)
   return (
-    <div className="rounded-2xl border border-primary/30 bg-card p-4 shadow-card">
-      <p className="flex flex-wrap items-baseline gap-x-2">
-        <span className="eyebrow text-accent-foreground">{label}</span>
-        {relative && <span className="text-sm text-muted-foreground">{relative}</span>}
-      </p>
-      <Link to={`/trips/${tripId}/itinerary/${a.id}`} className="mt-2 flex items-center gap-3">
-        {cover
-          ? <img src={cover} alt="" className="size-14 shrink-0 rounded-xl object-cover" />
-          : (
-            <span data-tone={a.type} className="grid size-14 shrink-0 place-items-center rounded-xl bg-tone-soft text-tone">
-              <ActivityIcon type={a.type} className="size-6" />
-            </span>
-          )}
-        <span className="min-w-0 flex-1">
-          <span className="block text-lg font-semibold leading-snug line-clamp-2">{a.title}</span>
+    <div className="overflow-hidden rounded-2xl border border-primary/30 bg-card shadow-raised">
+      {cover && <img src={cover} alt="" className="h-36 w-full object-cover" />}
+      <div className="p-4">
+        <p className="flex flex-wrap items-baseline gap-x-2">
+          <span className="eyebrow text-accent-foreground">{label}</span>
+          {relative && <span className="text-sm font-medium">{relative}</span>}
+        </p>
+        <Link to={`/trips/${tripId}/itinerary/${a.id}`} className="mt-1 block">
+          <span className="block font-serif text-2xl font-medium leading-tight tracking-tight line-clamp-2">{a.title}</span>
           {a.start_time && (
-            <span className="mt-0.5 block text-sm tabular-nums text-muted-foreground">
+            <span className="mt-1 block text-sm tabular-nums text-muted-foreground">
               {a.start_time.slice(0, 5)}{a.end_time && ` – ${a.end_time.slice(0, 5)}`}
             </span>
           )}
-        </span>
-      </Link>
-      {progress != null && <Progress value={progress * 100} label="Tiempo transcurrido" className="mt-3" />}
-      {target && (
-        <Button variant="soft" size="sm" className="mt-3" onClick={() => onDirections(target)}>
-          <Navigation /> Cómo llegar
-        </Button>
-      )}
+        </Link>
+        {progress != null && <Progress value={progress * 100} label="Tiempo transcurrido" className="mt-3" />}
+        {target && (
+          <Button variant="primary" size="sm" className="mt-3.5" onClick={() => onDirections(target)}>
+            <Navigation /> Cómo llegar
+          </Button>
+        )}
+      </div>
     </div>
   )
 }

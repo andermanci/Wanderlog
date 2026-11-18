@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  Bell, CalendarDays, ChevronLeft, ChevronRight, Clock, ExternalLink, Eye, Map as MapIcon, MapPin, Navigation,
+  Bell, CalendarDays, Check, ChevronLeft, ChevronRight, ExternalLink, Eye, Map as MapIcon, MapPin, Navigation,
   QrCode, Wallet,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
-  ACTIVITY_ICONS, Badge, Button, Card, Checkbox, DocIcon, Row, RowList, useIsMobile, type Tone,
+  ActivityIcon, Button, DocIcon, Row, RowList, useIsMobile, type Tone,
 } from '@/design'
 import { FlightStatusCard } from '@/features/common/FlightStatusCard'
 import { activityTarget } from '@/features/common/target'
@@ -138,35 +138,37 @@ export function ActivityDetail({
   const showTimes = !timesInCard && !!(activity.start_time || activity.end_time)
 
   return (
-    <div className="space-y-5">
-      {cover && (
-        <img src={cover} alt="" className="h-48 w-full rounded-2xl border border-border object-cover" loading="lazy" />
-      )}
+    <div className="space-y-6" data-tone={tone}>
+      {/* Portada a sangre: la foto si la hay; si no, nada (el color ya lo pone el rótulo). */}
+      {cover && <img src={cover} alt="" className="-mx-5 -mt-1 h-52 w-[calc(100%+2.5rem)] max-w-none object-cover md:-mx-7 md:h-60 md:w-[calc(100%+3.5rem)]" loading="lazy" />}
 
-      {/* Qué es y cuándo */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-        <Badge tone={tone} icon={ACTIVITY_ICONS[activity.type]}>{ACTIVITY_LABELS[activity.type]}</Badge>
-        {day && (
-          <span className="flex items-center gap-1.5">
-            <CalendarDays className="size-4" aria-hidden="true" /> {formatDate(day.date, 'EEEE d MMM')}
-          </span>
-        )}
+      {/* Qué es y cuándo: la hora, grande, es lo primero que se busca. */}
+      <div>
+        <p className="eyebrow flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="flex items-center gap-1.5 text-tone"><ActivityIcon type={activity.type} className="size-3.5" /> {ACTIVITY_LABELS[activity.type]}</span>
+          {day && <span>· {formatDate(day.date, "EEEE d 'de' MMMM")}</span>}
+        </p>
         {showTimes && (
-          <span className="flex items-center gap-1.5 tabular-nums">
-            <Clock className="size-4" aria-hidden="true" />
-            {activity.start_time?.slice(0, 5)}{activity.start_time && activity.end_time && ' – '}{activity.end_time?.slice(0, 5)}
-          </span>
+          <p className="mt-2 flex flex-wrap items-baseline gap-x-3 font-serif text-4xl font-medium leading-none tracking-tight tabular-nums md:text-5xl">
+            {activity.start_time?.slice(0, 5)}
+            {activity.start_time && activity.end_time && <span className="text-2xl text-muted-foreground/60" aria-label="hasta">→</span>}
+            {activity.end_time && <span className={activity.start_time ? 'text-muted-foreground' : undefined}>{activity.end_time.slice(0, 5)}</span>}
+          </p>
         )}
-        {endDay && (
-          <span className="flex items-center gap-1.5 font-medium text-accent-foreground">
-            <CalendarDays className="size-4" aria-hidden="true" />
-            {activity.type === 'hotel' ? 'Salida el' : move ? 'Llega el' : 'Termina el'} {formatDate(endDay.date, 'EEE d MMM')}
-          </span>
-        )}
-        {activity.price != null && (
-          <span className="font-semibold tabular-nums text-foreground">
-            {trip ? formatCurrency(activity.price, trip.default_currency ?? undefined) : activity.price.toFixed(2)}
-          </span>
+        {(endDay || activity.price != null) && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            {endDay && (
+              <span className="flex items-center gap-1.5 font-medium text-accent-foreground">
+                <CalendarDays className="size-4" aria-hidden="true" />
+                {activity.type === 'hotel' ? 'Salida el' : move ? 'Llega el' : 'Termina el'} {formatDate(endDay.date, 'EEE d MMM')}
+              </span>
+            )}
+            {activity.price != null && (
+              <span className="font-semibold tabular-nums">
+                {trip ? formatCurrency(activity.price, trip.default_currency ?? undefined) : activity.price.toFixed(2)}
+              </span>
+            )}
+          </p>
         )}
       </div>
 
@@ -179,12 +181,12 @@ export function ActivityDetail({
         />
       )}
 
-      {/* Dónde: origen → destino, o la dirección */}
+      {/* Dónde y las dos cosas que se hacen con un sitio: ir y verlo en el mapa. */}
       {(hasPlace || target) && (
-        <Card pad="sm" className="space-y-3">
+        <div className="space-y-3 border-t border-border pt-5">
           {hasPlace && (
-            <p className="flex items-start gap-2.5 text-[0.9375rem]">
-              <MapPin className="mt-0.5 size-[1.125rem] shrink-0 text-muted-foreground" aria-hidden="true" />
+            <p className="flex items-start gap-2.5 text-base">
+              <MapPin className="mt-0.5 size-5 shrink-0 text-tone" aria-hidden="true" />
               <span className="min-w-0 break-words">
                 {isTransport
                   ? <>{activity.origin || '—'} <span className="text-muted-foreground" aria-label="hasta">→</span> {activity.destination || '—'}</>
@@ -204,22 +206,21 @@ export function ActivityDetail({
               </Button>
             )}
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Hecha: también la marca quien solo puede ver el viaje */}
-      <label className="flex min-h-13 cursor-pointer items-center gap-3 rounded-2xl bg-sunken px-4 py-2.5">
-        <Checkbox
-          round
-          checked={activity.done}
-          onCheckedChange={done => setDone.mutate({ id: activity.id, done, tripId })}
-          aria-label="Marcar como hecha"
-        />
-        <span className="min-w-0 text-[0.9375rem]">
-          <span className="block font-medium">{activity.done ? 'Hecha' : 'Marcar como hecha'}</span>
-          {!activity.done && <span className="block text-sm text-muted-foreground">Para llevar la cuenta de lo que ya habéis visto.</span>}
+      <button
+        type="button" aria-pressed={activity.done}
+        onClick={() => setDone.mutate({ id: activity.id, done: !activity.done, tripId })}
+        data-tone={activity.done ? 'success' : 'neutral'}
+        className="flex min-h-13 w-full items-center gap-3 rounded-full border border-tone-line bg-tone-soft px-4 text-left text-[0.9375rem] font-medium transition-colors"
+      >
+        <span className={activity.done ? 'grid size-7 place-items-center rounded-full bg-tone text-white dark:text-background' : 'size-7 rounded-full border-2 border-border-strong bg-card'}>
+          {activity.done && <Check className="size-4" strokeWidth={3} aria-hidden="true" />}
         </span>
-      </label>
+        {activity.done ? 'Hecha' : 'Marcar como hecha'}
+      </button>
 
       {/* Audioguía: su pantalla propia; aquí solo la entrada */}
       {(activity.type === 'place' || activity.type === 'activity') && (
@@ -235,20 +236,15 @@ export function ActivityDetail({
 
       {/* Reserva vinculada: localizador, compañía, asiento, código y billete */}
       {linkedDoc && (
-        <Card pad="sm" className="space-y-3">
-          <div className="flex items-center gap-3">
-            <span data-tone={tone} className="grid size-10 shrink-0 place-items-center rounded-full bg-tone-soft text-tone">
-              <DocIcon category={linkedDoc.category} className="size-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="eyebrow">Reserva</p>
-              <p className="truncate text-[0.9375rem] font-medium">
-                {linkedDoc.provider || DOCUMENT_LABELS[linkedDoc.category] || linkedDoc.title}
-              </p>
-            </div>
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-4 pl-5 shadow-card before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-tone space-y-3">
+          <div>
+            <p className="eyebrow flex items-center gap-1.5 text-tone"><DocIcon category={linkedDoc.category} className="size-3.5" /> Reserva</p>
+            <p className="mt-0.5 truncate font-serif text-lg font-medium">
+              {linkedDoc.provider || DOCUMENT_LABELS[linkedDoc.category] || linkedDoc.title}
+            </p>
           </div>
           {(linkedDoc.flight_number || linkedDoc.locator || linkedDoc.confirmation_number || linkedDoc.seat) && (
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-dashed border-border-strong pt-3">
               {linkedDoc.flight_number && <DocFact label="Vuelo" mono>{linkedDoc.flight_number}</DocFact>}
               {linkedDoc.locator && <DocFact label="Localizador" mono>{linkedDoc.locator}</DocFact>}
               {linkedDoc.confirmation_number && <DocFact label="Confirmación" mono>{linkedDoc.confirmation_number}</DocFact>}
@@ -275,7 +271,7 @@ export function ActivityDetail({
               <Link to={`/trips/${tripId}/documents?doc=${linkedDoc.id}`}><Wallet /> Ver en Cartera</Link>
             </Button>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Descripción, notas y enlace */}
@@ -306,7 +302,7 @@ export function ActivityDetail({
 
       {/* Recordarme antes: crea un aviso relativo a la hora de la actividad */}
       {day && activity.start_time && (
-        <Card sunken pad="sm" className="space-y-2.5">
+        <div className="space-y-2.5 border-t border-border pt-5">
           <p className="flex items-center gap-2 text-[0.9375rem] font-medium">
             <Bell className="size-[1.125rem] text-muted-foreground" aria-hidden="true" /> Recordarme antes
           </p>
@@ -322,7 +318,7 @@ export function ActivityDetail({
             ))}
           </div>
           <p className="text-xs text-muted-foreground">Para que te llegue el aviso, activa las notificaciones en Ajustes.</p>
-        </Card>
+        </div>
       )}
 
       {/* Anterior y siguiente del plan */}

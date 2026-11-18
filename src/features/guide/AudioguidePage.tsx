@@ -3,10 +3,10 @@ import { Link, useParams } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { APIProvider, useApiIsLoaded } from '@vis.gl/react-google-maps'
-import { Headphones, RefreshCw, SearchX } from 'lucide-react'
+import { Check, CircleAlert, Headphones, RefreshCw, SearchX } from 'lucide-react'
 import { toast } from 'sonner'
 import {
-  Button, Card, Confirm, Empty, Menu, Notice, Page, Progress, Skeleton, Spinner,
+  Button, Confirm, Empty, Menu, Notice, Page, Progress, Skeleton, Spinner,
 } from '@/design'
 import { cn } from '@/lib/utils'
 import { useActivities, useItineraryDays } from '@/lib/queries/itinerary'
@@ -30,11 +30,39 @@ import {
   useBackfillStopLocations, activityGeocodeContext, dayGeocodeContext,
 } from '@/lib/queries/audioguideStopLocations'
 import { AiExchange, type AiProvider } from '@/features/ai-exchange/AiExchange'
+import type { AudioguideStop } from '@/types/database'
 import { AudioguidePlayerView } from './AudioguidePlayerView'
 import { PlaybackHost } from './PlaybackHost'
 import { usePlaybackStore } from './playbackStore'
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ?? ''
+
+// Cómo va el audio de una parada mientras se crean: con icono Y texto.
+function StopStatus({ status }: { status: AudioguideStop['status'] }) {
+  if (status === 'ready') {
+    return (
+      <span data-tone="success" className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-tone">
+        <span className="grid size-5 place-items-center rounded-full bg-tone-soft"><Check className="size-3.5" aria-hidden="true" /></span>
+        Lista
+      </span>
+    )
+  }
+  if (status === 'error') {
+    return (
+      <span data-tone="danger" className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-tone">
+        <CircleAlert className="size-4" aria-hidden="true" /> Ha fallado
+      </span>
+    )
+  }
+  if (status === 'generating') {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <Spinner className="size-4" label="Creando el audio" /> Creando…
+      </span>
+    )
+  }
+  return <span className="shrink-0 text-xs text-muted-foreground">En espera</span>
+}
 
 // Situar las paradas en el mapa necesita el Geocoder de Google Maps, que a su
 // vez necesita un <APIProvider> ancestro: de ahí este envoltorio.
@@ -266,29 +294,56 @@ function AudioguidePageInner() {
       ? { done: stops.filter((s) => s.status === 'ready').length, total: stops.length }
       : null
 
+  const hechas = displayProgress?.done ?? 0
+  const totales = displayProgress?.total ?? 0
+  // La barra global arriba y, debajo, las paradas que se van completando.
   const loaderBlock = (
-    <Card pad="lg" className="flex flex-col items-center gap-3 text-center" aria-live="polite">
-      <Spinner className="size-8" label="Creando los audios" />
-      <div>
-        <p className="title-card">Creando los audios…</p>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+    <div className="space-y-6">
+      <div className="rounded-2xl bg-primary-soft p-5 md:p-6" aria-live="polite">
+        <p className="eyebrow flex items-center gap-2">
+          <Spinner className="size-4" label="Creando los audios" /> Creando los audios
+        </p>
+        {totales > 0 && (
+          <>
+            <p className="mt-3 flex items-baseline gap-2">
+              <span className="font-serif text-5xl font-medium leading-none tracking-tight tabular-nums text-accent-foreground">{hechas}</span>
+              <span className="text-[0.9375rem] tabular-nums text-muted-foreground">
+                de {totales} {totales === 1 ? 'parada lista' : 'paradas listas'}
+              </span>
+            </p>
+            <Progress
+              className="mt-4 h-2.5"
+              value={(hechas / totales) * 100}
+              label="Paradas con el audio listo"
+            />
+          </>
+        )}
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           {processing
             ? 'No cierres esta pantalla hasta que termine. Suele tardar uno o dos minutos.'
             : 'Se está creando desde otro dispositivo. Aparecerá aquí en cuanto termine.'}
         </p>
       </div>
-      {displayProgress && displayProgress.total > 0 && (
-        <div className="w-full max-w-sm space-y-1.5">
-          <Progress
-            value={(displayProgress.done / displayProgress.total) * 100}
-            label="Paradas con el audio listo"
-          />
-          <p className="text-sm tabular-nums text-muted-foreground">
-            {displayProgress.done} de {displayProgress.total} paradas listas
-          </p>
-        </div>
+
+      {stops.length > 0 && (
+        <ol aria-label="Paradas" className="divide-y divide-border border-y border-border">
+          {stops.map((s, i) => (
+            <li key={s.id} className="flex min-h-12 items-center gap-3 py-2.5">
+              <span className="w-6 shrink-0 text-right text-sm tabular-nums text-muted-foreground">{i + 1}</span>
+              <span
+                className={cn(
+                  'min-w-0 flex-1 font-serif text-base font-medium tracking-tight',
+                  s.status === 'ready' ? 'text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                {s.title}
+              </span>
+              <StopStatus status={s.status} />
+            </li>
+          ))}
+        </ol>
       )}
-    </Card>
+    </div>
   )
 
   // Orden de prioridad: reproductor si ya está todo listo; progreso mientras se
@@ -324,10 +379,22 @@ function AudioguidePageInner() {
     )
   } else {
     body = (
-      <div className="space-y-5">
-        <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
-          {sujeto.intro} El guion lo escribe la IA que tú elijas; después nosotros lo convertimos en audio.
-        </p>
+      <div className="space-y-6">
+        {/* Qué se va a crear */}
+        <div className="flex items-start gap-4 rounded-2xl bg-primary-soft p-5 md:p-6">
+          <span aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-full border border-dashed border-border-strong text-accent-foreground">
+            <Headphones className="size-6" />
+          </span>
+          <div className="min-w-0">
+            <p className="eyebrow">Vas a crear</p>
+            <p className="mt-1 font-serif text-2xl font-medium leading-tight tracking-tight text-accent-foreground">
+              {sujeto.kind === 'day' ? 'La audioguía de la ciudad' : 'La audioguía de este sitio'}
+            </p>
+            <p className="mt-2 text-[0.9375rem] leading-relaxed">
+              {sujeto.intro} El guion lo escribe la IA que tú elijas; después nosotros lo convertimos en audio.
+            </p>
+          </div>
+        </div>
         {draft && (
           <Notice
             tone="info" title="Hemos recuperado lo que tenías a medias"
@@ -336,7 +403,7 @@ function AudioguidePageInner() {
             Sigue donde lo dejaste: pega la respuesta de la IA en el paso 3.
           </Notice>
         )}
-        <Card pad="lg">
+        <div className="border-t border-border pt-6">
           <AiExchange<ParsedAudioguideStop[]>
             key={`${scopeKey(scope)}:${intento}`}
             prompt={sujeto.prompt}
@@ -347,43 +414,48 @@ function AudioguidePageInner() {
             pastePlaceholder="###PARADA### …"
             parse={parseAudioguideText}
             options={
-              <fieldset className="space-y-2 pt-2">
-                <legend className="text-sm font-medium">Nivel de detalle</legend>
-                {detailLevels.map((lvl) => {
-                  const elegido = detailLevel === lvl.id
-                  return (
-                    <label
-                      key={lvl.id}
-                      className={cn(
-                        'flex cursor-pointer items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors duration-150',
-                        'has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/20',
-                        elegido ? 'border-primary bg-primary-soft' : 'border-border-strong bg-card hover:bg-secondary',
-                      )}
-                    >
-                      <input
-                        type="radio" name="nivel-de-detalle" value={lvl.id} checked={elegido}
-                        onChange={() => setDetailLevel(lvl.id)}
-                        className="mt-1 size-4 shrink-0 accent-primary"
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-[0.9375rem] font-medium">{lvl.label}</span>
-                        <span className="block text-sm text-muted-foreground">{lvl.description}</span>
-                      </span>
-                    </label>
-                  )
-                })}
+              <fieldset className="pt-2">
+                <legend className="eyebrow mb-2">Nivel de detalle</legend>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {detailLevels.map((lvl) => {
+                    const elegido = detailLevel === lvl.id
+                    return (
+                      <label
+                        key={lvl.id}
+                        className={cn(
+                          'flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 transition-colors duration-150',
+                          'has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/20',
+                          elegido ? 'border-primary bg-primary-soft' : 'border-border bg-transparent hover:bg-secondary',
+                        )}
+                      >
+                        <input
+                          type="radio" name="nivel-de-detalle" value={lvl.id} checked={elegido}
+                          onChange={() => setDetailLevel(lvl.id)}
+                          className="mt-0.5 size-4 shrink-0 accent-primary"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">{lvl.label}</span>
+                          <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{lvl.description}</span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
               </fieldset>
             }
             review={(parsed) => (
               <div>
-                <p className="title-card">
-                  {parsed.length} {parsed.length === 1 ? 'parada' : 'paradas'} en el guion
+                <p className="flex items-baseline gap-2">
+                  <span className="font-serif text-3xl font-medium leading-none tracking-tight tabular-nums">{parsed.length}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {parsed.length === 1 ? 'parada en el guion' : 'paradas en el guion'}
+                  </span>
                 </p>
-                <ol className="mt-2 max-h-48 space-y-1 overflow-y-auto text-sm text-muted-foreground">
+                <ol className="mt-3 max-h-56 divide-y divide-border overflow-y-auto border-y border-border">
                   {parsed.map((s, i) => (
-                    <li key={i} className="flex gap-2">
-                      <span className="w-5 shrink-0 text-right tabular-nums">{i + 1}.</span>
-                      <span className="min-w-0 text-foreground">{s.title}</span>
+                    <li key={i} className="flex items-baseline gap-3 py-2">
+                      <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+                      <span className="min-w-0 font-serif text-[0.9375rem] font-medium tracking-tight">{s.title}</span>
                     </li>
                   ))}
                 </ol>
@@ -396,7 +468,7 @@ function AudioguidePageInner() {
             saving={processing}
             onSave={(parsed, rawText) => handleProcess(parsed, rawText)}
           />
-        </Card>
+        </div>
       </div>
     )
   }

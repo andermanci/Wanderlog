@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { APIProvider, AdvancedMarker, ColorScheme, Map, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
 import {
-  ArrowLeft, ArrowRight, CalendarPlus, Check, CircleCheck, ExternalLink, Link2, MapPin, Plane, RotateCcw, Search,
+  ArrowLeft, ArrowRight, CalendarPlus, Check, ExternalLink, Link2, MapPin, Plane, RotateCcw, Search,
   Sparkles, Star, TriangleAlert,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -72,11 +72,8 @@ export function ImportSharedPage() {
 
   return (
     <APIProvider apiKey={API_KEY} libraries={['places']}>
-      <Page
-        title="Importar desde un enlace"
-        subtitle="Guarda en tu viaje el sitio del que habla un vídeo o una web."
-        width="narrow"
-      >
+      {/* Sin título de página: cada paso ocupa la pantalla con el suyo. */}
+      <Page width="narrow">
         <Asistente sharedUrl={sharedUrl} presetTripId={presetTripId} />
       </Page>
     </APIProvider>
@@ -93,23 +90,46 @@ const ROTULOS: Record<Paso, string> = {
   guardado: 'Guardado',
 }
 
-/** Indicador de paso: «Paso 2 de 5 · Lectura» y una barra por paso. */
+/** Indicador de progreso: una línea fina arriba y «Paso 2 de 5» en pequeño. */
 function Pasos({ pasos, actual }: { pasos: Paso[]; actual: Paso }) {
   const i = pasos.indexOf(actual)
   return (
-    <div className="mb-6">
-      <p className="eyebrow" aria-live="polite">
-        Paso {i + 1} de {pasos.length} · {ROTULOS[actual]}
+    <div className="mb-8 md:mb-10">
+      <div
+        role="progressbar" aria-valuemin={1} aria-valuemax={pasos.length} aria-valuenow={i + 1}
+        aria-label="Progreso del asistente"
+        className="h-1 w-full overflow-hidden rounded-full bg-secondary"
+      >
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+          style={{ width: `${((i + 1) / pasos.length) * 100}%` }}
+        />
+      </div>
+      <p className="eyebrow mt-3" aria-live="polite">
+        Importar desde un enlace · Paso {i + 1} de {pasos.length} · {ROTULOS[actual]}
       </p>
-      <ol className="mt-2 flex gap-1.5" aria-hidden="true">
-        {pasos.map((p, n) => (
-          <li
-            key={p}
-            className={cn('h-1.5 flex-1 rounded-full transition-colors duration-300', n <= i ? 'bg-primary' : 'bg-secondary')}
-          />
-        ))}
-      </ol>
     </div>
+  )
+}
+
+/** Cabecera de un paso: la pregunta en grande y, debajo, qué se espera de la persona. */
+function Titulo({ children, texto }: { children: ReactNode; texto?: ReactNode }) {
+  return (
+    <header>
+      <h1 className="title-hero">{children}</h1>
+      {texto && <p className="mt-2.5 text-base leading-relaxed text-muted-foreground">{texto}</p>}
+    </header>
+  )
+}
+
+/** Foto del sitio o, si no la hay, el icono de su categoría sobre su color. */
+function FotoSitio({ sitio, className, iconClassName }: { sitio: Candidate; className?: string; iconClassName?: string }) {
+  return sitio.photoUrl ? (
+    <img src={sitio.photoUrl} alt="" className={cn('object-cover', className)} />
+  ) : (
+    <span data-tone={sitio.category} className={cn('grid place-items-center bg-tone-soft text-tone', className)}>
+      <PlaceIcon category={sitio.category} className={iconClassName ?? 'size-8'} />
+    </span>
   )
 }
 
@@ -335,65 +355,68 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
 
       {/* --- 1. Pegar el enlace ------------------------------------------- */}
       {paso === 'enlace' && (
-        <Card pad="lg">
-          <form
-            className="space-y-5"
-            onSubmit={e => { e.preventDefault(); if (urlInput.trim()) leerEnlace(urlInput.trim()) }}
-          >
-            <div>
-              <h2 className="title-section">Pega el enlace</h2>
-              <p className="mt-1 text-[0.9375rem] text-muted-foreground">
-                Puede ser un vídeo de TikTok o Instagram, o una página web. Nosotros buscamos de qué sitio habla.
-              </p>
-            </div>
-            <Field label="Enlace" hint="En la app del vídeo, pulsa «Compartir» y luego «Copiar enlace».">
-              <Input
-                type="url"
-                inputMode="url"
-                autoFocus
-                value={urlInput}
-                onChange={e => setUrlInput(e.target.value)}
-                placeholder="https://…"
-              />
-            </Field>
-            <Button type="submit" variant="primary" block disabled={!urlInput.trim()}>
+        <form
+          className="space-y-7 animate-rise"
+          onSubmit={e => { e.preventDefault(); if (urlInput.trim()) leerEnlace(urlInput.trim()) }}
+        >
+          <Titulo texto="Puede ser un vídeo de TikTok o Instagram, o una página web. Nosotros buscamos de qué sitio habla.">
+            Pega el enlace
+          </Titulo>
+          <Field label="Enlace" hint="En la app del vídeo, pulsa «Compartir» y luego «Copiar enlace».">
+            <Input
+              type="url"
+              inputMode="url"
+              autoFocus
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              placeholder="https://…"
+              className="h-14 text-base"
+            />
+          </Field>
+          <div>
+            <Button type="submit" variant="primary" size="lg" block disabled={!urlInput.trim()}>
               <Sparkles aria-hidden="true" />
               Leer el enlace
             </Button>
-          </form>
-          {presetTrip && (
-            <p className="mt-4 text-sm text-muted-foreground">
-              Se guardará en <span className="font-medium text-foreground">{presetTrip.name}</span>.
+            {presetTrip && (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Se guardará en <span className="font-medium text-foreground">{presetTrip.name}</span>.
+              </p>
+            )}
+            <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+              <Link2 className="size-4 shrink-0" aria-hidden="true" />
+              Solo leemos el enlace que pegues; no se publica nada.
             </p>
-          )}
-        </Card>
+          </div>
+        </form>
       )}
 
       {/* --- 2. Leyendo el enlace ----------------------------------------- */}
       {paso === 'leer' && leyendo && (
-        <Card pad="lg" className="text-center" aria-busy="true">
-          <Spinner className="mx-auto size-8" label="Leyendo el enlace" />
-          <h2 className="title-section mt-4">Leyendo el enlace…</h2>
-          <p className="mt-1 text-[0.9375rem] text-muted-foreground">
-            Estamos entendiendo de qué sitio habla. Suele tardar unos segundos.
-          </p>
-          <Skeleton className="mt-6 h-20 w-full" />
-        </Card>
+        <div className="space-y-7 animate-rise" aria-busy="true">
+          <Titulo texto="Estamos entendiendo de qué sitio habla. Suele tardar unos segundos.">
+            <span className="flex items-center gap-3">
+              <Spinner className="size-7 shrink-0" label="Leyendo el enlace" />
+              Leyendo el enlace…
+            </span>
+          </Titulo>
+          <div className="grid grid-cols-2 gap-3" aria-hidden="true">
+            <Skeleton className="aspect-[4/3] rounded-2xl" />
+            <Skeleton className="aspect-[4/3] rounded-2xl" />
+          </div>
+        </div>
       )}
 
       {/* --- 2 bis. No se pudo leer (IA saturada) o Instagram sin texto ---- */}
       {paso === 'leer' && !leyendo && lecturaFallida && (
-        <Card pad="lg" className="space-y-5">
-          <div>
-            <h2 className="title-section">
-              {interpret.error ? 'No hemos podido leer el enlace' : 'Pega el texto del vídeo'}
-            </h2>
-            <p className="mt-1 text-[0.9375rem] text-muted-foreground">
-              {interpret.error
-                ? 'Puedes volver a intentarlo o pegar tú la descripción del vídeo.'
-                : 'Instagram no nos deja leer el texto. Copia la descripción de la publicación (el nombre del sitio y dónde está) y pégala aquí.'}
-            </p>
-          </div>
+        <div className="space-y-6 animate-rise">
+          <Titulo
+            texto={interpret.error
+              ? 'Puedes volver a intentarlo o pegar tú la descripción del vídeo.'
+              : 'Instagram no nos deja leer el texto. Copia la descripción de la publicación (el nombre del sitio y dónde está) y pégala aquí.'}
+          >
+            {interpret.error ? 'No hemos podido leer el enlace' : 'Pega el texto del vídeo'}
+          </Titulo>
 
           {/* Errores transitorios (IA saturada): reintentar con la misma entrada. */}
           {interpret.error && (
@@ -411,20 +434,20 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
           )}
 
           {guess?.thumbnailUrl && (
-            <img src={guess.thumbnailUrl} alt="" className="max-h-56 w-full rounded-xl object-cover" />
+            <img src={guess.thumbnailUrl} alt="" className="max-h-56 w-full rounded-2xl object-cover" />
           )}
 
           {/* Alternativa siempre disponible: pegar el texto del vídeo a mano. */}
           <Field label="Descripción del vídeo">
             <Textarea
-              rows={4}
+              rows={5}
               value={manualText}
               onChange={e => setManualText(e.target.value)}
               placeholder="Ej.: El mejor ramen de Tokio está en Ichiran, Shibuya…"
             />
           </Field>
           <div className="flex flex-col gap-2">
-            <Button variant="primary" block disabled={!manualText.trim()} onClick={interpretarTexto}>
+            <Button variant="primary" size="lg" block disabled={!manualText.trim()} onClick={interpretarTexto}>
               <Sparkles aria-hidden="true" />
               Leer este texto
             </Button>
@@ -433,22 +456,29 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
               Usar otro enlace
             </Button>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* --- 3. ¿Es este sitio? ------------------------------------------- */}
       {paso === 'sitio' && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="title-section">¿Es este sitio?</h2>
-            <p className="mt-1 text-[0.9375rem] text-muted-foreground">
-              {guess?.placeName
-                ? 'Esto es lo que hemos entendido. Si no es el sitio correcto, cambia la búsqueda.'
-                : 'No hemos podido leer el nombre del sitio (a veces solo se dice hablando en el vídeo). Escríbelo y lo buscamos.'}
-            </p>
-          </div>
+        <div className="space-y-6 animate-rise">
+          <Titulo
+            texto={guess?.placeName
+              ? 'Esto es lo que hemos entendido. Si no es el sitio correcto, cambia la búsqueda.'
+              : 'No hemos podido leer el nombre del sitio (a veces solo se dice hablando en el vídeo). Escríbelo y lo buscamos.'}
+          >
+            ¿Es este sitio?
+          </Titulo>
 
-          {guess?.why && <Notice tone="primary" icon={Sparkles}>{guess.why}</Notice>}
+          {/* Lo que la IA ha entendido del vídeo, como una cita. */}
+          {guess?.why && (
+            <blockquote className="border-l-2 border-primary pl-4">
+              <p className="eyebrow flex items-center gap-1.5 text-accent-foreground">
+                <Sparkles className="size-3.5" aria-hidden="true" /> Lo que dice el enlace
+              </p>
+              <p className="mt-1 text-[0.9375rem] leading-relaxed">{guess.why}</p>
+            </blockquote>
+          )}
 
           <form
             className="flex items-end gap-2"
@@ -470,10 +500,13 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
           </form>
 
           {searching && !results.length ? (
-            <Skeleton className="h-20 w-full" />
+            <div className="grid grid-cols-2 gap-3" aria-hidden="true">
+              <Skeleton className="aspect-[4/3] rounded-2xl" />
+              <Skeleton className="aspect-[4/3] rounded-2xl" />
+            </div>
           ) : results.length > 0 ? (
             <>
-              <Card pad="none" className="divide-y divide-border overflow-hidden" role="radiogroup" aria-label="Sitios encontrados">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Sitios encontrados">
                 {results.map(r => {
                   const active = chosen?.place_id === r.place_id
                   return (
@@ -483,44 +516,39 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
                       role="radio"
                       aria-checked={active}
                       onClick={() => setChosen(r)}
+                      data-tone={r.category}
                       className={cn(
-                        'flex min-h-15 w-full items-center gap-3.5 px-4 py-3 text-left transition-colors duration-150',
-                        active ? 'bg-primary-soft' : 'hover:bg-secondary/70',
+                        'relative flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-card text-left transition-[border-color,box-shadow,opacity] duration-150',
+                        active
+                          ? 'border-primary shadow-raised ring-2 ring-primary'
+                          : 'border-border opacity-80 hover:border-border-strong hover:opacity-100',
                       )}
                     >
-                      {r.photoUrl ? (
-                        <img src={r.photoUrl} alt="" className="size-12 shrink-0 rounded-xl object-cover" />
-                      ) : (
-                        <span data-tone={r.category} className="grid size-12 shrink-0 place-items-center rounded-xl bg-tone-soft text-tone">
-                          <PlaceIcon category={r.category} className="size-5" />
+                      <FotoSitio sitio={r} className="aspect-[4/3] w-full" />
+                      <span className="flex min-w-0 flex-1 flex-col px-3 pb-3 pt-2.5">
+                        <span className="eyebrow flex items-center justify-between gap-2 text-tone">
+                          <span className="min-w-0 truncate">{PLACE_CATEGORY_LABELS[r.category]}</span>
+                          {r.rating != null && (
+                            <span className="flex shrink-0 items-center gap-0.5 tabular-nums text-muted-foreground">
+                              <Star className="size-3" aria-hidden="true" />
+                              <span className="sr-only">Valoración:</span>
+                              {r.rating.toFixed(1)}
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-1 block font-serif text-base font-medium leading-snug tracking-tight line-clamp-2">{r.name}</span>
+                        {r.address && <span className="mt-1 block text-xs text-muted-foreground line-clamp-2">{r.address}</span>}
+                      </span>
+                      {active && (
+                        <span className="absolute left-2 top-2 inline-flex h-7 items-center gap-1 rounded-full bg-primary pl-1.5 pr-2.5 text-xs font-semibold text-primary-foreground shadow-card">
+                          <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
+                          Elegido
                         </span>
                       )}
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[0.9375rem] font-medium">{r.name}</span>
-                        <span className="block truncate text-sm text-muted-foreground">
-                          {PLACE_CATEGORY_LABELS[r.category]}{r.address ? ` · ${r.address}` : ''}
-                        </span>
-                      </span>
-                      {r.rating != null && (
-                        <span className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground">
-                          <Star className="size-3.5" aria-hidden="true" />
-                          <span className="sr-only">Valoración:</span>
-                          {r.rating.toFixed(1)}
-                        </span>
-                      )}
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'grid size-6 shrink-0 place-items-center rounded-full border-2',
-                          active ? 'border-primary bg-primary text-primary-foreground' : 'border-border-strong',
-                        )}
-                      >
-                        {active && <Check className="size-3.5" strokeWidth={3} />}
-                      </span>
                     </button>
                   )
                 })}
-              </Card>
+              </div>
               {chosen && <MapaDelSitio sitio={chosen} />}
             </>
           ) : buscado ? (
@@ -552,12 +580,12 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
 
           <div className="flex flex-col gap-2">
             {conPasoViaje ? (
-              <Button variant="primary" block disabled={!chosen} onClick={() => setEligiendoViaje(true)}>
+              <Button variant="primary" size="lg" block disabled={!chosen} onClick={() => setEligiendoViaje(true)}>
                 Sí, es este
                 <ArrowRight aria-hidden="true" />
               </Button>
             ) : (
-              <Button variant="primary" block disabled={!chosen || !tripId} loading={savePlace.isPending} onClick={save}>
+              <Button variant="primary" size="lg" block disabled={!chosen || !tripId} loading={savePlace.isPending} onClick={save}>
                 {!savePlace.isPending && <MapPin aria-hidden="true" />}
                 Sí, guardarlo en el viaje
               </Button>
@@ -572,15 +600,20 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
 
       {/* --- 4. Viaje y ciudad -------------------------------------------- */}
       {paso === 'viaje' && chosen && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="title-section">{presetTripId ? '¿En qué ciudad lo guardamos?' : '¿En qué viaje lo guardamos?'}</h2>
-            <p className="mt-1 text-[0.9375rem] text-muted-foreground">
-              Vas a guardar <span className="font-medium text-foreground">{chosen.name}</span> en tus lugares.
-            </p>
+        <div className="space-y-6 animate-rise">
+          <Titulo>{presetTripId ? '¿En qué ciudad?' : '¿A qué viaje?'}</Titulo>
+
+          {/* El sitio que se va a guardar, a la vista mientras se elige dónde. */}
+          <div data-tone={chosen.category} className="flex items-center gap-3.5 border-y border-border py-3.5">
+            <FotoSitio sitio={chosen} className="size-16 shrink-0 rounded-xl" iconClassName="size-6" />
+            <div className="min-w-0">
+              <p className="eyebrow text-tone">Vas a guardar</p>
+              <p className="truncate font-serif text-lg font-medium tracking-tight">{chosen.name}</p>
+              {chosen.address && <p className="truncate text-sm text-muted-foreground">{chosen.address}</p>}
+            </div>
           </div>
 
-          <Card className="space-y-4">
+          <div className="space-y-4">
             {/* El viaje solo se pregunta si NO se abrió ya desde un viaje concreto. */}
             {presetTripId ? (
               presetTrip && (
@@ -604,10 +637,10 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
                 </Select>
               </Field>
             )}
-          </Card>
+          </div>
 
           <div className="flex flex-col gap-2">
-            <Button variant="primary" block disabled={!tripId} loading={savePlace.isPending} onClick={save}>
+            <Button variant="primary" size="lg" block disabled={!tripId} loading={savePlace.isPending} onClick={save}>
               {!savePlace.isPending && <MapPin aria-hidden="true" />}
               Guardar en el viaje
             </Button>
@@ -621,23 +654,36 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
 
       {/* --- 5. Guardado --------------------------------------------------- */}
       {paso === 'guardado' && (
-        <Card pad="lg" className="text-center">
-          <span data-tone="success" className="mx-auto grid size-16 place-items-center rounded-full bg-tone-soft text-tone">
-            <CircleCheck className="size-8" aria-hidden="true" />
-          </span>
-          <h2 className="title-section mt-4">Guardado</h2>
-          <p className="mt-1 text-[0.9375rem] text-muted-foreground">
-            <span className="font-medium text-foreground">{chosen?.name}</span> ya está en los lugares
-            {tripElegido ? <> de <span className="font-medium text-foreground">{tripElegido.name}</span></> : ' del viaje'}.
-          </p>
+        <div className="space-y-6 animate-rise">
+          <Titulo
+            texto={<>
+              <span className="font-medium text-foreground">{chosen?.name}</span> ya está en los lugares
+              {tripElegido ? <> de <span className="font-medium text-foreground">{tripElegido.name}</span></> : ' del viaje'}.
+            </>}
+          >
+            <span className="flex items-center gap-3">
+              <span data-tone="success" className="grid size-10 shrink-0 place-items-center rounded-full bg-tone text-background">
+                <Check className="size-6" strokeWidth={3} aria-hidden="true" />
+              </span>
+              Guardado
+            </span>
+          </Titulo>
+
           {chosen && (
-            <p className="mt-3 flex justify-center">
-              <Badge tone={chosen.category}>{PLACE_CATEGORY_LABELS[chosen.category]}</Badge>
-            </p>
+            <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-card">
+              <FotoSitio sitio={chosen} className="aspect-[16/9] w-full" iconClassName="size-10" />
+              <div className="px-4 py-3.5">
+                <Badge tone={chosen.category}>{PLACE_CATEGORY_LABELS[chosen.category]}</Badge>
+                <p className="mt-1.5 font-serif text-xl font-medium leading-snug tracking-tight">{chosen.name}</p>
+                {chosen.address && <p className="mt-0.5 text-sm text-muted-foreground">{chosen.address}</p>}
+              </div>
+            </div>
           )}
-          <div className="mx-auto mt-6 flex max-w-xs flex-col gap-2">
+
+          <div className="flex flex-col gap-2">
             <Button
               variant="primary"
+              size="lg"
               block
               onClick={() => navigate(`/trips/${tripId}/itinerary?tab=ideas&place=${savedPlaceId}&anadir=1`)}
             >
@@ -648,14 +694,7 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
               Ver mis lugares
             </Button>
           </div>
-        </Card>
-      )}
-
-      {paso === 'enlace' && (
-        <p className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Link2 className="size-4" aria-hidden="true" />
-          Solo leemos el enlace que pegues; no se publica nada.
-        </p>
+        </div>
       )}
     </div>
   )
@@ -667,7 +706,7 @@ function MapaDelSitio({ sitio }: { sitio: Candidate }) {
   const colorScheme =
     theme === 'dark' ? ColorScheme.DARK : theme === 'light' ? ColorScheme.LIGHT : ColorScheme.FOLLOW_SYSTEM
   return (
-    <Card pad="none" className="h-52 overflow-hidden">
+    <Card pad="none" className="h-52 overflow-hidden md:h-64">
       <Map
         defaultCenter={{ lat: sitio.lat, lng: sitio.lng }}
         defaultZoom={15}

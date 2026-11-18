@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { differenceInDays, format, parseISO, isValid } from 'date-fns'
+import { differenceInCalendarDays, format, parseISO, isValid } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export function cn(...inputs: ClassValue[]) {
@@ -14,7 +14,8 @@ export function formatDate(date: string | Date, fmt = 'dd MMM yyyy') {
 }
 
 export function daysUntil(date: string): number {
-  return differenceInDays(parseISO(date), new Date())
+  // Días NATURALES: mañana es 1 aunque falten menos de 24 horas (antes salía «¡Hoy!»).
+  return differenceInCalendarDays(parseISO(date), new Date())
 }
 
 export function countdownLabel(date: string): string {

@@ -1,20 +1,17 @@
-import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
-  ArrowUpDown, BookOpen, Bus, CalendarClock, CalendarDays, ChevronDown, Coins, DownloadCloud,
-  ExternalLink, FileText, Hash, Headphones, Landmark, Languages, Pencil, Phone, Plug, Plus,
-  RefreshCw, ShieldCheck, Trash2, Users, Utensils, Wifi, Zap, type LucideIcon,
+  ArrowUpDown, BookOpen, Bus, CalendarClock, CalendarDays, Coins, DownloadCloud,
+  ExternalLink, FileText, Headphones, Landmark, Languages, Pencil, Phone, Plus,
+  RefreshCw, ShieldCheck, Trash2, Users, Utensils, Wifi, type LucideIcon,
 } from 'lucide-react'
-import {
-  ACTIVITY_ICONS, Badge, Button, Card, Empty, Menu, Row, RowList, Section, type Tone,
-} from '@/design'
-import { cn } from '@/lib/utils'
+import { ACTIVITY_ICONS, Button, Chip, Menu, type Tone } from '@/design'
 import { citiesLabel, hasGuide } from '@/lib/cities'
 import { scopeRoute, type AudioguideScope } from '@/lib/audioguide/scope'
 import type { TripAudioguideReadiness } from '@/lib/queries/audioguides'
 import type { Activity, DestinationGuide, GuideSection, ItineraryDay } from '@/types/database'
 import { Markdown } from './Markdown'
+import { TrackRow } from './TrackRow'
 
 function sectionIcon(id: string): LucideIcon {
   if (id.startsWith('costumbres')) return Users
@@ -29,8 +26,9 @@ function sectionIcon(id: string): LucideIcon {
   return FileText
 }
 
-const FACT_ICONS = { currency: Coins, languages: Languages, emergency: Phone, plug: Plug, voltage: Zap, callingCode: Hash } as const
-const FACT_LABELS = { currency: 'Moneda', languages: 'Idioma', emergency: 'Emergencias', plug: 'Enchufe', voltage: 'Voltaje', callingCode: 'Prefijo' } as const
+// Los datos de la franja, en el orden en que se leen. Emergencias va aparte:
+// es un botón de llamada, no un dato más.
+const FACT_LABELS = { currency: 'Moneda', plug: 'Enchufe', voltage: 'Voltaje', languages: 'Idioma', callingCode: 'Prefijo' } as const
 
 interface AudioguideItem {
   key: string
@@ -70,17 +68,17 @@ export function DestinationView({
 }: Props) {
   const sections = guide.sections ?? []
   const filled = sections.filter(s => s.body.trim()).length
-  // Secciones desplegadas. De entrada, la primera: el resto se abre al tocar su título.
-  const [abiertas, setAbiertas] = useState<Set<string>>(() => new Set(sections[0] ? [sections[0].id] : []))
-  const alternar = (id: string) => setAbiertas(prev => {
-    const next = new Set(prev)
-    if (next.has(id)) next.delete(id); else next.add(id)
-    return next
-  })
+  const sectionDomId = (id: string) => `seccion-${guide.id}-${id}`
+  const irASeccion = (id: string) =>
+    document.getElementById(sectionDomId(id))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   const facts = guide.facts ?? {}
   const factEntries = (Object.keys(FACT_LABELS) as (keyof typeof FACT_LABELS)[])
-    .filter(k => facts[k]).map(k => ({ k, label: FACT_LABELS[k], Icon: FACT_ICONS[k], value: facts[k]! }))
+    .filter(k => facts[k]).map(k => ({ k, label: FACT_LABELS[k], value: facts[k]! }))
+  // Solo se ofrece llamar si el dato es UN número limpio: de un texto con
+  // varios («110 / 119») no se puede sacar a cuál marcar.
+  const emergencyText = facts.emergency?.trim() ?? ''
+  const emergencyDial = /^\+?[\d\s-]+$/.test(emergencyText) ? emergencyText.replace(/[^\d+]/g, '') : ''
 
   const assignedDays = days.filter(d => hasGuide(d, guide.id))
 
@@ -144,185 +142,239 @@ export function DestinationView({
     />
   ) : null
 
+
+  const diasTexto = assignedDays.length === 0
+    ? null
+    : assignedDays.length === 1 ? '1 día del viaje' : `${assignedDays.length} días del viaje`
+
   return (
-    <div className="space-y-8">
-      {/* Cabecera del destino */}
-      {guide.cover_image_url ? (
-        <div className="relative h-44 overflow-hidden rounded-3xl bg-sunken md:h-56">
-          <img src={guide.cover_image_url} alt="" className="size-full object-cover" loading="lazy" />
-          <div aria-hidden="true" className="absolute inset-0 photo-scrim" />
-          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 md:p-6">
-            <h2 className="title-hero min-w-0 text-white">{guide.name}</h2>
+    <div className="space-y-10">
+      <div className="space-y-5">
+        {/* Portada de la guía: la foto a sangre con el nombre encima; sin foto, color y tipografía. */}
+        {guide.cover_image_url ? (
+          <div className="relative -mx-4 h-64 overflow-hidden bg-sunken md:mx-0 md:h-80 md:rounded-3xl">
+            <img src={guide.cover_image_url} alt="" className="size-full object-cover" loading="lazy" />
+            <div aria-hidden="true" className="absolute inset-0 photo-scrim" />
+            <div className="absolute inset-x-0 bottom-0 p-5 text-white md:p-8">
+              <p className="text-2xs font-semibold uppercase tracking-widest text-white/80">
+                Guía del destino{diasTexto ? ` · ${diasTexto}` : ''}
+              </p>
+              <h2 className="mt-1.5 font-serif text-5xl font-medium leading-none tracking-tight break-words md:text-7xl">
+                {guide.name}
+              </h2>
+            </div>
+            {menu && <div className="absolute right-3 top-3 md:right-4 md:top-4">{menu}</div>}
           </div>
-          {menu && <div className="absolute right-3 top-3">{menu}</div>}
-        </div>
-      ) : (
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="title-hero min-w-0">{guide.name}</h2>
-          {menu}
-        </div>
-      )}
-
-      {/* Datos rápidos */}
-      {factEntries.length > 0 && (
-        <Section title="Datos rápidos">
-          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {factEntries.map(({ k, label, Icon, value }) => (
-              <div key={k} className="rounded-xl bg-sunken px-3.5 py-3">
-                <dt className="eyebrow flex items-center gap-1.5">
-                  <Icon className="size-3.5 text-primary" aria-hidden="true" /> {label}
-                </dt>
-                <dd className="mt-1 text-[0.9375rem] font-medium break-words">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Section>
-      )}
-
-      {/* Audioguías */}
-      <Section
-        title="Audioguías"
-        description={
-          assignedDays.length === 0
-            ? undefined
-            : totalAudio > 0 && listasAudio === totalAudio
-              ? 'Todas listas para escuchar.'
-              : `${listasAudio} de ${totalAudio} listas para escuchar.`
-        }
-        action={canEdit && assignedDays.length > 0
-          ? <Button size="sm" variant="ghost" onClick={onAssignDays}><CalendarDays /> Días ({assignedDays.length})</Button>
-          : undefined}
-      >
-        {assignedDays.length === 0 ? (
-          <Empty
-            icon={Headphones}
-            title="Di qué días pasas por aquí"
-            description={canEdit
-              ? `Elige los días del viaje que estás en ${guide.name} y aquí saldrán sus audioguías: la de la ciudad y la de cada visita.`
-              : `Todavía no se ha dicho qué días del viaje pasan por ${guide.name}.`}
-          >
-            {canEdit && <Button variant="soft" onClick={onAssignDays}><CalendarDays /> Elegir días</Button>}
-          </Empty>
         ) : (
-          <div className="space-y-4">
-            {gruposAudio.map(({ day, items }) => (
-              <div key={day.id} className="space-y-2">
-                <h3 className="eyebrow">{format(parseISO(day.date), "EEEE d 'de' MMMM", { locale: es })}</h3>
-                <RowList>
-                  {items.map(item => (
-                    <Row
-                      key={item.key}
-                      icon={item.icon}
-                      tone={item.tone}
-                      title={item.title}
-                      subtitle={item.subtitle}
-                      // Lista: se escucha. Sin crear: quien puede editar entra a crearla.
-                      to={item.ready || canEdit ? scopeRoute(tripId, item.scope) : undefined}
-                      chevron={item.ready || canEdit}
-                      trailing={item.ready
-                        ? <Badge tone="success" icon={Headphones}>Lista</Badge>
-                        : canEdit
-                          ? <span className="font-medium text-accent-foreground">Crear audioguía</span>
-                          : <Badge>Sin crear</Badge>}
-                    />
-                  ))}
-                </RowList>
-              </div>
-            ))}
+          <div className="relative -mx-4 bg-primary-soft px-5 pb-6 pt-14 md:mx-0 md:rounded-3xl md:px-8 md:pb-8 md:pt-20">
+            <p className="eyebrow">Guía del destino{diasTexto ? ` · ${diasTexto}` : ''}</p>
+            <h2 className="mt-1.5 font-serif text-5xl font-medium leading-none tracking-tight break-words text-accent-foreground md:text-7xl">
+              {guide.name}
+            </h2>
+            {menu && <div className="absolute right-3 top-3 md:right-4 md:top-4">{menu}</div>}
           </div>
         )}
-      </Section>
 
-      {/* Contenido */}
-      <Section
-        title="Qué conviene saber"
-        action={canEdit && sections.length > 0
-          ? <Button size="sm" variant="ghost" loading={importing} onClick={onImport}><RefreshCw /> Volver a importar</Button>
-          : undefined}
-      >
-        {sections.length === 0 ? (
-          <Empty
-            icon={BookOpen}
-            title={`Aún no hay información de ${guide.name}`}
-            description={canEdit
-              ? 'Tráela de Wikipedia y Wikivoyage con un toque, o escríbela tú. Todo se puede editar después.'
-              : 'Quien organiza el viaje todavía no la ha añadido.'}
-          >
-            {canEdit && (
-              <>
-                <Button variant="soft" loading={importing} onClick={onImport}><DownloadCloud /> Importar información</Button>
-                <Button variant="outline" onClick={() => onEditSection(null)}><Plus /> Nueva sección</Button>
-              </>
-            )}
-          </Empty>
-        ) : (
-          <div className="space-y-3">
-            {sections.map(s => {
-              const Icon = sectionIcon(s.id)
-              const abierta = abiertas.has(s.id)
-              const cuerpoId = `seccion-${guide.id}-${s.id}`
-              return (
-                <Card key={s.id} pad="none" className="overflow-hidden">
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => alternar(s.id)}
-                      aria-expanded={abierta}
-                      aria-controls={cuerpoId}
-                      className="flex min-h-15 min-w-0 flex-1 items-center gap-3.5 px-4 py-3 text-left transition-colors duration-150 hover:bg-secondary/70"
-                    >
-                      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary-soft text-accent-foreground">
-                        <Icon className="size-5" aria-hidden="true" />
-                      </span>
-                      <span className="title-card min-w-0 flex-1">{s.title}</span>
-                      <ChevronDown
-                        className={cn('size-4.5 shrink-0 text-muted-foreground transition-transform duration-200', abierta && 'rotate-180')}
-                        aria-hidden="true"
-                      />
-                    </button>
-                    {canEdit && (
-                      <div className="shrink-0 pr-2.5">
-                        <Menu
-                          label={`Opciones de «${s.title}»`}
-                          triggerSize="md"
-                          items={[
-                            { label: 'Editar', icon: Pencil, onSelect: () => onEditSection(s) },
-                            { label: 'Eliminar sección', icon: Trash2, danger: true, separated: true, onSelect: () => onDeleteSection(s) },
-                          ]}
-                        />
-                      </div>
-                    )}
+        {/* Datos rápidos: una franja de datos, y emergencias como botón de llamada. */}
+        {(factEntries.length > 0 || facts.emergency) && (
+          <div className="flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-center md:justify-between md:gap-6">
+            {factEntries.length > 0 && (
+              <dl
+                aria-label="Datos rápidos"
+                className="no-scrollbar -mx-4 flex min-w-0 divide-x divide-border overflow-x-auto px-4 md:mx-0 md:px-0"
+              >
+                {factEntries.map(({ k, label, value }) => (
+                  <div key={k} className="shrink-0 px-4 first:pl-0 last:pr-0">
+                    <dt className="eyebrow">{label}</dt>
+                    <dd className="mt-0.5 whitespace-nowrap text-[0.9375rem] font-semibold tabular-nums">{value}</dd>
                   </div>
-                  {abierta && (
-                    <div id={cuerpoId} className="border-t border-border px-4 py-4 md:px-5">
-                      {s.body.trim() ? (
-                        <Markdown content={s.body} />
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Sin información todavía.{canEdit ? ' Abre el menú «⋯» y elige «Editar» para escribirla.' : ''}
-                        </p>
-                      )}
-                      {s.url && s.source && s.source !== 'manual' && (
-                        <a
-                          href={s.url} target="_blank" rel="noreferrer"
-                          className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                        >
-                          <ExternalLink className="size-3.5" aria-hidden="true" /> Fuente: {s.source} (CC BY-SA)
-                        </a>
-                      )}
-                    </div>
+                ))}
+              </dl>
+            )}
+            {facts.emergency && (
+              emergencyDial ? (
+                <a
+                  href={`tel:${emergencyDial}`}
+                  data-tone="danger"
+                  className="inline-flex min-h-12 shrink-0 items-center gap-3 self-start rounded-full border border-tone-line bg-tone-soft py-1.5 pl-1.5 pr-5 text-tone transition-[filter,transform] duration-150 hover:brightness-95 active:scale-[0.97] md:self-auto"
+                >
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tone text-white">
+                    <Phone className="size-4" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 leading-tight">
+                    <span className="block text-2xs font-semibold uppercase tracking-wider">Emergencias</span>
+                    <span className="block text-[0.9375rem] font-semibold tabular-nums">Llamar al {facts.emergency}</span>
+                  </span>
+                </a>
+              ) : (
+                <div data-tone="danger" className="shrink-0">
+                  <p className="eyebrow text-tone">Emergencias</p>
+                  <p className="mt-0.5 text-[0.9375rem] font-semibold">{facts.emergency}</p>
+                </div>
+              )
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Audioguías: cada una, una pista */}
+      <section aria-labelledby={`audioguias-${guide.id}`} className="space-y-5">
+        <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
+            <h3 id={`audioguias-${guide.id}`} className="title-section">Audioguías</h3>
+            {assignedDays.length > 0 && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {totalAudio > 0 && listasAudio === totalAudio
+                  ? 'Todas listas para escuchar.'
+                  : `${listasAudio} de ${totalAudio} listas para escuchar.`}
+              </p>
+            )}
+          </div>
+          {canEdit && assignedDays.length > 0 && (
+            <Button size="sm" variant="ghost" onClick={onAssignDays}><CalendarDays /> Días ({assignedDays.length})</Button>
+          )}
+        </header>
+
+        {assignedDays.length === 0 ? (
+          <div className="flex flex-col items-start gap-4 rounded-2xl bg-sunken p-5 sm:flex-row sm:items-center">
+            <span aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-full border border-dashed border-border-strong text-muted-foreground">
+              <Headphones className="size-6" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-serif text-lg font-medium tracking-tight">Di qué días pasas por aquí</p>
+              <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+                {canEdit
+                  ? `Elige los días del viaje que estás en ${guide.name} y aquí saldrán sus audioguías: la de la ciudad y la de cada visita.`
+                  : `Todavía no se ha dicho qué días del viaje pasan por ${guide.name}.`}
+              </p>
+            </div>
+            {canEdit && <Button variant="soft" onClick={onAssignDays}><CalendarDays /> Elegir días</Button>}
+          </div>
+        ) : (
+          <div className="space-y-7">
+            {gruposAudio.map(({ day, items }) => {
+              const [ciudad, ...visitas] = items
+              const pista = (item: AudioguideItem, featured: boolean) => (
+                <TrackRow
+                  key={item.key}
+                  featured={featured}
+                  ready={item.ready}
+                  icon={item.icon}
+                  tone={item.tone}
+                  title={item.title}
+                  meta={item.subtitle}
+                  // Lista: se escucha. Sin crear: quien puede editar entra a crearla.
+                  to={item.ready || canEdit ? scopeRoute(tripId, item.scope) : undefined}
+                  trailing={item.ready
+                    ? <span className="font-medium text-accent-foreground">Escuchar</span>
+                    : canEdit
+                      ? <span className="font-medium text-muted-foreground group-hover:text-foreground">Crear</span>
+                      : <span className="text-muted-foreground">Sin crear</span>}
+                />
+              )
+              return (
+                <div key={day.id}>
+                  <h4 className="eyebrow mb-2.5 flex items-center gap-3">
+                    <span className="shrink-0">{format(parseISO(day.date), "EEEE d 'de' MMMM", { locale: es })}</span>
+                    <span aria-hidden="true" className="h-px flex-1 bg-border" />
+                  </h4>
+                  {pista(ciudad, true)}
+                  {visitas.length > 0 && (
+                    <ul className="mt-1 divide-y divide-border">
+                      {visitas.map(item => <li key={item.key} className="py-0.5">{pista(item, false)}</li>)}
+                    </ul>
                   )}
-                </Card>
+                </div>
               )
             })}
+          </div>
+        )}
+      </section>
+
+      {/* Qué conviene saber: un artículo, con su índice arriba */}
+      <section aria-labelledby={`saber-${guide.id}`}>
+        <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <h3 id={`saber-${guide.id}`} className="title-section">Qué conviene saber</h3>
+          {canEdit && sections.length > 0 && (
+            <Button size="sm" variant="ghost" loading={importing} onClick={onImport}><RefreshCw /> Volver a importar</Button>
+          )}
+        </header>
+
+        {sections.length === 0 ? (
+          <div className="mt-4 rounded-2xl bg-sunken px-5 py-8 md:px-8">
+            <p className="font-serif text-2xl font-medium tracking-tight">Aún no hay información de {guide.name}</p>
+            <p className="mt-2 max-w-prose text-[0.9375rem] leading-relaxed text-muted-foreground">
+              {canEdit
+                ? 'Tráela de Wikipedia y Wikivoyage con un toque, o escríbela tú. Todo se puede editar después.'
+                : 'Quien organiza el viaje todavía no la ha añadido.'}
+            </p>
             {canEdit && (
-              <Button variant="outline" block onClick={() => onEditSection(null)}>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button variant="soft" loading={importing} onClick={onImport}><DownloadCloud /> Importar información</Button>
+                <Button variant="outline" onClick={() => onEditSection(null)}><Plus /> Nueva sección</Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Índice: cada chip baja a su sección */}
+            <nav
+              aria-label="Secciones de la guía"
+              className="no-scrollbar -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0"
+            >
+              {sections.map(s => (
+                <Chip key={s.id} icon={sectionIcon(s.id)} onClick={() => irASeccion(s.id)}>{s.title}</Chip>
+              ))}
+            </nav>
+
+            <div className="mt-5 divide-y divide-border border-y border-border">
+              {sections.map((s, i) => (
+                <article key={s.id} id={sectionDomId(s.id)} className="scroll-mt-28 py-8">
+                  <header className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="eyebrow tabular-nums">{String(i + 1).padStart(2, '0')}</p>
+                      <h4 className="mt-1 font-serif text-2xl font-medium leading-tight tracking-tight md:text-3xl">{s.title}</h4>
+                    </div>
+                    {canEdit && (
+                      <Menu
+                        label={`Opciones de «${s.title}»`}
+                        triggerSize="md"
+                        items={[
+                          { label: 'Editar', icon: Pencil, onSelect: () => onEditSection(s) },
+                          { label: 'Eliminar sección', icon: Trash2, danger: true, separated: true, onSelect: () => onDeleteSection(s) },
+                        ]}
+                      />
+                    )}
+                  </header>
+                  <div className="mt-4 max-w-prose">
+                    {s.body.trim() ? (
+                      <Markdown content={s.body} />
+                    ) : (
+                      <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
+                        Sin información todavía.{canEdit ? ' Abre el menú «⋯» y elige «Editar» para escribirla.' : ''}
+                      </p>
+                    )}
+                    {s.url && s.source && s.source !== 'manual' && (
+                      <a
+                        href={s.url} target="_blank" rel="noreferrer"
+                        className="mt-5 inline-flex min-h-9 items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                      >
+                        <ExternalLink className="size-3.5" aria-hidden="true" /> Fuente: {s.source} (CC BY-SA)
+                      </a>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {canEdit && (
+              <Button variant="outline" className="mt-5" onClick={() => onEditSection(null)}>
                 <Plus /> Nueva sección
               </Button>
             )}
-          </div>
+          </>
         )}
-      </Section>
+      </section>
     </div>
   )
 }

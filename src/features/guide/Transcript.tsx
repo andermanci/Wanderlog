@@ -62,9 +62,9 @@ export function Transcript({ stop, currentTime, isPlaying, onSeek }: Props) {
       ref={containerRef}
       onWheel={stopFollowing}
       onTouchMove={stopFollowing}
-      className="relative max-h-80 overflow-y-auto overscroll-contain rounded-2xl bg-sunken px-4 py-3.5"
+      className="relative max-h-96 overflow-y-auto overscroll-contain border-y border-border py-5 lg:max-h-[52dvh]"
     >
-      <p className="text-base leading-relaxed">
+      <p className="max-w-prose font-serif text-lg leading-relaxed">
         {sentences.map((sentence, i) => {
           const seekable = !!onSeek && !!timings
           const Tag = seekable ? 'button' : 'span'
@@ -75,12 +75,13 @@ export function Transcript({ stop, currentTime, isPlaying, onSeek }: Props) {
               data-active={i === activeIndex || undefined}
               aria-current={i === activeIndex ? 'true' : undefined}
               className={cn(
-                'rounded-sm text-left transition-colors duration-300',
+                'rounded-md text-left transition-colors duration-300',
                 activeIndex === -1
                   ? 'text-foreground'
                   : i === activeIndex
-                    ? 'font-semibold text-accent-foreground'
+                    ? 'bg-primary-soft text-accent-foreground'
                     : 'text-muted-foreground',
+                seekable && i !== activeIndex && 'hover:text-foreground',
               )}
             >
               {sentence}{' '}

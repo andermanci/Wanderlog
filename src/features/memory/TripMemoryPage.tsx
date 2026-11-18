@@ -76,13 +76,14 @@ export function TripMemoryPage() {
       <div className="space-y-12 print:space-y-8">
         <MemoryCover trip={trip} />
 
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-6 border-y border-border py-6 text-center sm:grid-cols-4">
+        {/* El viaje en cuatro cifras, como la entradilla de un reportaje. */}
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-6 border-y-2 border-foreground/80 py-6 print:grid-cols-4 print:py-4">
           {stats.map(({ icon: Icon, value, label }) => (
-            <div key={label} className="flex flex-col-reverse items-center">
-              <dt className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Icon className="size-4" aria-hidden="true" /> {label}
+            <div key={label} className="flex min-w-0 flex-col-reverse">
+              <dt className="eyebrow mt-1.5 flex items-center gap-1.5">
+                <Icon className="size-3.5" aria-hidden="true" /> {label}
               </dt>
-              <dd className="title-page tabular-nums">{value}</dd>
+              <dd className="truncate font-serif text-3xl font-medium leading-none tracking-tight tabular-nums sm:text-5xl print:text-2xl">{value}</dd>
             </div>
           ))}
         </dl>
@@ -97,7 +98,7 @@ export function TripMemoryPage() {
             <Button asChild variant="soft"><Link to={`/trips/${tripId}/itinerary`}>Ir al plan</Link></Button>
           </Empty>
         ) : (
-          <div className="space-y-12 print:space-y-8">
+          <div className="space-y-16 print:space-y-10">
             {chapters.map((day, i) => (
               <MemoryDay
                 key={day.id}
@@ -114,8 +115,9 @@ export function TripMemoryPage() {
 
         <MemoryExpenses expenses={expenses ?? []} />
 
-        <footer className="pb-4 text-center">
-          <p className="title-section italic text-primary">Fin del viaje</p>
+        <footer className="break-inside-avoid pb-4 text-center">
+          <span aria-hidden="true" className="mx-auto mb-5 block h-px w-16 bg-border-strong" />
+          <p className="title-page italic text-primary">Fin del viaje</p>
           <p className="mt-2 text-xs text-muted-foreground">Hecho con Wanderlog</p>
         </footer>
       </div>

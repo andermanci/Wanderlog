@@ -198,14 +198,22 @@ export function StopsMapModal({ open, onOpenChange, stops, activeIndex, focusInd
             </>
           ) : (
             <>
-              <div>
-                <p className="eyebrow">
-                  Parada {seleccionada.index + 1}{seleccionada.index === activeIndex ? ' · sonando' : ''}
-                </p>
-                <p className="title-card">{seleccionada.stop.title}</p>
-                {seleccionada.stop.summary && (
-                  <p className="mt-0.5 text-sm text-muted-foreground">{seleccionada.stop.summary}</p>
-                )}
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="grid size-11 shrink-0 place-items-center rounded-full bg-primary-soft font-serif text-xl font-medium tabular-nums text-accent-foreground"
+                >
+                  {seleccionada.index + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="eyebrow">
+                    Parada {seleccionada.index + 1}{seleccionada.index === activeIndex ? ' · sonando' : ''}
+                  </p>
+                  <p className="font-serif text-lg font-medium leading-snug tracking-tight">{seleccionada.stop.title}</p>
+                  {seleccionada.stop.summary && (
+                    <p className="mt-0.5 text-sm text-muted-foreground">{seleccionada.stop.summary}</p>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="primary" block onClick={() => { onSelectStop(seleccionada.index); cerrar() }}>

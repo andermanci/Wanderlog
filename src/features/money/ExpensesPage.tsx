@@ -155,6 +155,8 @@ export function ExpensesPage() {
           otherTotals={otherTotals}
           missing={missing}
           count={all.length}
+          expenses={all}
+          rates={rates}
         />
 
         {canEdit && (
@@ -193,8 +195,9 @@ export function ExpensesPage() {
           />
 
           {isLoading ? (
-            <div className="space-y-2">
-              {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-15" />)}
+            <div className="space-y-px">
+              <Skeleton className="mb-3 h-10 w-44" />
+              {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-14 rounded-md" />)}
             </div>
           ) : view === 'lista' ? (
             <ExpenseList

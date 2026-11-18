@@ -7,10 +7,10 @@ import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalList
 import { CSS } from '@dnd-kit/utilities'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { BookOpen, GripVertical, Plus, Wand2 } from 'lucide-react'
+import { BookOpen, Coins, GripVertical, Headphones, Languages, Plug, Plus, Users, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
-  Button, Checkbox, Chip, Confirm, Empty, Field, Input, Notice, Page, Panel, Skeleton, Textarea,
+  Button, Checkbox, Confirm, Field, Input, Notice, Page, Panel, Skeleton, Textarea,
 } from '@/design'
 import { cn } from '@/lib/utils'
 import { useTrip } from '@/lib/queries/trips'
@@ -40,6 +40,15 @@ function mergeSections(prev: GuideSection[], fetched: GuideSection[]): GuideSect
   for (const s of prev) if (!seen.has(s.id)) merged.push(s)
   return merged
 }
+
+// Lo que trae una guía, para enseñarlo en la portada cuando aún está vacía.
+const GUIDE_CONTENTS = [
+  { icon: Coins, label: 'Moneda' },
+  { icon: Plug, label: 'Enchufes' },
+  { icon: Languages, label: 'Idioma' },
+  { icon: Users, label: 'Costumbres' },
+  { icon: Headphones, label: 'Audioguías' },
+]
 
 // Un solo panel abierto cada vez: cuál y sobre qué.
 type PanelState =
@@ -186,40 +195,72 @@ export function GuidePage() {
       ) : undefined}
     >
       {isLoading ? (
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <Skeleton className="h-9 w-24 rounded-full" />
-            <Skeleton className="h-9 w-28 rounded-full" />
+        <div className="space-y-5">
+          <div className="flex gap-6 border-b border-border pb-3">
+            <Skeleton className="h-8 w-28" />
+            <Skeleton className="h-8 w-32" />
           </div>
-          <Skeleton className="h-44 w-full rounded-3xl" />
+          <Skeleton className="h-64 w-full rounded-3xl md:h-80" />
+          <Skeleton className="h-12 w-full" />
           <Skeleton className="h-32 w-full" />
         </div>
       ) : !guide ? (
-        <Empty
-          icon={BookOpen}
-          title="Tu guía está vacía"
-          description={canEdit
-            ? 'Aquí tendrás, por cada sitio del viaje, lo que conviene saber (moneda, enchufes, idioma, costumbres…) y sus audioguías. Empieza por los sitios que ya aparecen en tu viaje.'
-            : 'Aquí aparecerá lo que conviene saber de cada sitio del viaje y sus audioguías, cuando quien lo organiza lo añada.'}
-        >
+        // Vacío: la portada de una guía todavía sin escribir.
+        <div className="-mx-4 bg-primary-soft px-5 py-10 md:mx-0 md:rounded-3xl md:px-12 md:py-16">
+          <p className="eyebrow flex items-center gap-2">
+            <BookOpen className="size-4" aria-hidden="true" /> Guía del viaje
+          </p>
+          <h2 className="mt-3 font-serif text-5xl font-medium leading-none tracking-tight text-accent-foreground md:text-7xl">
+            Tu guía está vacía
+          </h2>
+          <p className="mt-5 max-w-prose text-base leading-relaxed">
+            {canEdit
+              ? 'Aquí tendrás, por cada sitio del viaje, lo que conviene saber (moneda, enchufes, idioma, costumbres…) y sus audioguías. Empieza por los sitios que ya aparecen en tu viaje.'
+              : 'Aquí aparecerá lo que conviene saber de cada sitio del viaje y sus audioguías, cuando quien lo organiza lo añada.'}
+          </p>
+          <ul aria-hidden="true" className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-border-strong pt-4">
+            {GUIDE_CONTENTS.map(({ icon: Icon, label }) => (
+              <li key={label} className="eyebrow flex items-center gap-1.5">
+                <Icon className="size-3.5" /> {label}
+              </li>
+            ))}
+          </ul>
           {canEdit && (
-            <>
+            <div className="mt-8 flex flex-wrap gap-2">
               <Button variant="primary" onClick={openDetect}><Wand2 /> Detectar destinos</Button>
               <Button variant="outline" onClick={() => setPanel({ kind: 'add', detect: false })}><Plus /> Añadir por nombre</Button>
-            </>
+            </div>
           )}
-        </Empty>
+        </div>
       ) : (
-        <div className="space-y-6">
-          {/* Destinos: uno a la vez */}
+        <div className="space-y-5">
+          {/* Destinos: uno a la vez, como pestañas con el nombre en grande */}
           {list.length > 1 && (
             <div
               role="group" aria-label="Destinos"
-              className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0"
+              className="no-scrollbar -mx-4 flex gap-6 overflow-x-auto border-b border-border px-4 md:mx-0 md:gap-8 md:px-0"
             >
-              {list.map(g => (
-                <Chip key={g.id} selected={g.id === guide.id} onClick={() => setSelectedId(g.id)}>{g.name}</Chip>
-              ))}
+              {list.map(g => {
+                const elegido = g.id === guide.id
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    aria-pressed={elegido}
+                    onClick={() => setSelectedId(g.id)}
+                    className={cn(
+                      'relative min-h-12 shrink-0 whitespace-nowrap pb-2.5 pt-1 font-serif text-2xl font-medium tracking-tight transition-colors duration-150',
+                      elegido ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {g.name}
+                    <span
+                      aria-hidden="true"
+                      className={cn('absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary transition-opacity duration-150', !elegido && 'opacity-0')}
+                    />
+                  </button>
+                )
+              })}
             </div>
           )}
 

@@ -1,10 +1,10 @@
 import { Headphones } from 'lucide-react'
-import { Row, RowList } from '@/design'
 import { useTripAudioguidesReadiness } from '@/lib/queries/audioguides'
 import { scopeRoute } from '@/lib/audioguide/scope'
 import { audioguiaDeAhora } from '@/lib/audioguide/ahora'
 import type { DayEntry } from '@/lib/today'
 import type { ItineraryDay } from '@/types/database'
+import { TrackRow } from './TrackRow'
 
 interface Props {
   tripId: string
@@ -24,15 +24,15 @@ export function TodayAudioguideRow({ tripId, todayDay, focus }: Props) {
   if (!cual) return null
 
   return (
-    <RowList>
-      <Row
-        icon={Headphones}
-        tone="primary"
-        title={`Audioguía · ${cual.titulo}`}
-        subtitle={cual.pie}
-        to={scopeRoute(tripId, cual.scope)}
-        chevron
-      />
-    </RowList>
+    <TrackRow
+      featured
+      ready
+      icon={Headphones}
+      to={scopeRoute(tripId, cual.scope)}
+      eyebrow="Audioguía para ahora"
+      title={cual.titulo}
+      meta={cual.pie}
+      trailing={<span className="font-medium text-accent-foreground">Escuchar</span>}
+    />
   )
 }

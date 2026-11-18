@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { Headphones } from 'lucide-react'
-import { Row, RowList, Spinner } from '@/design'
+import { Spinner } from '@/design'
 import { useAudioguide } from '@/lib/queries/audioguides'
 import { scopeRoute, type AudioguideScope } from '@/lib/audioguide/scope'
 import type { Activity } from '@/types/database'
+import { TrackRow } from './TrackRow'
 
 interface Props {
   activity: Activity
@@ -25,21 +26,32 @@ export function AudioguideEntryCard({ activity, tripId, canEdit = true }: Props)
   const generating = !!audioguide && !allReady
   if (!audioguide && !canEdit) return null
 
+  // La duración solo se dice si todas las paradas la traen: una suma a medias engaña.
+  const segundos = stops.reduce((n, s) => n + (Number(s.audio_duration_seconds) || 0), 0)
+  const conDuracion = allReady && stops.every((s) => Number(s.audio_duration_seconds) > 0)
+  const paradas = `${stops.length} ${stops.length === 1 ? 'parada' : 'paradas'}`
+
   return (
-    <RowList>
-      <Row
-        icon={Headphones}
-        tone="primary"
-        title="Audioguía"
-        subtitle={
-          allReady ? `${stops.length} paradas listas para escuchar`
-            : generating ? 'Creando los audios…'
-              : 'Crea una audioguía para visitar este sitio'
-        }
-        trailing={generating ? <Spinner className="size-4" label="Creando" /> : undefined}
-        to={scopeRoute(tripId, scope)}
-        chevron={!generating}
-      />
-    </RowList>
+    <TrackRow
+      featured={allReady}
+      ready={allReady}
+      icon={Headphones}
+      tone="primary"
+      to={scopeRoute(tripId, scope)}
+      eyebrow="Audioguía"
+      title={allReady ? 'Escuchar la visita' : generating ? 'Creando los audios…' : 'Aún no tiene audioguía'}
+      meta={
+        allReady
+          ? conDuracion ? `${paradas} · ${Math.max(1, Math.round(segundos / 60))} min` : `${paradas} listas para escuchar`
+          : generating ? 'Suele tardar uno o dos minutos.'
+            : 'Crea una audioguía para visitar este sitio'
+      }
+      trailing={
+        generating ? <Spinner className="size-4" label="Creando" />
+          : allReady ? undefined
+            : <span className="font-medium text-accent-foreground">Crear</span>
+      }
+      className={allReady ? undefined : 'border border-dashed border-border-strong px-3.5'}
+    />
   )
 }

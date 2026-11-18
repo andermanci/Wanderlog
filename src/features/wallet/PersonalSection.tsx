@@ -1,6 +1,6 @@
-import { AlertTriangle, Eye, IdCard, Pencil, Plus, Trash2 } from 'lucide-react'
-import { Avatar, Badge, Button, Card, DocIcon, Empty, Menu, Notice, Row, Section } from '@/design'
-import { DOCUMENT_LABELS, formatDate, isFileDoc } from '@/lib/utils'
+import { AlertTriangle, Eye, IdCard, ImageOff, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Avatar, Badge, Button, DocIcon, Empty, Menu, Notice, Section, type Tone } from '@/design'
+import { DOCUMENT_LABELS, cn, formatDate, isFileDoc } from '@/lib/utils'
 import type { Document, Traveler } from '@/types/database'
 import { DocImage } from './DocImage'
 import { expiryState, isIdentity, isImageRef, type FileRef, type IdCardRef } from './shared'
@@ -14,17 +14,21 @@ interface Handlers {
   onDelete: (doc: Document) => void
 }
 
-function ExpiryBadge({ end, now }: { end: string | null; now: Date }) {
-  const state = expiryState(end, now)
-  if (!state) return null
-  return state === 'expired'
-    ? <Badge tone="danger" icon={AlertTriangle}>Caducado</Badge>
-    : <Badge tone="warning" icon={AlertTriangle}>Caduca pronto</Badge>
+// Cada tipo de documento tiene su color, como los carnés de verdad.
+const TONOS: Record<string, Tone> = {
+  passport: 'flight',
+  dni: 'transport',
+  visa: 'place',
+  driving_license: 'hotel',
+  health_card: 'bar',
+  vaccines: 'activity',
 }
 
-// Un documento personal. Tocarlo lo abre: los carnés en el visor de dos caras; el
-// visado y las vacunas, que son un archivo suelto, en el visor de archivos.
-function PersonalDocRow({ doc, travelerName, canEdit, now, onViewCard, onOpenFile, onEdit, onDelete }: Handlers & {
+// Un documento personal con forma de carné: franja del color del tipo, titular
+// en grande, número en monoespaciada y la caducidad abajo. Tocarlo lo abre: los
+// carnés en el visor de dos caras; el visado y las vacunas, que son un archivo
+// suelto, en el visor de archivos.
+function Carnet({ doc, travelerName, canEdit, now, onViewCard, onOpenFile, onEdit, onDelete }: Handlers & {
   doc: Document
   travelerName: string | null
 }) {
@@ -32,6 +36,7 @@ function PersonalDocRow({ doc, travelerName, canEdit, now, onViewCard, onOpenFil
   const title = travelerName ? `${label} de ${travelerName}` : label
   const asFile = isFileDoc(doc.category)
   const hasSomething = asFile ? !!doc.file_url : !!(doc.file_url || doc.back_url)
+  const state = expiryState(doc.datetime_end, now)
 
   const view = () => {
     if (asFile) { if (doc.file_url) onOpenFile({ url: doc.file_url, name: title }) }
@@ -39,43 +44,113 @@ function PersonalDocRow({ doc, travelerName, canEdit, now, onViewCard, onOpenFil
   }
   const open = hasSomething ? view : canEdit ? () => onEdit(doc) : undefined
 
-  const details = [
-    doc.confirmation_number,
-    doc.datetime_end ? `Caduca el ${formatDate(doc.datetime_end, 'd MMM yyyy')}` : null,
-    !hasSomething ? (asFile ? 'Sin archivo' : 'Sin foto') : null,
-  ].filter(Boolean).join(' · ')
+  const icon = <DocIcon category={doc.category} className="size-6" />
+  const content = (
+    <>
+      <span className="eyebrow flex items-center gap-1.5 pr-10 text-tone">
+        <DocIcon category={doc.category} className="size-3.5" /> {label}
+      </span>
 
-  const icon = <DocIcon category={doc.category} className="size-5" />
+      <span className="mt-auto block pt-4">
+        <span className={cn(
+          'block truncate font-serif text-xl font-medium leading-tight tracking-tight',
+          !travelerName && 'text-muted-foreground',
+        )}>
+          {travelerName ?? 'Sin viajero asignado'}
+        </span>
+        {doc.confirmation_number && (
+          <span className="mt-1 block truncate font-mono text-sm font-semibold tracking-wider">{doc.confirmation_number}</span>
+        )}
+      </span>
+
+      <span className="mt-auto flex items-end justify-between gap-3 pt-4">
+        <span className="min-w-0">
+          {doc.datetime_end ? (
+            <span
+              data-tone={state === 'expired' ? 'danger' : state === 'soon' ? 'warning' : 'neutral'}
+              className="block"
+            >
+              <span className="eyebrow flex items-center gap-1 text-tone">
+                {state && <AlertTriangle className="size-3.5" aria-hidden="true" />}
+                {state === 'expired' ? 'Caducó el' : 'Caduca el'}
+              </span>
+              <span className={cn('block text-sm font-semibold tabular-nums', state ? 'text-tone' : 'text-foreground')}>
+                {formatDate(doc.datetime_end, 'd MMM yyyy')}
+                {state === 'soon' && <span className="font-medium"> · pronto</span>}
+              </span>
+            </span>
+          ) : (
+            <span className="block text-sm text-muted-foreground">Sin fecha de caducidad</span>
+          )}
+        </span>
+
+        {/* Miniatura de la foto, o el hueco donde iría */}
+        {isImageRef(doc.file_url) ? (
+          <span className="grid aspect-[8/5] w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-tone-soft text-tone">
+            <DocImage src={doc.file_url} alt="" className="size-full object-cover" fallback={icon} />
+          </span>
+        ) : hasSomething ? (
+          <span className="grid aspect-[8/5] w-20 shrink-0 place-items-center rounded-lg bg-tone-soft text-tone">{icon}</span>
+        ) : (
+          <span className="flex aspect-[8/5] w-20 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-border-strong text-2xs font-medium text-muted-foreground">
+            <ImageOff className="size-4" aria-hidden="true" />
+            {asFile ? 'Sin archivo' : 'Sin foto'}
+          </span>
+        )}
+      </span>
+    </>
+  )
+
+  const body = 'flex min-w-0 flex-1 flex-col rounded-b-2xl px-4 pb-4 pt-3 text-left'
   return (
-    <Row
-      leading={
-        <span data-tone="primary" className="grid h-11 w-16 shrink-0 place-items-center overflow-hidden rounded-md bg-tone-soft text-tone">
-          {isImageRef(doc.file_url)
-            ? <DocImage src={doc.file_url} alt="" className="size-full object-cover" fallback={icon} />
-            : icon}
-        </span>
-      }
-      title={
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          {label}
-          <ExpiryBadge end={doc.datetime_end} now={now} />
-        </span>
-      }
-      subtitle={details || (asFile ? 'Toca para ver el archivo' : doc.back_url ? 'Toca para ver las dos caras' : 'Toca para verlo')}
-      onClick={open}
-      after={canEdit ? (
-        <Menu
-          label={`Opciones de ${title}`}
-          items={[
-            hasSomething && { label: asFile ? 'Ver archivo' : 'Ver documento', icon: Eye, onSelect: view },
-            { label: 'Editar', icon: Pencil, onSelect: () => onEdit(doc) },
-            { label: 'Eliminar', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(doc) },
-          ]}
-        />
-      ) : undefined}
-    />
+    <article
+      data-tone={TONOS[doc.category] ?? 'primary'}
+      className="relative flex aspect-[8/5] min-w-0 flex-col rounded-2xl border border-tone-line bg-card shadow-card"
+    >
+      <span aria-hidden="true" className="h-2 shrink-0 rounded-t-2xl bg-tone" />
+      {open ? (
+        <button
+          type="button"
+          onClick={open}
+          title={hasSomething ? (asFile ? 'Ver el archivo' : doc.back_url ? 'Ver las dos caras' : 'Ver el documento') : 'Editar para añadir la foto'}
+          className={cn(body, 'cursor-pointer transition-colors duration-150 hover:bg-secondary/60')}
+        >
+          {content}
+        </button>
+      ) : (
+        <div className={body}>{content}</div>
+      )}
+      {canEdit && (
+        <div className="absolute right-1.5 top-3">
+          <Menu
+            label={`Opciones de ${title}`}
+            items={[
+              hasSomething && { label: asFile ? 'Ver archivo' : 'Ver documento', icon: Eye, onSelect: view },
+              { label: 'Editar', icon: Pencil, onSelect: () => onEdit(doc) },
+              { label: 'Eliminar', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(doc) },
+            ]}
+          />
+        </div>
+      )}
+    </article>
   )
 }
+
+/** El hueco de un carné que aún no está: añade un documento. */
+function HuecoCarnet({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-2xl border border-dashed border-border-strong px-4 py-3 text-[0.9375rem] font-medium text-accent-foreground transition-colors duration-150 hover:bg-primary-soft sm:aspect-[8/5] sm:flex-col"
+    >
+      <Plus className="size-5 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 text-center">{label}</span>
+    </button>
+  )
+}
+
+const REJILLA = 'grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2'
 
 interface PersonalSectionProps extends Handlers {
   travelers: Traveler[]
@@ -142,42 +217,44 @@ export function PersonalSection({ travelers, docs, onAdd, onAddTraveler, ...hand
           )}
         </Empty>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-8 pt-1">
           {travelers.map(t => {
             const own = docs.filter(d => d.traveler_id === t.id)
             const hasId = own.some(isIdentity)
             return (
-              <Card key={t.id} pad="none" className="overflow-hidden">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-                  <Avatar name={t.name} size="sm" />
-                  <h3 className="title-card min-w-0 flex-1 truncate">{t.name}</h3>
+              <div key={t.id} className="space-y-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-3">
+                  <Avatar name={t.name} />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate font-serif text-lg font-medium tracking-tight">{t.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {own.length === 0
+                        ? 'Todavía no tiene ningún documento guardado.'
+                        : own.length === 1 ? '1 documento' : `${own.length} documentos`}
+                    </p>
+                  </div>
                   {!hasId && <Badge tone="warning" icon={AlertTriangle}>Falta DNI o pasaporte</Badge>}
                 </div>
-                <div className="divide-y divide-border border-t border-border">
-                  {own.map(doc => <PersonalDocRow key={doc.id} doc={doc} travelerName={t.name} {...handlers} />)}
-                  {own.length === 0 && (
-                    <p className="px-4 py-3 text-sm text-muted-foreground">Todavía no tiene ningún documento guardado.</p>
-                  )}
-                  {canEdit && (
-                    <div className="px-2.5 py-2">
-                      <Button variant="ghost" onClick={() => onAdd(t.id)}><Plus /> Añadir documento de {t.name}</Button>
-                    </div>
-                  )}
-                </div>
-              </Card>
+                {(own.length > 0 || canEdit) && (
+                  <div className={REJILLA}>
+                    {own.map(doc => <Carnet key={doc.id} doc={doc} travelerName={t.name} {...handlers} />)}
+                    {canEdit && <HuecoCarnet label={`Añadir documento de ${t.name}`} onClick={() => onAdd(t.id)} />}
+                  </div>
+                )}
+              </div>
             )
           })}
 
           {unassigned.length > 0 && (
-            <Card pad="none" className="overflow-hidden">
-              <div className="px-4 py-3">
-                <h3 className="title-card">Sin viajero asignado</h3>
+            <div className="space-y-3">
+              <div className="border-b border-border pb-3">
+                <h3 className="font-serif text-lg font-medium tracking-tight">Sin viajero asignado</h3>
                 {canEdit && <p className="text-sm text-muted-foreground">Edita cada documento para decir de quién es.</p>}
               </div>
-              <div className="divide-y divide-border border-t border-border">
-                {unassigned.map(doc => <PersonalDocRow key={doc.id} doc={doc} travelerName={null} {...handlers} />)}
+              <div className={REJILLA}>
+                {unassigned.map(doc => <Carnet key={doc.id} doc={doc} travelerName={null} {...handlers} />)}
               </div>
-            </Card>
+            </div>
           )}
         </div>
       )}

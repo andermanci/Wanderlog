@@ -54,25 +54,18 @@ export function useRouteLayer(tripId: string, mapReady: boolean, canEdit: boolea
     [routePoints, dayDate],
   )
 
-  // ¿Se dibuja la ruta? La de todo el viaje, solo si se pide (botón «Recorrido»
-  // o `?route=1`): cada trazado es una consulta a Google. La de un día concreto
-  // sale al elegir el día, salvo que se apague a mano.
-  const [tripRoute, setTripRoute] = useState(false)
-  const [dayRouteOff, setDayRouteOff] = useState(false)
-  const [lastDay, setLastDay] = useState(mapDayId)
-  if (lastDay !== mapDayId) {
-    setLastDay(mapDayId)
-    setDayRouteOff(false)
-  }
-  const showRoute = dayDate === 'all' ? tripRoute : !dayRouteOff
-  function setShowRoute(on: boolean) {
-    if (dayDate === 'all') setTripRoute(on)
-    else setDayRouteOff(!on)
-  }
+  // ¿Se dibuja la ruta? Solo si se pide (botón «Recorrido» o `?route=1`), tanto
+  // la del viaje como la de un día: cada trazado es una consulta de pago a Google
+  // y antes salía sola con solo abrir el Plan o cambiar de día. Elegir un día
+  // sigue encuadrando sus paradas; la línea se enciende aparte y se queda
+  // encendida al cambiar de día hasta que se apague.
+  const [routeOn, setRouteOn] = useState(false)
+  const showRoute = routeOn
+  const setShowRoute = setRouteOn
   /** Enseña el recorrido de todo el viaje. */
   function showTripRoute() {
     setMapDay('all')
-    setTripRoute(true)
+    setRouteOn(true)
   }
 
   // Modo de la ruta dibujada, por viaje (urbano → a pie; roadtrip → coche).

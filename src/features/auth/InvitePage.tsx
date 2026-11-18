@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CalendarDays, MapPin, MailX, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge, Button, Card, Empty, Spinner } from '@/design'
+import { Button, Empty, Spinner } from '@/design'
 import { useInvitePreview, useAcceptInvite, ROLE_LABELS } from '@/lib/queries/sharing'
 import { useEmailLink } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { formatDate } from '@/lib/utils'
 import { clearPendingInvite, rememberPendingInvite } from '@/lib/pendingInvite'
-import { Acceso, Marca, PantallaAcceso } from './piezas'
+import { FALLBACK_COVERS } from '@/lib/coverFallbacks'
+import { Acceso, PantallaAcceso } from './piezas'
 
 // Pantalla pública de una invitación a un viaje. Es la única ruta que enseña
 // algo (nombre, destino y fechas del viaje) sin sesión: es lo que hace que
@@ -61,102 +62,114 @@ export function InvitePage() {
   const busy =
     loading || isLoading || (!!session && !isError && invite?.status !== 'invalid')
 
+  const valida = !busy && !isError && !!invite && invite.status === 'pending'
+
   return (
-    <PantallaAcceso>
-      <div className="animate-rise">
-        <p className="mb-6 text-center"><Marca className="text-2xl" /></p>
-
-        {busy ? (
-          <div className="flex flex-col items-center gap-4 py-16">
-            <Spinner className="size-8" />
-            <p className="text-[0.9375rem] text-muted-foreground">
-              {session ? 'Entrando al viaje…' : 'Cargando la invitación…'}
-            </p>
-          </div>
-        ) : isError || !invite || invite.status === 'invalid' ? (
-          <Problema
-            titulo="Esta invitación no es válida"
-            texto="Puede que el enlace esté incompleto o que te hayan quitado el acceso. Pide a quien te invitó que te la envíe otra vez."
-          />
-        ) : invite.status === 'expired' ? (
-          <Problema
-            titulo="La invitación ha caducado"
-            texto={`Los enlaces caducan a los 30 días. Pide a ${invite.inviter_name ?? 'quien te invitó'} que te la envíe otra vez.`}
-          />
-        ) : invite.status === 'accepted' ? (
-          <Problema
-            titulo="Esta invitación ya se ha usado"
-            texto="Si fuiste tú, entra con tu cuenta y verás el viaje en tu lista."
-          />
-        ) : (
-          <Card pad="none" className="overflow-hidden shadow-raised">
-            {invite.cover_image_url && (
-              <img src={invite.cover_image_url} alt="" className="h-40 w-full object-cover" />
+    <PantallaAcceso
+      alta={valida}
+      foto={(valida && invite.cover_image_url) || FALLBACK_COVERS[1]}
+      titular={valida ? (
+        // El protagonista es el viaje: su nombre en grande, encima de su foto.
+        <div className="max-w-lg">
+          <p className="text-2xs font-semibold uppercase tracking-[0.08em] text-white/85">
+            {invite.inviter_name ?? 'Alguien'} te invita a un viaje
+          </p>
+          <h1 className="mt-2 font-serif text-4xl font-medium leading-[1.05] tracking-tight line-clamp-3 md:text-6xl">
+            {invite.trip_name}
+          </h1>
+          <ul className="mt-3 space-y-1 text-[0.9375rem] font-medium text-white/90 md:mt-5 md:text-base">
+            <li className="flex items-center gap-2">
+              <MapPin className="size-4 shrink-0" aria-hidden="true" />
+              <span className="sr-only">Destino:</span>
+              <span className="min-w-0 truncate">{invite.destination}</span>
+            </li>
+            {invite.start_date && invite.end_date && (
+              <li className="flex items-center gap-2 tabular-nums">
+                <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
+                <span className="sr-only">Fechas:</span>
+                Del {formatDate(invite.start_date)} al {formatDate(invite.end_date)}
+              </li>
             )}
-            <div className="p-6 md:p-7">
-              <p className="eyebrow">
-                {invite.inviter_name ?? 'Alguien'} te invita a un viaje
+          </ul>
+        </div>
+      ) : (
+        <p className="max-w-md font-serif text-3xl font-medium leading-[1.08] tracking-tight md:text-5xl">
+          Los viajes se planean mejor en compañía.
+        </p>
+      )}
+    >
+      {busy ? (
+        <div className="flex flex-col items-center gap-4 py-16">
+          <Spinner className="size-8" />
+          <p className="font-serif text-xl text-muted-foreground">
+            {session ? 'Entrando al viaje…' : 'Cargando la invitación…'}
+          </p>
+        </div>
+      ) : isError || !invite || invite.status === 'invalid' ? (
+        <Problema
+          titulo="Esta invitación no es válida"
+          texto="Puede que el enlace esté incompleto o que te hayan quitado el acceso. Pide a quien te invitó que te la envíe otra vez."
+        />
+      ) : invite.status === 'expired' ? (
+        <Problema
+          titulo="La invitación ha caducado"
+          texto={`Los enlaces caducan a los 30 días. Pide a ${invite.inviter_name ?? 'quien te invitó'} que te la envíe otra vez.`}
+        />
+      ) : invite.status === 'accepted' ? (
+        <Problema
+          titulo="Esta invitación ya se ha usado"
+          texto="Si fuiste tú, entra con tu cuenta y verás el viaje en tu lista."
+        />
+      ) : uniendose ? (
+        <>
+          {!emailLink.sent && (
+            <header className="mb-6">
+              <p className="eyebrow">Un paso más</p>
+              <h2 className="title-page mt-1.5">Entra para unirte</h2>
+              <p className="mt-2 text-[0.9375rem] leading-relaxed text-muted-foreground">
+                Entra o crea tu cuenta para unirte. Es gratis y no hay contraseñas.
               </p>
-              <h1 className="title-page mt-1.5">{invite.trip_name}</h1>
-              <ul className="mt-3 space-y-1.5 text-[0.9375rem] text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <MapPin className="size-4 shrink-0" aria-hidden="true" />
-                  <span className="sr-only">Destino:</span>
-                  {invite.destination}
-                </li>
-                {invite.start_date && invite.end_date && (
-                  <li className="flex items-center gap-2">
-                    <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
-                    <span className="sr-only">Fechas:</span>
-                    Del {formatDate(invite.start_date)} al {formatDate(invite.end_date)}
-                  </li>
-                )}
-              </ul>
-              {invite.role && (
-                <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                  Vas a poder: <Badge tone="primary">{ROLE_LABELS[invite.role]}</Badge>
-                </p>
-              )}
-
-              <div className="mt-6 border-t border-border pt-6">
-                {uniendose ? (
-                  <>
-                    {!emailLink.sent && (
-                      <p className="mb-4 text-[0.9375rem] text-muted-foreground">
-                        Entra o crea tu cuenta para unirte. Es gratis y no hay contraseñas.
-                      </p>
-                    )}
-                    {/* Unirse con otra cuenta distinta a la invitada funciona: el
-                        token es lo que da el acceso, no el correo. */}
-                    <Acceso
-                      link={emailLink}
-                      email={email}
-                      onEmailChange={setTypedEmail}
-                      onBeforeGoogle={rememberInvite}
-                      notaEnviado="Ábrelo en este dispositivo y entrarás directo al viaje."
-                      pie={invite.invited_email
-                        ? `Puedes entrar con la cuenta que prefieras, aunque no sea ${invite.invited_email}.`
-                        : 'Puedes entrar con la cuenta que prefieras.'}
-                    />
-                  </>
-                ) : (
-                  <Button variant="primary" size="lg" block onClick={() => setUniendose(true)}>
-                    <UserPlus aria-hidden="true" />
-                    Unirme al viaje
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
-        )}
-      </div>
+            </header>
+          )}
+          {/* Unirse con otra cuenta distinta a la invitada funciona: el
+              token es lo que da el acceso, no el correo. */}
+          <Acceso
+            link={emailLink}
+            email={email}
+            onEmailChange={setTypedEmail}
+            onBeforeGoogle={rememberInvite}
+            notaEnviado="Ábrelo en este dispositivo y entrarás directo al viaje."
+            pie={invite.invited_email
+              ? `Puedes entrar con la cuenta que prefieras, aunque no sea ${invite.invited_email}.`
+              : 'Puedes entrar con la cuenta que prefieras.'}
+          />
+        </>
+      ) : (
+        <>
+          <p className="eyebrow">Tu invitación</p>
+          <p className="title-page mt-1.5">
+            {invite.inviter_name ?? 'Alguien'} quiere que vengas a este viaje.
+          </p>
+          {invite.role && (
+            <dl className="mt-6 border-y border-border py-4">
+              <dt className="eyebrow">Vas a poder</dt>
+              <dd className="mt-0.5 font-serif text-xl font-medium tracking-tight">{ROLE_LABELS[invite.role]}</dd>
+            </dl>
+          )}
+          <Button variant="primary" size="lg" block className="mt-6 h-14" onClick={() => setUniendose(true)}>
+            <UserPlus aria-hidden="true" />
+            Unirme al viaje
+          </Button>
+          <p className="mt-3 text-sm text-muted-foreground">Es gratis y no hay contraseñas.</p>
+        </>
+      )}
     </PantallaAcceso>
   )
 }
 
 function Problema({ titulo, texto }: { titulo: string; texto: string }) {
   return (
-    <Empty icon={MailX} title={titulo} description={texto}>
+    <Empty bare icon={MailX} title={titulo} description={texto}>
       <Button asChild variant="primary">
         <Link to="/login">Ir a Wanderlog</Link>
       </Button>

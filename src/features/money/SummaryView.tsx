@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { PieChart } from 'lucide-react'
-import { Card, Empty, Section, toneColor } from '@/design'
-import { EXPENSE_CATEGORIES, formatCurrency, formatCurrencyShort, formatDate } from '@/lib/utils'
+import { Empty, toneColor } from '@/design'
+import { formatCurrency, formatCurrencyShort, formatDate } from '@/lib/utils'
 import type { Expense } from '@/types/database'
 import { categoryLook, toBase } from './categories'
 
@@ -26,7 +26,7 @@ function useThemeKey(): string {
   return key
 }
 
-/** Vista «Resumen»: en qué se va el dinero y cuánto cada día. */
+/** Vista «Resumen»: las cifras clave en grande, en qué se va el dinero y cuánto cada día. */
 export function SummaryView({ expenses, currency, rates, total }: SummaryViewProps) {
   const themeKey = useThemeKey()
   // Recharts pinta SVG y no entiende data-tone: se le pasa el color ya resuelto.
@@ -35,7 +35,6 @@ export function SummaryView({ expenses, currency, rates, total }: SummaryViewPro
     return {
       axis: toneColor('neutral'),
       primary: toneColor('primary'),
-      byCategory: Object.fromEntries(EXPENSE_CATEGORIES.map(c => [c, toneColor(categoryLook(c).tone)])),
     }
   }, [themeKey])
 
@@ -66,56 +65,58 @@ export function SummaryView({ expenses, currency, rates, total }: SummaryViewPro
   }
 
   const stats = [
-    { label: 'Gastos apuntados', value: String(expenses.length) },
-    { label: 'Media por gasto', value: formatCurrency(total / expenses.length, currency) },
+    { label: 'Total gastado', value: formatCurrency(total, currency) },
     { label: 'Media por día', value: byDay.length ? formatCurrency(total / byDay.length, currency) : '—' },
+    { label: 'Media por gasto', value: formatCurrency(total / expenses.length, currency) },
+    { label: 'Gastos apuntados', value: String(expenses.length) },
   ]
   const tick = { fill: colors.axis, fontSize: 12 }
   const money = (v: unknown) => formatCurrencyShort(Number(v), currency)
+  const top = byCategory[0]?.value ?? 0
 
   return (
-    <div className="space-y-8">
-      <dl className="grid grid-cols-3 gap-3">
+    <div className="space-y-10">
+      {/* Las cifras clave, grandes y sin caja. */}
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-5 lg:grid-cols-4">
         {stats.map(s => (
-          <Card key={s.label} pad="sm" className="flex flex-col-reverse text-center">
-            <dt className="mt-0.5 text-xs text-muted-foreground">{s.label}</dt>
-            <dd className="truncate title-section tabular-nums">{s.value}</dd>
-          </Card>
+          <div key={s.label} className="flex min-w-0 flex-col-reverse">
+            <dt className="eyebrow mt-1">{s.label}</dt>
+            <dd className="truncate font-serif text-2xl font-medium tracking-tight tabular-nums md:text-3xl">{s.value}</dd>
+          </div>
         ))}
       </dl>
 
-      <Section title="Por categoría" description={`En qué se ha ido el dinero, en ${currency}.`}>
-        <Card>
-          <div className="h-56" role="img" aria-label="Gráfico de barras del gasto por categoría">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byCategory} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid vertical={false} stroke={colors.axis} strokeOpacity={0.2} />
-                <XAxis dataKey="name" tick={tick} axisLine={false} tickLine={false} interval={0} tickFormatter={shortLabel} />
-                <YAxis tick={tick} axisLine={false} tickLine={false} width={56} tickFormatter={money} />
-                <Tooltip cursor={{ fill: colors.axis, fillOpacity: 0.1 }} content={<ChartTip currency={currency} />} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                  {byCategory.map(d => <Cell key={d.name} fill={colors.byCategory[d.name] ?? colors.primary} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          {/* La misma información en texto: no depende del color ni del gráfico. */}
-          <ul className="mt-4 grid gap-x-6 gap-y-2 border-t border-border pt-4 sm:grid-cols-2">
-            {byCategory.map(d => (
-              <li key={d.name} data-tone={categoryLook(d.name).tone} className="flex items-center gap-2.5 text-sm">
-                <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full bg-tone" />
-                <span className="min-w-0 flex-1 truncate">{d.name}</span>
-                <span className="text-muted-foreground tabular-nums">{total > 0 ? Math.round((d.value / total) * 100) : 0} %</span>
-                <span className="font-semibold tabular-nums">{formatCurrency(d.value, currency)}</span>
-              </li>
-            ))}
+      <div className="grid gap-x-12 gap-y-10 md:grid-cols-2">
+        <section>
+          <p className="eyebrow">Por categoría</p>
+          <h3 className="title-section mt-0.5">En qué se ha ido el dinero</h3>
+          {/* Barras con el color de cada categoría; la cifra y el porcentaje van escritos. */}
+          <ul className="mt-4 space-y-4">
+            {byCategory.map(d => {
+              const look = categoryLook(d.name)
+              const Icon = look.icon
+              return (
+                <li key={d.name} data-tone={look.tone}>
+                  <div className="flex items-baseline gap-2.5">
+                    <Icon className="size-4 shrink-0 self-center text-tone" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-medium">{d.name}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">{total > 0 ? Math.round((d.value / total) * 100) : 0} %</span>
+                    <span className="font-serif text-lg font-medium tracking-tight tabular-nums">{formatCurrency(d.value, currency)}</span>
+                  </div>
+                  <div aria-hidden="true" className="mt-1.5 h-2 rounded-full bg-secondary">
+                    <div className="h-full min-w-1 rounded-full bg-tone" style={{ width: `${top > 0 ? (d.value / top) * 100 : 0}%` }} />
+                  </div>
+                </li>
+              )
+            })}
           </ul>
-        </Card>
-      </Section>
+          <p className="mt-3 text-xs text-muted-foreground">Importes en {currency}.</p>
+        </section>
 
-      <Section title="Por día" description="Cuánto se ha gastado cada día del viaje.">
-        <Card>
-          <div className="h-56" role="img" aria-label="Gráfico de barras del gasto por día">
+        <section>
+          <p className="eyebrow">Por día</p>
+          <h3 className="title-section mt-0.5">Cuánto se ha gastado cada día</h3>
+          <div className="mt-4 h-60" role="img" aria-label="Gráfico de barras del gasto por día">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byDay} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                 <CartesianGrid vertical={false} stroke={colors.axis} strokeOpacity={0.2} />
@@ -126,15 +127,10 @@ export function SummaryView({ expenses, currency, rates, total }: SummaryViewPro
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </Card>
-      </Section>
+        </section>
+      </div>
     </div>
   )
-}
-
-/** En pantallas estrechas las ocho categorías no caben enteras bajo las barras. */
-function shortLabel(name: string): string {
-  return name.length > 7 ? `${name.slice(0, 5)}.` : name
 }
 
 interface ChartTipProps {

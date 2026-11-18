@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
-import { Button, Card, Field, Input } from '@/design'
+import { Button, Input } from '@/design'
 
 interface PackingAddProps {
   /** Categorías que ya existen, para proponerlas al escribir. */
@@ -9,7 +9,7 @@ interface PackingAddProps {
   onAdd: (name: string, category: string) => void
 }
 
-/** Añadir un elemento a la lista sin salir de ella: qué es y en qué categoría va. */
+/** Añadir un elemento a la lista sin salir de ella, en una sola línea: qué es, en qué categoría va y «Añadir». */
 export function PackingAdd({ categories, saving, onAdd }: PackingAddProps) {
   const listId = useId()
   const [name, setName] = useState('')
@@ -23,21 +23,28 @@ export function PackingAdd({ categories, saving, onAdd }: PackingAddProps) {
   }
 
   return (
-    <Card>
-      <form onSubmit={submit} className="grid gap-3 sm:grid-cols-[1fr_12rem_auto] sm:items-end">
-        <Field label="¿Qué te llevas?">
-          <Input value={name} onChange={e => setName(e.target.value)} placeholder="Por ejemplo: cargador del móvil" />
-        </Field>
-        <Field label="Categoría" optional>
-          <Input value={category} onChange={e => setCategory(e.target.value)} placeholder="General" list={listId} />
-        </Field>
-        <datalist id={listId}>
-          {categories.map(c => <option key={c} value={c} />)}
-        </datalist>
-        <Button type="submit" variant="soft" loading={saving} disabled={!name.trim()}>
-          {!saving && <Plus aria-hidden="true" />} Añadir
-        </Button>
-      </form>
-    </Card>
+    <form onSubmit={submit} aria-label="Añadir algo al equipaje" className="flex items-center gap-2">
+      <Input
+        value={name}
+        onChange={e => setName(e.target.value)}
+        aria-label="¿Qué te llevas?"
+        placeholder="¿Qué te llevas?"
+        className="min-w-0 flex-1"
+      />
+      <Input
+        value={category}
+        onChange={e => setCategory(e.target.value)}
+        aria-label="Categoría (opcional; si la dejas vacía va a «General»)"
+        placeholder="Categoría"
+        list={listId}
+        className="w-28 shrink-0 sm:w-48"
+      />
+      <datalist id={listId}>
+        {categories.map(c => <option key={c} value={c} />)}
+      </datalist>
+      <Button type="submit" variant="soft" loading={saving} disabled={!name.trim()} className="shrink-0">
+        {!saving && <Plus aria-hidden="true" className="hidden sm:block" />} Añadir
+      </Button>
+    </form>
   )
 }

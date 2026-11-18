@@ -1,4 +1,4 @@
-import { Download, Share, Smartphone, X } from 'lucide-react'
+import { Download, Share, X } from 'lucide-react'
 import { Button, IconButton } from '@/design'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 
@@ -12,27 +12,26 @@ export function PwaInstallBanner() {
   return (
     <aside
       aria-label="Instalar Wanderlog"
-      className="mb-6 flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-2xl border border-border bg-primary-soft py-3 pl-4 pr-2"
+      className="flex items-center gap-3 rounded-2xl border border-border bg-card py-2 pl-2.5 pr-1.5 shadow-card"
     >
-      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-card text-accent-foreground">
-        <Smartphone className="size-5" aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1 basis-40">
-        <p className="title-card">Lleva Wanderlog contigo</p>
-        <p className="text-sm text-foreground/75">
+      {/* El icono de la app, como se verá en la pantalla de inicio. */}
+      <img src="/pwa-192.png" alt="" className="size-10 shrink-0 rounded-xl" />
+      <p className="min-w-0 flex-1 text-sm leading-snug">
+        <span className="font-semibold">Lleva Wanderlog contigo.</span>{' '}
+        <span className="text-muted-foreground">
           {canInstall ? (
-            'Instálala para abrirla como una app, también sin conexión.'
+            'Instálala y ábrela como una app, también sin conexión.'
           ) : (
             <>
               Toca <Share className="inline size-4 align-text-bottom" aria-hidden="true" /> Compartir y
               luego «Añadir a pantalla de inicio».
             </>
           )}
-        </p>
-      </div>
-      <div className="ml-auto flex shrink-0 items-center gap-1">
+        </span>
+      </p>
+      <div className="flex shrink-0 items-center">
         {canInstall && (
-          <Button variant="outline" onClick={promptInstall}>
+          <Button variant="soft" size="sm" className="h-11 md:h-9" onClick={promptInstall}>
             <Download aria-hidden="true" />
             Instalar
           </Button>
