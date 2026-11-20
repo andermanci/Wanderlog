@@ -111,36 +111,43 @@ export function OfflineCard({ tripId }: { tripId: string }) {
 
   return (
     <>
-      <Card className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <span data-tone={saved ? 'success' : 'primary'} className="grid size-12 shrink-0 place-items-center rounded-full bg-tone-soft text-tone">
-          {saved ? <CheckCircle2 className="size-6" aria-hidden="true" /> : <WifiOff className="size-6" aria-hidden="true" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="title-card">
-            {saving ? (progress ? progressLabel(progress) : 'Preparando la descarga…') : saved ? 'Guardado en este dispositivo' : 'Llévate el viaje sin conexión'}
-          </h3>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {saving
-              ? 'No cierres la app hasta que termine.'
-              : saved
-                ? `Puedes verlo sin internet${detail ? ` (${detail})` : ''}.`
-                : 'Descarga el plan, los billetes, los gastos y la guía para consultarlos en el avión o sin cobertura.'}
-          </p>
-          {saving && <Progress value={percent(progress)} label="Progreso de la descarga" className="mt-3" />}
-        </div>
-        {!saving && (
-          <div className="flex shrink-0 gap-2">
-            {saved ? (
-              <>
+      {/* Se adapta al hueco que tiene (columna lateral de Inicio o ancho de Ajustes),
+          no al ancho de la pantalla: por eso usa consultas de contenedor (@). */}
+      <section
+        data-tone={saved ? 'success' : 'primary'}
+        aria-label="Viaje sin conexión"
+        className="@container rounded-2xl border border-tone-line bg-tone-soft p-5"
+      >
+        <div className="flex flex-col gap-4 @lg:flex-row @lg:items-center @lg:gap-5">
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow flex items-center gap-1.5 text-tone">
+              {saved ? <CheckCircle2 className="size-4" aria-hidden="true" /> : <WifiOff className="size-4" aria-hidden="true" />}
+              {saved ? 'Disponible sin conexión' : 'Sin conexión'}
+            </p>
+            <h3 className="mt-1.5 font-serif text-xl font-medium leading-tight tracking-tight">
+              {saving ? (progress ? progressLabel(progress) : 'Preparando la descarga…') : saved ? 'Guardado en este dispositivo' : 'Llévate el viaje sin conexión'}
+            </h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+              {saving
+                ? 'No cierres la app hasta que termine.'
+                : saved
+                  ? `Puedes verlo sin internet${detail ? ` (${detail})` : ''}.`
+                  : 'Descarga el plan, los billetes, los gastos y la guía para consultarlos en el avión o sin cobertura.'}
+            </p>
+            {saving && <Progress value={percent(progress)} tone={saved ? 'success' : 'primary'} label="Progreso de la descarga" className="mt-3" />}
+          </div>
+          {!saving && (
+            saved ? (
+              <div className="flex shrink-0 flex-wrap gap-2 [&>*]:flex-1 @lg:[&>*]:flex-none">
                 <Button variant="outline" onClick={start}><RefreshCw /> Actualizar</Button>
                 <Button variant="danger-ghost" onClick={() => setConfirmDelete(true)}><Trash2 /> Borrar</Button>
-              </>
+              </div>
             ) : (
-              <Button variant="soft" onClick={start}><Download /> Descargar</Button>
-            )}
-          </div>
-        )}
-      </Card>
+              <Button variant="primary" className="w-full shrink-0 @lg:w-auto" onClick={start}><Download /> Descargar el viaje</Button>
+            )
+          )}
+        </div>
+      </section>
 
       <Panel
         open={!!ask}
