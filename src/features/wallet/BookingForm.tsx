@@ -1,11 +1,13 @@
 import { useId, useState } from 'react'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
+import { ChevronDown } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button, Card, Field, Input, Select, SwitchRow, Textarea } from '@/design'
 import { useCreateDocument, useUpdateDocument, type NewDocument } from '@/lib/queries/documents'
 import { useSyncReservation } from '@/lib/queries/reservationSync'
 import { canShowInItinerary } from '@/lib/reservationLink'
+import { cn } from '@/lib/utils'
 import type { Document } from '@/types/database'
 import { FileField } from './FileField'
 import { PanelFooter } from './PanelSlots'
@@ -81,6 +83,12 @@ export function BookingForm({ tripId, doc, category = 'other', onSaved, onCancel
   // Segundo adjunto opcional (póliza + condiciones, ida + vuelta…): va en back_url.
   const [fileUrl2, setFileUrl2] = useState<string | null>(doc?.back_url ?? null)
   const [busy, setBusy] = useState(0)
+  // Lo que casi nunca se rellena va plegado, para que apuntar una reserva sea corto.
+  // Al editar, se abre solo si ya hay algo escrito dentro.
+  const [more, setMore] = useState(() => !!doc && !!(
+    doc.link || doc.back_url || doc.notes
+    || (doc.category === 'other' && (doc.locator || doc.seat || doc.origin || doc.destination || doc.phone))
+  ))
 
   const { register, handleSubmit, setValue, control, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
@@ -140,6 +148,35 @@ export function BookingForm({ tripId, doc, category = 'other', onSaved, onCancel
 
   const trackBusy = (b: boolean) => setBusy(n => Math.max(0, n + (b ? 1 : -1)))
 
+  // Localizador, asiento y trayecto: a la vista en los transportes; en «Otro», dentro de «Más detalles».
+  const routeFields = (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Localizador" optional hint="El código corto de la reserva.">
+          <Input {...register('locator')} placeholder="ABC123" className="font-mono" autoCapitalize="characters" />
+        </Field>
+        <Field label="Asiento" optional>
+          <Input {...register('seat')} placeholder="14A" />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Origen" optional>
+          <Input {...register('origin')} placeholder="Madrid" />
+        </Field>
+        <Field label="Destino" optional>
+          <Input {...register('destination')} placeholder="París" />
+        </Field>
+      </div>
+    </>
+  )
+  const phoneField = (
+    <Field label={isInsurance ? 'Teléfono de asistencia' : 'Teléfono'} optional>
+      <Input type="tel" {...register('phone')} placeholder="+34…" />
+    </Field>
+  )
+  // Un enlace mal escrito no puede quedarse escondido.
+  const showMore = more || !!errors.link
+
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <Field label="Tipo">
@@ -167,26 +204,7 @@ export function BookingForm({ tripId, doc, category = 'other', onSaved, onCancel
         </Field>
       )}
 
-      {(isTransport || isOther) && (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Localizador" optional hint="El código corto de la reserva.">
-              <Input {...register('locator')} placeholder="ABC123" className="font-mono" autoCapitalize="characters" />
-            </Field>
-            <Field label="Asiento" optional>
-              <Input {...register('seat')} placeholder="14A" />
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Origen" optional>
-              <Input {...register('origin')} placeholder="Madrid" />
-            </Field>
-            <Field label="Destino" optional>
-              <Input {...register('destination')} placeholder="París" />
-            </Field>
-          </div>
-        </>
-      )}
+      {isTransport && routeFields}
 
       <div className="grid grid-cols-2 gap-4">
         <Field label={startLabel} optional>
@@ -221,15 +239,7 @@ export function BookingForm({ tripId, doc, category = 'other', onSaved, onCancel
         </Card>
       )}
 
-      {(isStay || isInsurance || isOther) && (
-        <Field label={isInsurance ? 'Teléfono de asistencia' : 'Teléfono'} optional>
-          <Input type="tel" {...register('phone')} placeholder="+34…" />
-        </Field>
-      )}
-
-      <Field label="Enlace de la reserva" optional error={errors.link?.message} hint="La página donde la gestionas (Booking, eDreams…).">
-        <Input type="url" inputMode="url" {...register('link')} placeholder="https://…" />
-      </Field>
+      {(isStay || isInsurance) && phoneField}
 
       <FileField
         label={isInsurance ? 'Póliza' : 'Billete o reserva'}
@@ -239,17 +249,36 @@ export function BookingForm({ tripId, doc, category = 'other', onSaved, onCancel
         onChange={setFileUrl}
         onBusyChange={trackBusy}
       />
-      <FileField
-        label={isInsurance ? 'Condiciones (opcional)' : 'Otro archivo (opcional)'}
-        value={fileUrl2}
-        tripId={tripId}
-        onChange={setFileUrl2}
-        onBusyChange={trackBusy}
-      />
 
-      <Field label="Notas" optional>
-        <Textarea {...register('notes')} rows={2} placeholder="Lo que quieras recordar" />
-      </Field>
+      <div className="border-t border-border pt-2">
+        <Button variant="ghost" aria-expanded={showMore} onClick={() => setMore(v => !v)} className="-ml-3">
+          <ChevronDown className={cn('transition-transform duration-200', !showMore && '-rotate-90')} aria-hidden="true" />
+          Más detalles
+        </Button>
+        {!showMore && (
+          <p className="text-xs text-muted-foreground">
+            {isOther ? 'Localizador, trayecto, teléfono, enlace, otro archivo y notas.' : 'Enlace de la reserva, otro archivo y notas.'}
+          </p>
+        )}
+        {/* Plegado sigue montado: lo escrito no se pierde al cerrar. */}
+        <div className={cn('space-y-4 pt-2', !showMore && 'hidden')}>
+          {isOther && routeFields}
+          {isOther && phoneField}
+          <Field label="Enlace de la reserva" optional error={errors.link?.message} hint="La página donde la gestionas (Booking, eDreams…).">
+            <Input type="url" inputMode="url" {...register('link')} placeholder="https://…" />
+          </Field>
+          <FileField
+            label={isInsurance ? 'Condiciones (opcional)' : 'Otro archivo (opcional)'}
+            value={fileUrl2}
+            tripId={tripId}
+            onChange={setFileUrl2}
+            onBusyChange={trackBusy}
+          />
+          <Field label="Notas" optional>
+            <Textarea {...register('notes')} rows={2} placeholder="Lo que quieras recordar" />
+          </Field>
+        </div>
+      </div>
 
       <PanelFooter>
         <Button variant="ghost" onClick={onCancel}>Cancelar</Button>

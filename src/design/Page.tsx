@@ -28,7 +28,8 @@ export function Page({ title, subtitle, eyebrow, back, actions, width = 'default
   return (
     <div
       className={cn(
-        'mx-auto w-full px-4 pt-5 pb-10 md:px-8 md:pt-8 animate-rise',
+        // El final deja sitio al botón flotante «+» cuando el armazón lo anuncia (--fab-gap).
+        'mx-auto w-full px-4 pt-5 pb-[calc(2.5rem+var(--fab-gap,0px))] md:px-8 md:pt-8 animate-rise',
         width === 'narrow' && 'max-w-2xl',
         width === 'default' && 'max-w-4xl',
         width === 'wide' && 'max-w-6xl',

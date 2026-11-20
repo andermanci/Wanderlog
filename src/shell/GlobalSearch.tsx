@@ -16,12 +16,31 @@ const group =
   '[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:text-2xs ' +
   '[&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground'
 
-function Item({ value, onSelect, icon, title, detail, tone }: {
-  value: string; onSelect: () => void; icon: ReactNode; title: string; detail?: string | null; tone?: string
+// Sin tildes ni mayúsculas: «coliseo» encuentra «Coliseo» y «cafe», «Caffè».
+const plain = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+/**
+ * Coincidencia literal de cada palabra escrita, no «letras sueltas en orden»:
+ * con la búsqueda difusa de cmdk, «colis» también sacaba un hotel y otro viaje.
+ * Solo mira el texto (`keywords`); `value` lleva el id y existe para ser único.
+ */
+function filter(_value: string, search: string, keywords?: string[]): number {
+  const text = plain((keywords ?? []).join(' '))
+  const words = plain(search).split(/\s+/).filter(Boolean)
+  return words.every(w => text.includes(w)) ? 1 : 0
+}
+
+function Item({ value, text, onSelect, icon, title, detail, tone }: {
+  /** Identificador único de la fila. */
+  value: string
+  /** Lo que se busca: título y datos de apoyo. */
+  text: string
+  onSelect: () => void; icon: ReactNode; title: string; detail?: string | null; tone?: string
 }) {
   return (
     <Command.Item
       value={value}
+      keywords={[text]}
       onSelect={onSelect}
       className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-[0.9375rem] data-[selected=true]:bg-secondary"
     >
@@ -68,7 +87,7 @@ export function GlobalSearch({ tripId }: { tripId?: string }) {
         <Dialog.Content className="fixed left-1/2 top-[max(1rem,10dvh)] z-50 w-[calc(100vw-1.5rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-3xl border border-border bg-popover text-popover-foreground shadow-float outline-none data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out">
           <Dialog.Title className="sr-only">Buscar</Dialog.Title>
           <Dialog.Description className="sr-only">Busca actividades, documentos, lugares, secciones y viajes.</Dialog.Description>
-          <Command className={group}>
+          <Command className={group} filter={filter}>
             <div className="flex items-center gap-3 border-b border-border px-5">
               <Search className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
               <Command.Input
@@ -86,7 +105,7 @@ export function GlobalSearch({ tripId }: { tripId?: string }) {
                   {activities!.map(a => (
                     <Item
                       key={a.id} tone={a.type}
-                      value={`act ${a.id} ${a.title} ${a.address ?? ''} ${a.origin ?? ''} ${a.destination ?? ''}`}
+                      value={`act ${a.id}`} text={`${a.title} ${a.address ?? ''} ${a.origin ?? ''} ${a.destination ?? ''}`}
                       onSelect={() => go(`/trips/${tripId}/itinerary/${a.id}`)}
                       icon={<ActivityIcon type={a.type} />} title={a.title} detail={a.address}
                     />
@@ -98,7 +117,7 @@ export function GlobalSearch({ tripId }: { tripId?: string }) {
                   {documents!.map(d => (
                     <Item
                       key={d.id} tone="flight"
-                      value={`doc ${d.id} ${d.title} ${d.provider ?? ''} ${d.destination ?? ''}`}
+                      value={`doc ${d.id}`} text={`${d.title} ${d.provider ?? ''} ${d.destination ?? ''}`}
                       onSelect={() => go(`/trips/${tripId}/documents?doc=${d.id}`)}
                       icon={<DocIcon category={d.category} />} title={d.title} detail={d.provider}
                     />
@@ -110,7 +129,7 @@ export function GlobalSearch({ tripId }: { tripId?: string }) {
                   {places!.map(p => (
                     <Item
                       key={p.id} tone="place"
-                      value={`lugar ${p.id} ${p.name} ${p.collection ?? ''} ${p.notes ?? ''} ${p.address ?? ''}`}
+                      value={`lugar ${p.id}`} text={`${p.name} ${p.collection ?? ''} ${p.notes ?? ''} ${p.address ?? ''}`}
                       onSelect={() => go(`/trips/${tripId}/itinerary?tab=ideas&place=${p.id}`)}
                       icon={<MapPin aria-hidden="true" />} title={p.name} detail={p.collection}
                     />
@@ -121,7 +140,7 @@ export function GlobalSearch({ tripId }: { tripId?: string }) {
                 <Command.Group heading="Ir a">
                   {sections.map(s => (
                     <Item
-                      key={s.key} tone="neutral" value={`ir ${s.label}`} onSelect={() => go(s.to)}
+                      key={s.key} tone="neutral" value={`ir ${s.key}`} text={s.label} onSelect={() => go(s.to)}
                       icon={<s.icon aria-hidden="true" />} title={s.label}
                     />
                   ))}
@@ -131,7 +150,7 @@ export function GlobalSearch({ tripId }: { tripId?: string }) {
                 <Command.Group heading={tripId ? 'Otros viajes' : 'Viajes'}>
                   {trips!.filter(t => t.id !== tripId).map(t => (
                     <Item
-                      key={t.id} value={`viaje ${t.id} ${t.name} ${t.destination ?? ''}`}
+                      key={t.id} value={`viaje ${t.id}`} text={`${t.name} ${t.destination ?? ''} ${t.tags.join(' ')}`}
                       onSelect={() => go(`/trips/${t.id}`)}
                       icon={<Plane aria-hidden="true" />} title={t.name}
                       detail={`${t.destination ?? ''} · ${formatDate(t.start_date, 'MMM yyyy')}`}
@@ -142,7 +161,7 @@ export function GlobalSearch({ tripId }: { tripId?: string }) {
               <Command.Group heading="General">
                 {GLOBAL_NAV.map(s => (
                   <Item
-                    key={s.key} tone="neutral" value={`general ${s.label}`} onSelect={() => go(s.to)}
+                    key={s.key} tone="neutral" value={`general ${s.key}`} text={s.label} onSelect={() => go(s.to)}
                     icon={<s.icon aria-hidden="true" />} title={s.label}
                   />
                 ))}

@@ -65,7 +65,8 @@ export function Panel({
               </IconButton>
             )}
             <div className="min-w-0 flex-1 py-0.5">
-              <Dialog.Title className="title-section truncate">{title}</Dialog.Title>
+              {/* Hasta dos líneas: los títulos que son una pregunta no caben en una en el móvil. */}
+              <Dialog.Title className="title-section line-clamp-2 break-words">{title}</Dialog.Title>
               {description
                 ? <Dialog.Description className="mt-0.5 text-sm text-muted-foreground">{description}</Dialog.Description>
                 : <Dialog.Description className="sr-only">Panel</Dialog.Description>}

@@ -2,7 +2,7 @@ import { useId, useRef, useState, type ReactNode } from 'react'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ChevronDown, ImagePlus } from 'lucide-react'
+import { CalendarPlus, ChevronDown, ImagePlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { ActivityIcon, Button, Field, Input, Notice, Select, Spinner, SwitchRow, Textarea } from '@/design'
 import { FileField } from '@/features/wallet/FileField'
@@ -155,6 +155,8 @@ export function ActivityForm({
     activity.cover_image_url || activity.description || activity.price != null || activity.external_link || activity.notes
   ))
 
+  const [endDayOpen, setEndDayOpen] = useState(false)
+
   async function onSubmit(values: FormValues) {
     // Vuelo y transporte = movimiento A→B (origen/destino); el resto, dirección.
     const isTransport = values.type === 'transport' || values.type === 'flight'
@@ -224,6 +226,7 @@ export function ActivityForm({
   const startLabel = isMove ? 'Hora de salida' : isHotel ? 'Hora de entrada' : 'Empieza a las'
   const endLabel = isMove ? 'Hora de llegada' : isHotel ? 'Hora de salida' : 'Termina a las'
   const endDayLabel = isMove ? 'Día de llegada' : isHotel ? 'Día de salida' : 'Día en que termina'
+  const showEndDay = isMove || isHotel || !!w.end_day_id || endDayOpen
   const depDate = days.find(d => d.id === w.day_id)?.date ?? ''
   const endDayOptions = days.filter(d => d.date > depDate || d.id === w.end_day_id)
   const dayLabel = (d: ItineraryDay) => {
@@ -300,14 +303,20 @@ export function ActivityForm({
             </div>
           )}
 
-          {endDayOptions.length > 0 && (
-            <Field label={endDayLabel} hint="Cámbialo solo si acaba otro día.">
+          {/* Vuelos, transportes y hoteles suelen acabar otro día; lo demás casi nunca,
+              así que ahí el campo espera detrás de un botón. */}
+          {endDayOptions.length > 0 && (showEndDay ? (
+            <Field label={endDayLabel} hint={isHotel ? 'El día que dejas el hotel.' : 'Cámbialo solo si acaba otro día.'}>
               <Select {...register('end_day_id')}>
                 <option value="">El mismo día</option>
                 {endDayOptions.map(d => <option key={d.id} value={d.id}>{dayLabel(d)}</option>)}
               </Select>
             </Field>
-          )}
+          ) : (
+            <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setEndDayOpen(true)}>
+              <CalendarPlus /> Termina otro día
+            </Button>
+          ))}
         </FormSection>
 
         <FormSection title="Dónde" hint="Opcional. Con una ubicación, sale en el mapa y podemos calcular los trayectos.">

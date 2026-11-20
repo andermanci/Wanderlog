@@ -70,11 +70,11 @@ export function WalletPanel({
             onClick={go({ kind: 'booking-form' })} />
           <Row icon={IdCard} tone="primary" title="Documento personal" subtitle="DNI, pasaporte, visado, vacunas…" chevron
             onClick={go({ kind: 'personal-form' })} />
-          <Row icon={ShieldCheck} tone="info" title="Seguro de viaje" subtitle="La póliza y el teléfono de asistencia" chevron
+          <Row icon={ShieldCheck} tone="info" title="Seguro de viaje" subtitle="Póliza y teléfono de asistencia" chevron
             onClick={go({ kind: 'booking-form', category: 'insurance' })} />
           <Row icon={UserPlus} tone="success" title="Viajero" subtitle="Una persona que viene al viaje" chevron
             onClick={go({ kind: 'traveler-form' })} />
-          <Row icon={CalendarPlus} tone="neutral" title="Importar un archivo .ics" subtitle="El que te manda la aerolínea o el hotel" chevron
+          <Row icon={CalendarPlus} tone="neutral" title="Importar un archivo .ics" subtitle="El de la aerolínea o el hotel" chevron
             onClick={go({ kind: 'ics' })} />
         </RowList>
       )

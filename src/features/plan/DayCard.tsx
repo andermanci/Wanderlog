@@ -1,10 +1,10 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { BookHeart, ChevronDown, CornerDownRight, Headphones, Plus, TrainFront } from 'lucide-react'
+import { BookHeart, ChevronDown, CornerDownRight, Headphones, Plus, StickyNote, TrainFront } from 'lucide-react'
 import { Badge, Button, IconButton } from '@/design'
 import { cn } from '@/lib/utils'
 import { weatherIcon, type DayWeather } from '@/lib/queries/weather'
@@ -54,6 +54,7 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
   const isPast = day.date < todayStr
   const date = parseISO(day.date)
   const collapsed = plan.collapsedDays.has(day.id)
+  const [addingNote, setAddingNote] = useState(false)
 
   const dayActs = (plan.activitiesByDay.get(day.id) ?? []).filter(a => a.type !== 'hotel')
   const arrivals = plan.arrivalsByDay.get(day.id) ?? []
@@ -79,8 +80,9 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
   const cities = resolveNames(dayCities(day), guides)
   const drivingLegs = dt?.legs.size ?? 0
 
+  // Un día sin nada no dice «0 actividades»: ya se ve que está vacío.
   const meta = [
-    `${dayActs.length} ${dayActs.length === 1 ? 'actividad' : 'actividades'}`,
+    dayActs.length > 0 && `${dayActs.length} ${dayActs.length === 1 ? 'actividad' : 'actividades'}`,
     arrivals.length > 0 && `${arrivals.length} ${arrivals.length === 1 ? 'llegada' : 'llegadas'}`,
     travelSeconds > 0 && formatDayTotal(travelSeconds),
   ].filter(Boolean).join(' · ')
@@ -105,8 +107,9 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
   return (
     <section id={`day-${day.date}`} data-day={day.id} className="scroll-mt-4" aria-label={format(date, "EEEE d 'de' MMMM", { locale: es })}>
       {/* Cabecera pegada arriba mientras se recorre el día: siempre se sabe en cuál estás. */}
-      <header className={cn('sticky top-0 z-20 -mx-4 flex items-center gap-3 bg-background px-4 pb-2 pt-3 md:-mx-6 md:px-6', isPast && 'opacity-70')}>
-        <div className="min-w-0 flex-1">
+      <header className={"sticky top-0 z-20 -mx-4 flex items-center gap-3 bg-background px-4 pb-2 pt-3 md:-mx-6 md:px-6"}>
+        {/* Los días pasados se apagan, pero la cabecera sigue opaca: tapa lo que pasa por debajo. */}
+        <div className={cn('min-w-0 flex-1', isPast && 'opacity-70')}>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className={cn('eyebrow', isToday && 'text-accent-foreground')}>Día {index + 1}</span>
             {isToday && <Badge tone="primary" solid>Hoy</Badge>}
@@ -120,7 +123,7 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
           </h2>
         </div>
         {weather && (
-          <span className="flex shrink-0 items-center gap-1 text-sm" aria-label={`Previsión: máxima ${weather.tmax} grados, mínima ${weather.tmin}`}>
+          <span className={cn('flex shrink-0 items-center gap-1 text-sm', isPast && 'opacity-70')} aria-label={`Previsión: máxima ${weather.tmax} grados, mínima ${weather.tmin}`}>
             <span className="text-xl leading-none" aria-hidden="true">{weatherIcon(weather.code)}</span>
             <span className="font-semibold tabular-nums">{weather.tmax}°</span>
             <span className="tabular-nums text-muted-foreground">{weather.tmin}°</span>
@@ -133,15 +136,23 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
 
       {!collapsed && (
         <div className="mt-1 space-y-3">
-          <p className="text-sm text-muted-foreground">{meta}</p>
+          {meta && <p className="text-sm text-muted-foreground">{meta}</p>}
           <DayCities
             tripId={tripId} cities={cities} guides={guides} editMode={editMode}
             onChange={next => updateDayCities.mutate({ id: day.id, cities: next, tripId })}
           />
           <DayDriftNote drift={plan.driftByDay.get(day.id)} />
 
-          {/* Lo que se puede hacer con el día, con su nombre. */}
+          {/* Lo que se puede hacer con el día, con su nombre. Editando, lo primero es añadir. */}
           <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
+            {editMode && items.length > 0 && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/trips/${tripId}/itinerary/new?day=${day.id}`}><Plus /> Añadir</Link>
+              </Button>
+            )}
+            {editMode && (
+              <Button variant="outline" size="sm" onClick={() => setAddingNote(true)}><StickyNote /> Nota</Button>
+            )}
             <Button variant={hasDayAudioguide ? 'soft' : 'outline'} size="sm" asChild>
               <Link to={`/trips/${tripId}/dias/${day.id}/audioguide`}><Headphones /> {hasDayAudioguide ? 'Escuchar audioguía' : 'Audioguía'}</Link>
             </Button>
@@ -157,15 +168,10 @@ export function DayCard({ tripId, day, index, plan, guides, weather, hasJournal,
                 <TrainFront /> Transporte público
               </Button>
             )}
-            {editMode && (
-              <Button variant="outline" size="sm" asChild>
-                <Link to={`/trips/${tripId}/itinerary/new?day=${day.id}`}><Plus /> Añadir</Link>
-              </Button>
-            )}
           </div>
 
           <DayConflicts conflicts={conflicts} />
-          <DayAlerts tripId={tripId} day={day} alerts={plan.alertsByDay.get(day.id) ?? []} editMode={editMode} />
+          <DayAlerts tripId={tripId} day={day} alerts={plan.alertsByDay.get(day.id) ?? []} editMode={editMode} adding={addingNote} onAddingChange={setAddingNote} />
 
           {/* Llegadas de algo que empezó otro día (continuación, no se repite entero). */}
           {arrivals.map(a => {

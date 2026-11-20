@@ -112,6 +112,9 @@ export function AppShell() {
           'min-h-0 flex-1 overflow-y-auto overflow-x-hidden outline-none',
           // Hueco para la barra inferior en móvil (4rem) + zona segura.
           'pb-[calc(env(safe-area-inset-bottom)+4rem)] md:pb-0',
+          // Dentro de un viaje, en móvil, flota el «+»: las pantallas (<Page>) dejan
+          // ese hueco al final para que lo último no quede debajo del botón.
+          tripId && !enReproductor && 'max-md:[--fab-gap:3.5rem]',
         )}
       >
         <Outlet />

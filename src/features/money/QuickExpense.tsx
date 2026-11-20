@@ -57,9 +57,10 @@ export function QuickExpense({ currency, saving, onAdd }: QuickExpenseProps) {
           aria-label="Concepto"
           value={description}
           onChange={e => setDescription(e.target.value)}
-          className={`${bare} h-12 flex-1 basis-32 text-base`}
+          className={`${bare} order-last h-11 basis-full border-t border-border text-base sm:order-none sm:h-12 sm:flex-1 sm:basis-32 sm:border-t-0`}
         />
-        <Button type="submit" variant="soft" loading={saving} disabled={!amount.trim()}>
+        {/* En móvil el botón sube junto al importe y el concepto ocupa su propia línea: nada queda cortado. */}
+        <Button type="submit" variant="soft" loading={saving} disabled={!amount.trim()} className="ml-auto sm:ml-0">
           {!saving && <Plus aria-hidden="true" />} Añadir
         </Button>
       </div>

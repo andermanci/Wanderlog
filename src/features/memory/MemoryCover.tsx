@@ -15,8 +15,8 @@ export function MemoryCover({ trip }: { trip: Trip }) {
       <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-10">
         <p className="text-2xs font-semibold uppercase tracking-widest opacity-90">Recuerdo del viaje</p>
         <h2 className="title-hero mt-2">{trip.name}</h2>
-        <p className="mt-3 flex flex-wrap items-center gap-x-2 text-[0.9375rem] opacity-90">
-          <MapPin className="size-4" aria-hidden="true" /> {trip.destination} · {dates}
+        <p className="mt-3 text-[0.9375rem] opacity-90">
+          <MapPin className="mr-1.5 inline size-4 align-[-0.15em]" aria-hidden="true" />{trip.destination} · {dates}
         </p>
       </div>
     </header>

@@ -141,6 +141,7 @@ function PlanInner() {
   const status = trip ? effectiveStatus(trip) : null
   const elapsed = status === 'in_progress' ? (days ?? []).filter(d => d.date <= todayStr).length : 0
   const showMap = !mobile || view === 'mapa'
+  const planEmpty = !!activities && activities.length === 0
 
   return (
     <div className="flex h-full flex-col overflow-hidden md:flex-row">
@@ -159,7 +160,8 @@ function PlanInner() {
                 </p>
               )}
             </div>
-            {editMode && (
+            {/* Con el plan en blanco, la acción principal es la de la invitación de abajo. */}
+            {editMode && !planEmpty && (
               <Button variant="primary" onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}>
                 <Plus /> Añadir actividad
               </Button>
@@ -207,6 +209,10 @@ function PlanInner() {
                     <Route /> Ver recorrido
                   </Button>
                 )}
+                <Button variant="ghost" size="sm" className="md:ml-auto" onClick={plan.toggleAllDays}>
+                  {plan.allDaysCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+                  {plan.allDaysCollapsed ? 'Desplegar' : 'Plegar'} todo
+                </Button>
               </div>
 
               {/* Tira de días: salta a uno y dibuja su recorrido en el mapa */}
@@ -233,10 +239,6 @@ function PlanInner() {
                     </button>
                   )
                 })}
-                <Button variant="ghost" size="sm" className="ml-auto shrink-0 self-center" onClick={plan.toggleAllDays}>
-                  {plan.allDaysCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
-                  {plan.allDaysCollapsed ? 'Desplegar' : 'Plegar'} todo
-                </Button>
               </nav>
             </>
           )}
@@ -244,7 +246,7 @@ function PlanInner() {
 
         {/* Contenido con scroll propio */}
         {view !== 'mapa' && (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-28 pt-2 md:px-6 md:pb-10">
+          <div className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-28 md:px-6 md:pb-10', (view === 'ideas' || plan.loading) && 'pt-2')}>
             {view === 'ideas' ? (
               <IdeasList tripId={tripId} />
             ) : plan.loading ? (
@@ -253,6 +255,18 @@ function PlanInner() {
               <Empty icon={CalendarRange} title="Preparando los días…" description="Estamos creando un día por cada fecha del viaje." />
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={plan.handleDragEnd}>
+                {planEmpty && editMode && (
+                  <div className="mb-2 mt-4 rounded-2xl bg-sunken p-5">
+                    <h2 className="font-serif text-xl font-medium tracking-tight">Tu plan está en blanco</h2>
+                    <p className="mt-1 text-[0.9375rem] text-muted-foreground">
+                      Empieza por lo que ya sabes: el vuelo, el hotel o algo que no te quieres perder. Con el nombre y el día basta.
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button variant="primary" onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}><Plus /> Añadir lo primero</Button>
+                      <Button variant="outline" onClick={() => setView('ideas')}><Lightbulb /> Guardar ideas</Button>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-8">
                   {days.map((day, i) => (
                     <DayCard

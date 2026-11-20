@@ -137,12 +137,16 @@ function Carnet({ doc, travelerName, canEdit, now, onViewCard, onOpenFile, onEdi
 }
 
 /** El hueco de un carné que aún no está: añade un documento. */
-function HuecoCarnet({ label, onClick }: { label: string; onClick: () => void }) {
+function HuecoCarnet({ label, onClick, compact }: { label: string; onClick: () => void; compact?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-2xl border border-dashed border-border-strong px-4 py-3 text-[0.9375rem] font-medium text-accent-foreground transition-colors duration-150 hover:bg-primary-soft sm:aspect-[8/5] sm:flex-col"
+      className={cn(
+        'flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-2xl border border-dashed border-border-strong px-4 py-3 text-[0.9375rem] font-medium text-accent-foreground transition-colors duration-150 hover:bg-primary-soft',
+        // Junto a un carné ocupa su mismo hueco; solo, es una línea: un recuadro enorme vacío no dice nada.
+        compact ? 'sm:col-span-2' : 'sm:aspect-[8/5] sm:flex-col',
+      )}
     >
       <Plus className="size-5 shrink-0" aria-hidden="true" />
       <span className="min-w-0 text-center">{label}</span>
@@ -225,7 +229,7 @@ export function PersonalSection({ travelers, docs, onAdd, onAddTraveler, ...hand
               <div key={t.id} className="space-y-3">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-3">
                   <Avatar name={t.name} />
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 basis-44">
                     <h3 className="truncate font-serif text-lg font-medium tracking-tight">{t.name}</h3>
                     <p className="text-sm text-muted-foreground">
                       {own.length === 0
@@ -238,7 +242,7 @@ export function PersonalSection({ travelers, docs, onAdd, onAddTraveler, ...hand
                 {(own.length > 0 || canEdit) && (
                   <div className={REJILLA}>
                     {own.map(doc => <Carnet key={doc.id} doc={doc} travelerName={t.name} {...handlers} />)}
-                    {canEdit && <HuecoCarnet label={`Añadir documento de ${t.name}`} onClick={() => onAdd(t.id)} />}
+                    {canEdit && <HuecoCarnet label={`Añadir documento de ${t.name}`} onClick={() => onAdd(t.id)} compact={own.length === 0} />}
                   </div>
                 )}
               </div>

@@ -67,7 +67,7 @@ export function DestinationView({
   onImport, onRename, onAssignDays, onReorder, onDelete, onEditSection, onDeleteSection,
 }: Props) {
   const sections = guide.sections ?? []
-  const filled = sections.filter(s => s.body.trim()).length
+  const filled = sections.filter(s => s.body?.trim()).length
   const sectionDomId = (id: string) => `seccion-${guide.id}-${id}`
   const irASeccion = (id: string) =>
     document.getElementById(sectionDomId(id))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -347,7 +347,7 @@ export function DestinationView({
                     )}
                   </header>
                   <div className="mt-4 max-w-prose">
-                    {s.body.trim() ? (
+                    {s.body?.trim() ? (
                       <Markdown content={s.body} />
                     ) : (
                       <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">

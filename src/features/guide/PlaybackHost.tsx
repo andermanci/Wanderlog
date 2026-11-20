@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { usePlaybackStore, type PlaybackSession } from './playbackStore'
 import { useAudioguidePlayback } from './useAudioguidePlayback'
@@ -11,8 +11,13 @@ import { useAudioguidePlayback } from './useAudioguidePlayback'
  * audio sobrevive al cambiar de pantalla. La pantalla del reproductor monta
  * otro de reserva, que solo actúa si no hay ninguno fijo (p. ej. si alguien
  * quita el MiniPlayer del armazón): así el reproductor nunca se queda mudo.
+ *
+ * Va memoizado A PROPÓSITO: el de reserva cuelga de la pantalla del
+ * reproductor, que se repinta cada vez que este anfitrión publica su estado. Sin
+ * memo, ese repintado volvía a pintar el anfitrión, que volvía a publicar: un
+ * bucle que tumbaba la pantalla («Maximum update depth exceeded»).
  */
-export function PlaybackHost({ primary }: { primary?: boolean }) {
+export const PlaybackHost = memo(function PlaybackHost({ primary }: { primary?: boolean }) {
   const session = usePlaybackStore(s => s.session)
   const hayFijo = usePlaybackStore(s => s.primaryHosts > 0)
   const user = useAuthStore(s => s.user)
@@ -42,7 +47,7 @@ export function PlaybackHost({ primary }: { primary?: boolean }) {
   // key: una audioguía distinta es un reproductor nuevo (posición guardada,
   // grupo, <audio>), igual que antes lo era al entrar en otra pantalla.
   return <PlaybackEngine key={session.audioguideId} session={session} />
-}
+})
 
 function PlaybackEngine({ session }: { session: PlaybackSession }) {
   const audioRef = useRef<HTMLAudioElement>(null)
