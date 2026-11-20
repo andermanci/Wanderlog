@@ -122,12 +122,41 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
     const cosecha: Cosecha = { supabase: new Map(), r2: new Set() }
+    // Los valores tal cual, por columna: hacen falta para preguntar si OTRO viaje
+    // los sigue usando (ver más abajo).
+    const valores = new Map<string, Set<string>>()
     for (const { tabla, col, tipo } of COLUMNAS) {
       const filtro = tabla === 'trips' ? 'id' : 'trip_id'
       const { data, error } = await admin.from(tabla).select(col).eq(filtro, tripId)
       if (error) return json({ error: `Enumerando ${tabla}.${col}: ${error.message}` }, 500)
-      for (const fila of data ?? []) anotar(cosecha, (fila as unknown as Record<string, string | null>)[col], tipo)
+      for (const fila of data ?? []) {
+        const v = (fila as unknown as Record<string, string | null>)[col]
+        anotar(cosecha, v, tipo)
+        if (v) valores.set(`${tabla}.${col}`, (valores.get(`${tabla}.${col}`) ?? new Set()).add(v))
+      }
     }
+
+    // Ficheros COMPARTIDOS con otro viaje: no se tocan. Duplicar un viaje copia
+    // las filas con la MISMA URL de portada, foto o audio (no copia el fichero),
+    // así que borrar la copia borraba los ficheros del original. Pasó con
+    // «Copia de Japón»: al borrarla, el viaje Japón se quedó sin 82 portadas.
+    const enUso: Cosecha = { supabase: new Map(), r2: new Set() }
+    for (const { tabla, col, tipo } of COLUMNAS) {
+      const lista = [...(valores.get(`${tabla}.${col}`) ?? [])]
+      const filtro = tabla === 'trips' ? 'id' : 'trip_id'
+      for (let i = 0; i < lista.length; i += LOTE) {
+        const { data, error } = await admin.from(tabla).select(col)
+          .in(col, lista.slice(i, i + LOTE)).neq(filtro, tripId)
+        // Ante la duda, no se borra nada: un fichero huérfano lo recoge el script
+        // de limpieza; uno borrado de más no vuelve.
+        if (error) return json({ error: `Comprobando ${tabla}.${col} compartidos: ${error.message}` }, 500)
+        for (const fila of data ?? []) anotar(enUso, (fila as unknown as Record<string, string | null>)[col], tipo)
+      }
+    }
+    for (const [bucket, rutas] of enUso.supabase) {
+      for (const ruta of rutas) cosecha.supabase.get(bucket)?.delete(ruta)
+    }
+    for (const clave of enUso.r2) cosecha.r2.delete(clave)
 
     // AHORA el viaje, y con el cliente DEL USUARIO: que autorice `trips_delete_own`
     // (solo el dueño, y no si está suspendido) en vez de reimplementar la regla
