@@ -5,11 +5,11 @@ import { DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSe
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
-  CalendarRange, ChevronsDownUp, ChevronsUpDown, Eye, Layers, Lightbulb, Map as MapIcon, Pencil, Plus, Route, TrainFront,
+  CalendarRange, ChevronsDownUp, ChevronsUpDown, Layers, Lightbulb, Map as MapIcon, Pencil, Plus, Route, TrainFront,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, Confirm, Empty, Segmented, Skeleton, useIsMobile } from '@/design'
-import { cn, effectiveStatus } from '@/lib/utils'
+import { Button, Chip, Confirm, Empty, Menu, Segmented, Skeleton, useIsMobile } from '@/design'
+import { cn } from '@/lib/utils'
 import { useDeleteActivity } from '@/lib/queries/itinerary'
 import { useJournalPhotos } from '@/lib/queries/journal'
 import { useTripWeather } from '@/lib/queries/weather'
@@ -20,6 +20,7 @@ import { VersionsPanel } from '@/features/versions/VersionsPanel'
 import { ActivityPanel } from './activity/ActivityPanel'
 import { TransitPanel } from './transit/TransitPanel'
 import { PlanMap } from './map/PlanMap'
+import { MapBoundary } from './map/MapBoundary'
 import { IdeasList } from './ideas/IdeasList'
 import { DayCard } from './DayCard'
 import { DayJournalPanel } from './DayJournalPanel'
@@ -138,85 +139,94 @@ function PlanInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, days])
 
-  const status = trip ? effectiveStatus(trip) : null
-  const elapsed = status === 'in_progress' ? (days ?? []).filter(d => d.date <= todayStr).length : 0
   const showMap = !mobile || view === 'mapa'
   const planEmpty = !!activities && activities.length === 0
+
+  // La tira de días se aparta al bajar por el plan (se está leyendo) y vuelve al
+  // subir o al llegar arriba: más sitio para el plan sin perderla.
+  const [stripHidden, setStripHidden] = useState(false)
+  const lastTop = useRef(0)
+  function onListScroll(e: React.UIEvent<HTMLDivElement>) {
+    const top = e.currentTarget.scrollTop
+    const delta = top - lastTop.current
+    lastTop.current = top
+    if (top < 40 || delta < -8) setStripHidden(false)
+    else if (delta > 8) setStripHidden(true)
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden md:flex-row">
       <section className={cn('flex min-h-0 flex-col md:w-[36rem] md:shrink-0 md:border-r md:border-border lg:w-[40rem]', view === 'mapa' ? 'shrink-0' : 'flex-1')}>
-        {/* Cabecera fija de la columna */}
-        <header className="shrink-0 space-y-3 border-b border-border bg-background px-4 pb-3 pt-4 md:px-6 md:pt-6">
-          {/* En móvil el título no aporta (ya lo dice la pestaña) y el alto es para el plan:
-              se añade con el «+» flotante o con «Añadir» en cada día. */}
-          <div className="hidden items-center justify-between gap-3 md:flex">
-            <div className="min-w-0">
-              <h1 className="title-page">Plan</h1>
-              {days && activities && (
-                <p className="text-sm text-muted-foreground">
-                  {days.length} {days.length === 1 ? 'día' : 'días'} · {activities.length} {activities.length === 1 ? 'actividad' : 'actividades'}
-                  {elapsed > 0 && ` · vas por el día ${elapsed}`}
-                </p>
-              )}
-            </div>
+        {/* Cabecera de la columna: UNA fila fija (vista, editar, más opciones) y, en
+            «Días», la tira de días, que se aparta al bajar leyendo y vuelve al subir.
+            Antes eran cuatro filas que se comían media pantalla del móvil. */}
+        <header className="shrink-0 border-b border-border bg-background px-4 pt-3 md:px-6 md:pt-4">
+          <div className="flex items-center gap-2 pb-3">
+            <Segmented<View>
+              label="Vista del plan" size="sm" value={view} onChange={setView}
+              className="min-w-0 flex-1 md:flex-none"
+              block={mobile}
+              options={[
+                { value: 'dias', label: 'Días', icon: CalendarRange },
+                { value: 'ideas', label: 'Ideas', icon: Lightbulb },
+                ...(mobile ? [{ value: 'mapa' as const, label: 'Mapa', icon: MapIcon }] : []),
+              ]}
+            />
+            {view === 'dias' && (days?.length ?? 0) > 0 && (
+              <>
+                {canEdit && (
+                  <Chip
+                    icon={Pencil} selected={editMode}
+                    onClick={() => plan.setMode(editMode ? 'view' : 'edit')}
+                    className="md:ml-auto"
+                  >
+                    <span className="sr-only md:not-sr-only">{editMode ? 'Editando' : 'Editar'}</span>
+                    <span className="sr-only">{editMode ? ': pulsa para solo ver' : ''}</span>
+                  </Chip>
+                )}
+                <Menu
+                  label="Más opciones del plan"
+                  triggerVariant="outline"
+                  items={[
+                    { label: 'Versiones', hint: 'Guardar y comparar formas del plan', icon: Layers, onSelect: () => setVersionsOpen(true) },
+                    canEdit && plan.transitDrivingTotal > 0 && {
+                      label: 'Transporte público', icon: TrainFront,
+                      hint: plan.transitPendingTotal > 0 ? `${plan.transitPendingTotal} trayectos en coche sin ruta` : 'Volver a pedir las rutas del viaje',
+                      onSelect: () => plan.setTransitScope({ dayIds: days!.map(d => d.id), label: 'en todo el viaje' }),
+                    },
+                    plan.hasRoute && {
+                      label: 'Ver recorrido', hint: 'El trayecto de todo el viaje en el mapa', icon: Route,
+                      onSelect: () => {
+                        // El mapa dibuja el recorrido de todo el viaje al recibir ?route=1 (lo consume él).
+                        const next = new URLSearchParams(searchParams)
+                        next.set('route', '1')
+                        if (mobile) { next.delete('tab'); next.set('vista', 'mapa') }
+                        setSearchParams(next)
+                      },
+                    },
+                    {
+                      label: plan.allDaysCollapsed ? 'Desplegar todos los días' : 'Plegar todos los días',
+                      icon: plan.allDaysCollapsed ? ChevronsUpDown : ChevronsDownUp,
+                      onSelect: plan.toggleAllDays, separated: true,
+                    },
+                  ]}
+                />
+              </>
+            )}
             {/* Con el plan en blanco, la acción principal es la de la invitación de abajo. */}
             {editMode && !planEmpty && (
-              <Button variant="primary" onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}>
+              <Button variant="primary" size="sm" className={cn('hidden md:inline-flex', view !== 'dias' && 'md:ml-auto')} onClick={() => navigate(`/trips/${tripId}/itinerary/new`)}>
                 <Plus /> Añadir actividad
               </Button>
             )}
           </div>
-          
-          <Segmented<View>
-            label="Vista del plan" block value={view} onChange={setView}
-            options={[
-              { value: 'dias', label: 'Días', icon: CalendarRange },
-              { value: 'ideas', label: 'Ideas', icon: Lightbulb },
-              ...(mobile ? [{ value: 'mapa' as const, label: 'Mapa', icon: MapIcon }] : []),
-            ]}
-          />
 
           {view === 'dias' && (days?.length ?? 0) > 0 && (
-            <>
-              {/* Herramientas del plan, cada una con su nombre */}
-              <div className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 md:-mx-6 md:px-6">
-                {canEdit && (
-                  <Segmented
-                    label="Modo del plan" size="sm" value={editMode ? 'edit' : 'view'}
-                    onChange={v => plan.setMode(v)}
-                    options={[{ value: 'edit', label: 'Editar', icon: Pencil }, { value: 'view', label: 'Solo ver', icon: Eye }]}
-                  />
-                )}
-                <Button variant="outline" size="sm" onClick={() => setVersionsOpen(true)}><Layers /> Versiones</Button>
-                {canEdit && plan.transitDrivingTotal > 0 && (
-                  <Button
-                    variant="outline" size="sm"
-                    title={plan.transitPendingTotal > 0 ? `${plan.transitPendingTotal} trayectos en coche sin ruta` : 'Volver a pedir las rutas de todo el viaje'}
-                    onClick={() => plan.setTransitScope({ dayIds: days!.map(d => d.id), label: 'en todo el viaje' })}
-                  >
-                    <TrainFront /> Transporte público
-                  </Button>
-                )}
-                {plan.hasRoute && (
-                  <Button variant="outline" size="sm" onClick={() => {
-                      // El mapa dibuja el recorrido de todo el viaje al recibir ?route=1 (lo consume él).
-                      const next = new URLSearchParams(searchParams)
-                      next.set('route', '1')
-                      if (mobile) { next.delete('tab'); next.set('vista', 'mapa') }
-                      setSearchParams(next)
-                    }}>
-                    <Route /> Ver recorrido
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" className="md:ml-auto" onClick={plan.toggleAllDays}>
-                  {plan.allDaysCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
-                  {plan.allDaysCollapsed ? 'Desplegar' : 'Plegar'} todo
-                </Button>
-              </div>
-
+            <div className={cn('grid transition-[grid-template-rows,opacity] duration-200 ease-out', stripHidden ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr]')}>
               {/* Tira de días: salta a uno y dibuja su recorrido en el mapa */}
-              <nav aria-label="Ir a un día" className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 md:-mx-6 md:px-6">
+              {/* El envoltorio con overflow-hidden es el que deja que la fila se pliegue a 0. */}
+              <div className="min-h-0 overflow-hidden">
+              <nav aria-label="Ir a un día" aria-hidden={stripHidden || undefined} className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3 md:-mx-6 md:px-6">
                 {days!.map(d => {
                   const date = parseISO(d.date)
                   const today = d.date === todayStr
@@ -224,29 +234,34 @@ function PlanInner() {
                   return (
                     <button
                       key={d.id} type="button"
+                      tabIndex={stripHidden ? -1 : undefined}
                       aria-label={format(date, "EEEE d 'de' MMMM", { locale: es })}
                       aria-current={today ? 'date' : undefined}
                       onClick={() => { setMapDay(selected ? 'all' : d.id); scrollToDay(d) }}
                       className={cn(
-                        'flex h-14 w-12 shrink-0 flex-col items-center justify-center rounded-xl border leading-none transition-colors',
+                        'inline-flex h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-sm leading-none transition-colors',
                         selected ? 'border-primary bg-primary text-primary-foreground shadow-card'
                           : today ? 'border-primary bg-primary-soft text-accent-foreground'
                             : 'border-border bg-card hover:bg-secondary',
                       )}
                     >
-                      <span className="text-2xs font-semibold uppercase opacity-70">{format(date, 'EEEEE', { locale: es })}</span>
-                      <span className="mt-1 text-base font-semibold tabular-nums">{format(date, 'd')}</span>
+                      <span className="text-xs font-semibold uppercase opacity-70">{format(date, 'EEEEE', { locale: es })}</span>
+                      <span className="font-semibold tabular-nums">{format(date, 'd')}</span>
                     </button>
                   )
                 })}
               </nav>
-            </>
+              </div>
+            </div>
           )}
         </header>
 
         {/* Contenido con scroll propio */}
         {view !== 'mapa' && (
-          <div className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-28 md:px-6 md:pb-10', (view === 'ideas' || plan.loading) && 'pt-2')}>
+          <div
+            onScroll={onListScroll}
+            className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-28 md:px-6 md:pb-10', (view === 'ideas' || plan.loading) && 'pt-2')}
+          >
             {view === 'ideas' ? (
               <IdeasList tripId={tripId} />
             ) : plan.loading ? (
@@ -285,7 +300,7 @@ function PlanInner() {
 
       {showMap && (
         <section className="relative min-h-0 min-w-0 flex-1" aria-label="Mapa del plan">
-          <PlanMap tripId={tripId} />
+          <MapBoundary><PlanMap tripId={tripId} /></MapBoundary>
         </section>
       )}
 

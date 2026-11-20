@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { BedDouble, Check, CloudRain, Coins, Navigation, Plus, Receipt } from 'lucide-react'
-import { ActivityIcon, Button, Empty, Notice, Panel, Progress } from '@/design'
+import { ActivityIcon, Button, Empty, Notice, Panel, Progress, Photo } from '@/design'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useDocuments } from '@/lib/queries/documents'
@@ -261,14 +261,14 @@ function FocusStop({ tripId, activity: a, state, relative, progress, onDirection
   const target = activityTarget(a)
   return (
     <div className="overflow-hidden rounded-2xl border border-primary/30 bg-card shadow-raised">
-      {cover && <img src={cover} alt="" className="h-36 w-full object-cover" />}
+      <Photo src={cover} alt="" className="h-36 w-full object-cover" />
       <div className="p-4">
         <p className="flex flex-wrap items-baseline gap-x-2">
           <span className="eyebrow text-accent-foreground">{label}</span>
           {relative && <span className="text-sm font-medium">{relative}</span>}
         </p>
         <Link to={`/trips/${tripId}/itinerary/${a.id}`} className="mt-1 block">
-          <span className="block font-serif text-2xl font-medium leading-tight tracking-tight line-clamp-2">{a.title}</span>
+          <span className="font-serif text-2xl font-medium leading-tight tracking-tight line-clamp-2">{a.title}</span>
           {a.start_time && (
             <span className="mt-1 block text-sm tabular-nums text-muted-foreground">
               {a.start_time.slice(0, 5)}{a.end_time && ` – ${a.end_time.slice(0, 5)}`}

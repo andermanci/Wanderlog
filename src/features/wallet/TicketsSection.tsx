@@ -37,9 +37,9 @@ function TicketRow({ category, kind, title, when, meta, code, pass, onOpen }: Ti
         <span className="eyebrow flex items-center gap-1.5 text-tone">
           <DocIcon category={category} className="size-3.5" /> {kind}
         </span>
-        <span className="mt-1 block font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2">{title}</span>
+        <span className="mt-1 font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2">{title}</span>
         {when && <span className="mt-1 block text-sm font-medium first-letter:uppercase">{when}</span>}
-        {meta && <span className="mt-0.5 block text-sm text-muted-foreground line-clamp-2">{meta}</span>}
+        {meta && <span className="mt-0.5 text-sm text-muted-foreground line-clamp-2">{meta}</span>}
       </button>
       {/* Talón, con las dos muescas de la línea de corte */}
       <div className="relative flex w-28 shrink-0 flex-col items-center justify-center gap-2 border-l-2 border-dashed border-border-strong px-2 py-3 before:absolute before:-left-2.5 before:-top-2.5 before:size-5 before:rounded-full before:bg-background after:absolute after:-bottom-2.5 after:-left-2.5 after:size-5 after:rounded-full after:bg-background md:w-36">

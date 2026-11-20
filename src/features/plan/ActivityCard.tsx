@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { BedDouble, Check, ExternalLink, GripVertical, Headphones, MapPin, Pencil, QrCode, Trash2 } from 'lucide-react'
-import { ActivityIcon, Menu } from '@/design'
+import { ActivityIcon, Menu, Photo } from '@/design'
 import { ACTIVITY_LABELS, cn, formatCurrency } from '@/lib/utils'
 import { isMove } from '@/lib/travelTime'
 import { displayCover } from '@/lib/queries/itinerary'
@@ -111,21 +111,23 @@ export function ActivityCard({ tripId, activity: a, sortableId, attachments = []
 
       {/* Contenido */}
       <div className={cn(
-        'relative flex min-w-0 items-start gap-1 rounded-2xl border bg-card transition-[box-shadow,border-color,opacity] duration-150',
+        'relative min-w-0 rounded-2xl border bg-card transition-[box-shadow,border-color,opacity] duration-150',
         hovered ? 'border-tone-line shadow-raised' : 'border-border shadow-card',
         a.done && 'opacity-60',
       )}>
+       <div className="flex min-w-0 items-start gap-1">
         <Link to={`/trips/${tripId}/itinerary/${a.id}`} className="flex min-w-0 flex-1 items-stretch gap-3 py-3 pl-4">
           <span className="min-w-0 flex-1">
             <span className="eyebrow block text-tone">{ACTIVITY_LABELS[a.type]}</span>
-            <span className={cn('mt-0.5 block font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2', a.done && 'line-through')}>{a.title}</span>
+            {/* Sin «block»: le gana a «line-clamp» (los dos fijan display) y el texto salía entero. */}
+            <span className={cn('mt-0.5 font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2', a.done && 'line-through')}>{a.title}</span>
             {where && (
               <span className="mt-1 flex items-start gap-1 text-sm text-muted-foreground">
                 <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                 <span className="line-clamp-1 break-words">{where}</span>
               </span>
             )}
-            {a.description && <span className="mt-1 block text-sm text-muted-foreground line-clamp-2">{a.description}</span>}
+            {a.description && <span className="mt-1 text-sm text-muted-foreground line-clamp-2 break-words">{a.description}</span>}
             {(hasAudioguide || a.price != null || otherDay) && (
               <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-muted-foreground">
                 {otherDay && <span className="text-accent-foreground">{a.type === 'hotel' ? 'Estancia' : 'Llega otro día'}</span>}
@@ -134,7 +136,7 @@ export function ActivityCard({ tripId, activity: a, sortableId, attachments = []
               </span>
             )}
           </span>
-          {cover && <img src={cover} alt="" loading="lazy" className="w-20 shrink-0 self-stretch rounded-xl object-cover md:w-24" />}
+          <Photo src={cover} alt="" loading="lazy" className="w-20 shrink-0 self-stretch rounded-xl object-cover md:w-24" />
         </Link>
 
         <div className="flex shrink-0 flex-col items-center py-1.5 pr-1.5">
@@ -149,17 +151,22 @@ export function ActivityCard({ tripId, activity: a, sortableId, attachments = []
           {editMode && <Handle title={a.title} attributes={attributes} listeners={listeners} />}
         </div>
 
-        {/* Entradas y códigos: a un toque, sin abrir la actividad. */}
+       </div>
+
+        {/* Entradas y códigos: a un toque, sin abrir la actividad. Dentro de la
+            tarjeta y en varias líneas si hace falta: antes flotaban sobre el borde
+            y, con nombres largos, se montaban entre sí y sobre el trayecto. */}
         {attachments.length > 0 && (
-          <div className="absolute -bottom-3 left-4 flex gap-1.5">
-            {attachments.slice(0, 2).map(att => (
+          <div className="flex flex-wrap gap-1.5 border-t border-border px-4 py-2.5">
+            {attachments.map(att => (
               <button
                 key={att.id} type="button"
+                title={`Mostrar ${att.name}`}
                 onClick={() => openPass(buildAttachmentPass(att, a))}
-                className="inline-flex h-7 max-w-40 items-center gap-1.5 rounded-full border border-border-strong bg-card px-2.5 text-xs font-medium shadow-card hover:bg-secondary"
+                className="inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-full bg-primary-soft px-3 text-xs font-semibold text-accent-foreground transition-colors hover:brightness-95"
               >
-                <QrCode className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-                <span className="truncate">Mostrar {att.name}</span>
+                <QrCode className="size-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{att.name.replace(/\.(jpe?g|png|webp|heic|pdf)$/i, '')}</span>
               </button>
             ))}
           </div>

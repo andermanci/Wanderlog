@@ -536,8 +536,8 @@ function Asistente({ sharedUrl, presetTripId }: { sharedUrl: string; presetTripI
                             </span>
                           )}
                         </span>
-                        <span className="mt-1 block font-serif text-base font-medium leading-snug tracking-tight line-clamp-2">{r.name}</span>
-                        {r.address && <span className="mt-1 block text-xs text-muted-foreground line-clamp-2">{r.address}</span>}
+                        <span className="mt-1 font-serif text-base font-medium leading-snug tracking-tight line-clamp-2">{r.name}</span>
+                        {r.address && <span className="mt-1 text-xs text-muted-foreground line-clamp-2">{r.address}</span>}
                       </span>
                       {active && (
                         <span className="absolute left-2 top-2 inline-flex h-7 items-center gap-1 rounded-full bg-primary pl-1.5 pr-2.5 text-xs font-semibold text-primary-foreground shadow-card">

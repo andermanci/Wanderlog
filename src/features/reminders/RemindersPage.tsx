@@ -127,7 +127,7 @@ export function RemindersPage() {
                     >
                       <Icon className="size-5 shrink-0 text-tone" aria-hidden="true" />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[0.9375rem] font-medium leading-snug line-clamp-2">{s.title}</span>
+                        <span className="text-[0.9375rem] font-medium leading-snug line-clamp-2">{s.title}</span>
                         <span className="block text-xs text-muted-foreground first-letter:uppercase">{formatWhen(s.remind_at)}</span>
                       </span>
                       <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-tone">

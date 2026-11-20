@@ -101,13 +101,15 @@ function Carnet({ doc, travelerName, canEdit, now, onViewCard, onOpenFile, onEdi
     </>
   )
 
-  const body = 'flex min-w-0 flex-1 flex-col rounded-b-2xl px-4 pb-4 pt-3 text-left'
+  const body = 'flex min-w-0 flex-1 flex-col px-4 pb-4 pt-3 text-left'
   return (
     <article
       data-tone={TONOS[doc.category] ?? 'primary'}
-      className="relative flex aspect-[8/5] min-w-0 flex-col rounded-2xl border border-tone-line bg-card shadow-card"
+      // El borde se dibuja ENCIMA (after:) en vez de en la propia tarjeta: así la franja
+      // de color llega hasta el canto y no asoma una línea por encima de ella.
+      className="relative flex aspect-[8/5] min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-card after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl after:border after:border-tone-line"
     >
-      <span aria-hidden="true" className="h-2 shrink-0 rounded-t-2xl bg-tone" />
+      <span aria-hidden="true" className="h-2 shrink-0 bg-tone" />
       {open ? (
         <button
           type="button"
@@ -121,7 +123,7 @@ function Carnet({ doc, travelerName, canEdit, now, onViewCard, onOpenFile, onEdi
         <div className={body}>{content}</div>
       )}
       {canEdit && (
-        <div className="absolute right-1.5 top-3">
+        <div className="absolute right-1.5 top-3 z-10">
           <Menu
             label={`Opciones de ${title}`}
             items={[

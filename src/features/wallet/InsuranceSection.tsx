@@ -25,7 +25,7 @@ function Poliza({ doc, onOpen }: { doc: Document; onOpen: (doc: Document) => voi
             <span className="eyebrow flex items-center gap-1.5 text-tone">
               <ShieldCheck className="size-3.5" aria-hidden="true" /> Póliza de seguro
             </span>
-            <span className="mt-1 block font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2">{doc.title}</span>
+            <span className="mt-1 font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2">{doc.title}</span>
             {doc.provider && <span className="mt-0.5 block truncate text-sm text-muted-foreground">{doc.provider}</span>}
             <span className="mt-3 block">
               <span className="eyebrow block">Nº de póliza</span>

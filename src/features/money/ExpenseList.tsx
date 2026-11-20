@@ -70,7 +70,7 @@ export function ExpenseList({ expenses, travelers, currency, rates, canEdit, onE
                   <>
                     <Icon className="size-5 shrink-0 text-tone" aria-hidden="true" />
                     <span className="min-w-0 flex-1">
-                      <span className="block font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2">{expense.description}</span>
+                      <span className="font-serif text-lg font-medium leading-snug tracking-tight line-clamp-2">{expense.description}</span>
                       <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
                         <span className="font-semibold text-tone">{expense.category}</span>
                         {payer && <span>· Pagó {payer}</span>}

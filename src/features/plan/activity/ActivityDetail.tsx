@@ -6,8 +6,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
-  ActivityIcon, Button, DocIcon, Row, RowList, useIsMobile, type Tone,
-} from '@/design'
+  ActivityIcon, Button, DocIcon, Row, RowList, useIsMobile, type Tone, Photo } from '@/design'
 import { FlightStatusCard } from '@/features/common/FlightStatusCard'
 import { activityTarget } from '@/features/common/target'
 import { AudioguideEntryCard } from '@/features/guide/AudioguideEntryCard'
@@ -140,7 +139,7 @@ export function ActivityDetail({
   return (
     <div className="space-y-6" data-tone={tone}>
       {/* Portada a sangre: la foto si la hay; si no, nada (el color ya lo pone el rótulo). */}
-      {cover && <img src={cover} alt="" className="-mx-5 -mt-1 h-52 w-[calc(100%+2.5rem)] max-w-none object-cover md:-mx-7 md:h-60 md:w-[calc(100%+3.5rem)]" loading="lazy" />}
+      <Photo src={cover} alt="" className="-mx-5 -mt-1 h-52 w-[calc(100%+2.5rem)] max-w-none object-cover md:-mx-7 md:h-60 md:w-[calc(100%+3.5rem)]" loading="lazy" />
 
       {/* Qué es y cuándo: la hora, grande, es lo primero que se busca. */}
       <div>
