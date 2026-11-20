@@ -31,6 +31,8 @@ import { OfflineStops } from './OfflineStops'
 import { SavePlacePanel } from './SavePlacePanel'
 import { SelectionCard } from './SelectionCard'
 import { FavoritePin, MyLocationDot, ResultPin, StopPin } from './pins'
+import { DayPath } from './DayPath'
+import { DayStrip, type DayStop } from './DayStrip'
 import { useToneHex } from './tone'
 import { useMapSearch } from './useMapSearch'
 import { useRouteLayer } from './useRouteLayer'
@@ -102,6 +104,15 @@ function LiveMap({ tripId }: { tripId: string }) {
   const [directionsTo, setDirectionsTo] = useState<DirectionsTarget | null>(null)
 
   const activityById = useMemo(() => new globalThis.Map((activities ?? []).map(a => [a.id, a])), [activities])
+  // Con un día elegido, cada parada con su actividad y su hora (la de llegada si
+  // es el destino de un trayecto): de aquí salen las etiquetas de los pines y la
+  // agenda de abajo.
+  const dayView = dayDate !== 'all'
+  const dayStops = useMemo((): DayStop[] => visiblePoints.map(point => {
+    const activity = activityById.get(point.activityId)
+    const t = point.kind === 'destination' ? activity?.end_time : activity?.start_time
+    return { point, activity, time: t ? t.slice(0, 5) : null }
+  }), [visiblePoints, activityById])
   const collections = useMemo(() => collectionsOf(favorites), [favorites])
   const categories = useMemo(() => {
     const present = new Set((favorites ?? []).map(f => f.category as string))
@@ -193,7 +204,8 @@ function LiveMap({ tripId }: { tripId: string }) {
     } else if (pts.length > 1) {
       const bounds = new google.maps.LatLngBounds()
       pts.forEach(p => bounds.extend(p))
-      map.fitBounds(bounds, 64)
+      // Arriba van el buscador y los chips; abajo, con un día elegido, su agenda.
+      map.fitBounds(bounds, { top: 130, bottom: dayDate !== 'all' ? 200 : 64, left: 48, right: 48 })
     } else if (trip?.destination) {
       // Vía caché: el destino de un viaje se geocodifica una vez, no en cada
       // apertura del mapa.
@@ -309,6 +321,7 @@ function LiveMap({ tripId }: { tripId: string }) {
 
   const showResultsList = results.length > 0 && !hasCard
   const canDrawRoute = routeStops.length >= 2
+  const showDayStrip = dayView && showStops && !hasCard && !showResultsList && dayStops.length > 0
   const mapCenter = favorites && favorites.length > 0
     ? { lat: favorites[0].lat, lng: favorites[0].lng }
     : { lat: 40.4168, lng: -3.7038 }
@@ -333,6 +346,11 @@ function LiveMap({ tripId }: { tripId: string }) {
           <MapDirections key={`${dayDate}-${travelMode}`} mapId={MAP_ID} stops={routeStops} mode={travelMode} color={routeColor} />
         )}
 
+        {/* Con un día elegido y sin la ruta real, una línea discontinua une sus paradas en orden. */}
+        {showStops && dayView && !(showRoute && canDrawRoute) && (
+          <DayPath mapId={MAP_ID} color={routeColor} points={visiblePoints.map(p => ({ lat: p.lat!, lng: p.lng! }))} />
+        )}
+
         {/* Paradas del plan con ubicación: pines numerados, del color de su tipo */}
         {showStops && visiblePoints.map((p, i) => {
           const active = selectedStop?.key === p.key || hoveredActivityId === p.activityId
@@ -348,6 +366,9 @@ function LiveMap({ tripId }: { tripId: string }) {
                 tone={activityById.get(p.activityId)?.type ?? 'place'}
                 active={active}
                 title={p.label}
+                // Con un día elegido, cada pin dice qué es y a qué hora: el día se lee en el mapa.
+                label={dayView ? p.label : undefined}
+                time={dayView ? dayStops[i]?.time : undefined}
                 onHover={over => setHoveredActivity(over ? p.activityId : null)}
               />
             </AdvancedMarker>
@@ -542,7 +563,7 @@ function LiveMap({ tripId }: { tripId: string }) {
       {!hasCard && (
         <Button
           variant={location.following ? 'soft' : 'outline'}
-          className={cn('absolute bottom-8 left-3 z-10 shadow-raised', !location.following && 'bar-glass')}
+          className={cn('absolute left-3 z-10 shadow-raised', showDayStrip ? 'bottom-36' : 'bottom-8', !location.following && 'bar-glass')}
           aria-pressed={location.following}
           loading={location.locating}
           onClick={toggleLocation}
@@ -550,6 +571,17 @@ function LiveMap({ tripId }: { tripId: string }) {
           {!location.locating && <LocateFixed />}
           {location.following ? 'Dejar de seguirme' : 'Mi ubicación'}
         </Button>
+      )}
+
+      {/* La agenda del día elegido. Cede el sitio a la tarjeta de un pin. */}
+      {showDayStrip && (
+        <DayStrip
+          date={dayDate}
+          stops={dayStops}
+          activeKey={hoveredActivityId ? visiblePoints.find(p => p.activityId === hoveredActivityId)?.key ?? null : null}
+          onSelect={selectStop}
+          onHover={setHoveredActivity}
+        />
       )}
 
       {/* Tarjeta inferior: la misma para resultado buscado, lugar guardado y parada del plan */}

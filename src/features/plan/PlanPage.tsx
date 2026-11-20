@@ -126,6 +126,22 @@ function PlanInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- una sola vez
   }, [days])
 
+  // Elegir un día (en el mapa o en la tira) lleva la lista a ese día. En móvil,
+  // si se eligió en la vista del mapa, se aplica al volver a «Días».
+  const followedDay = useRef<string | null>(null)
+  useEffect(() => {
+    if (view !== 'dias' || mapDayId === 'all' || !days?.length || plan.loading) return
+    if (followedDay.current === mapDayId) return
+    const day = days.find(d => d.id === mapDayId)
+    if (!day) return
+    followedDay.current = mapDayId
+    // El primer día que fija el propio Plan al abrir ya lo lleva el salto inicial.
+    if (!scrolled.current) return
+    const t = setTimeout(() => scrollToDay(day), 120)
+    return () => clearTimeout(t)
+     
+  }, [mapDayId, view, days, plan.loading])
+
   // «Nota de diario» del botón «+»: abre el diario de hoy.
   useEffect(() => {
     if (searchParams.get('diario') !== 'hoy' || !days) return
@@ -142,24 +158,12 @@ function PlanInner() {
   const showMap = !mobile || view === 'mapa'
   const planEmpty = !!activities && activities.length === 0
 
-  // La tira de días se aparta al bajar por el plan (se está leyendo) y vuelve al
-  // subir o al llegar arriba: más sitio para el plan sin perderla.
-  const [stripHidden, setStripHidden] = useState(false)
-  const lastTop = useRef(0)
-  function onListScroll(e: React.UIEvent<HTMLDivElement>) {
-    const top = e.currentTarget.scrollTop
-    const delta = top - lastTop.current
-    lastTop.current = top
-    if (top < 40 || delta < -8) setStripHidden(false)
-    else if (delta > 8) setStripHidden(true)
-  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden md:flex-row">
       <section className={cn('flex min-h-0 flex-col md:w-[36rem] md:shrink-0 md:border-r md:border-border lg:w-[40rem]', view === 'mapa' ? 'shrink-0' : 'flex-1')}>
-        {/* Cabecera de la columna: UNA fila fija (vista, editar, más opciones) y, en
-            «Días», la tira de días, que se aparta al bajar leyendo y vuelve al subir.
-            Antes eran cuatro filas que se comían media pantalla del móvil. */}
+        {/* Cabecera de la columna: UNA fila (vista, editar, más opciones) y, en «Días»,
+            la tira de días. Antes eran cuatro filas que se comían media pantalla del móvil. */}
         <header className="shrink-0 border-b border-border bg-background px-4 pt-3 md:px-6 md:pt-4">
           <div className="flex items-center gap-2 pb-3">
             <Segmented<View>
@@ -222,11 +226,11 @@ function PlanInner() {
           </div>
 
           {view === 'dias' && (days?.length ?? 0) > 0 && (
-            <div className={cn('grid transition-[grid-template-rows,opacity] duration-200 ease-out', stripHidden ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr]')}>
-              {/* Tira de días: salta a uno y dibuja su recorrido en el mapa */}
-              {/* El envoltorio con overflow-hidden es el que deja que la fila se pliegue a 0. */}
-              <div className="min-h-0 overflow-hidden">
-              <nav aria-label="Ir a un día" aria-hidden={stripHidden || undefined} className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3 md:-mx-6 md:px-6">
+            <div>
+              {/* Tira de días: salta a uno y dibuja su recorrido en el mapa. Fija: probó
+                  a esconderse al bajar, pero mover el contenido mientras se lee desorienta. */}
+              <div>
+              <nav aria-label="Ir a un día" className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3 md:-mx-6 md:px-6">
                 {days!.map(d => {
                   const date = parseISO(d.date)
                   const today = d.date === todayStr
@@ -234,7 +238,6 @@ function PlanInner() {
                   return (
                     <button
                       key={d.id} type="button"
-                      tabIndex={stripHidden ? -1 : undefined}
                       aria-label={format(date, "EEEE d 'de' MMMM", { locale: es })}
                       aria-current={today ? 'date' : undefined}
                       onClick={() => { setMapDay(selected ? 'all' : d.id); scrollToDay(d) }}
@@ -259,7 +262,6 @@ function PlanInner() {
         {/* Contenido con scroll propio */}
         {view !== 'mapa' && (
           <div
-            onScroll={onListScroll}
             className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-28 md:px-6 md:pb-10', (view === 'ideas' || plan.loading) && 'pt-2')}
           >
             {view === 'ideas' ? (

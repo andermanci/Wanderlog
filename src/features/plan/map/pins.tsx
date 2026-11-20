@@ -5,26 +5,46 @@ import { cn } from '@/lib/utils'
 // Los pines son DOM dentro del mapa: toman el color de `data-tone`, igual que
 // el resto de la app, y cambian solos con el tema.
 
-/** Parada del plan: círculo numerado con el color del tipo de actividad. */
-export function StopPin({ n, tone, active, title, onHover }: {
+/**
+ * Parada del plan: disco numerado del color de su tipo. Con `label` (al ver un
+ * día concreto) lleva al lado la hora y el nombre, para leer el día sobre el mapa.
+ */
+export function StopPin({ n, tone, active, title, label, time, onHover }: {
   n: number
   tone: string
   active: boolean
   title: string
+  /** Nombre corto junto al pin. Sin él, solo el número. */
+  label?: string
+  time?: string | null
   onHover: (over: boolean) => void
 }) {
   return (
-    // El círculo mide 24 px, pero el área pulsable ronda los 44 px (relleno).
-    <div className="cursor-pointer p-2.5" title={title} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)}>
+    // El disco mide 32 px y el área pulsable ronda los 44 px (relleno).
+    <div
+      data-tone={tone}
+      className="group relative flex cursor-pointer items-center p-1.5"
+      title={title}
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
+    >
       <div
-        data-tone={tone}
         className={cn(
-          'grid size-6 place-items-center rounded-full border-2 border-card bg-tone text-2xs font-bold tabular-nums text-white shadow-raised transition-transform duration-150 dark:text-background',
-          active && 'scale-[1.35] ring-2 ring-card',
+          'relative z-10 grid size-8 shrink-0 place-items-center rounded-full border-[2.5px] border-white bg-tone text-sm font-bold tabular-nums text-white shadow-raised transition-transform duration-150 dark:border-background dark:text-background',
+          active ? 'scale-125' : 'group-hover:scale-110',
         )}
       >
         {n}
       </div>
+      {label && (
+        <div className={cn(
+          '-ml-2.5 flex max-w-44 items-center gap-1.5 rounded-r-full border border-l-0 border-border bg-card py-1 pl-4 pr-3 text-xs shadow-card transition-opacity',
+          active ? 'opacity-100' : 'opacity-95',
+        )}>
+          {time && <span className="shrink-0 font-semibold tabular-nums text-tone">{time}</span>}
+          <span className="truncate font-medium text-foreground">{label}</span>
+        </div>
+      )}
     </div>
   )
 }
