@@ -10,6 +10,7 @@ import { placeKeys } from '@/lib/queries/places'
 import { journalKeys } from '@/lib/queries/journal'
 import { attachmentKeys } from '@/lib/queries/attachments'
 import { guideKeys } from '@/lib/queries/guide'
+import { collaboratorKeys } from '@/lib/queries/sharing'
 import { audioguideKeys } from '@/lib/queries/audioguides'
 import { removeDocs, clearDocCache } from '@/lib/docCache'
 import { removeTripAudios, clearAudioCache, formatBytes } from '@/lib/audioCache'
@@ -116,6 +117,9 @@ export async function deleteTripOffline(qc: QueryClient, tripId: string): Promis
     journalKeys.photos(tripId),
     attachmentKeys.byTrip(tripId),
     guideKeys.all(tripId),
+    ['transitRoutes', tripId],
+    collaboratorKeys.myRole(tripId),
+    ['itinerary', 'versions', tripId],
     audioguideKeys.readinessByTrip(tripId),
     ...activities.map((a) => audioguideKeys.byScope({ kind: 'activity', id: a.id })),
     ...days.map((d) => audioguideKeys.byScope({ kind: 'day', id: d.id })),

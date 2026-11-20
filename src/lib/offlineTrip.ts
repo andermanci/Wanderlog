@@ -11,6 +11,9 @@ import { placeKeys } from '@/lib/queries/places'
 import { journalKeys } from '@/lib/queries/journal'
 import { attachmentKeys } from '@/lib/queries/attachments'
 import { guideKeys } from '@/lib/queries/guide'
+import { versionKeys } from '@/lib/queries/versions'
+import { collaboratorKeys } from '@/lib/queries/sharing'
+import { transitRoutesKey } from '@/lib/queries/transitRoutes'
 import { audioguideKeys, type TripAudioguideReadiness, type AudioguideCargada } from '@/lib/queries/audioguides'
 import { audioguideScope } from '@/lib/audioguide/scope'
 import { cacheDoc } from '@/lib/docCache'
@@ -33,6 +36,19 @@ export interface PrefetchOptions {
   /** Descargar también los MP3 de las audioguías (pesan; se pregunta antes). */
   includeAudio?: boolean
 }
+
+/** Lo que no se ha podido bajar. Vacío = la copia está completa. */
+export interface PrefetchResult {
+  /** Bloques de datos que han fallado (nombre legible). */
+  data: string[]
+  docs: number
+  photos: number
+  audios: number
+}
+
+// Sin estos tres no hay viaje que enseñar: si falla alguno, la descarga se da
+// por fallida en vez de anunciar una copia que luego no abre.
+const ESENCIALES = new Set(['trip', 'days', 'activities'])
 
 /** Paradas del viaje con audio listo, en el orden en que se reproducen. */
 async function readyAudioStops(tripId: string): Promise<AudioguideStop[]> {
@@ -108,7 +124,7 @@ export async function prefetchTripOffline(
   qc: QueryClient,
   tripId: string,
   { onProgress, includePhotos = true, includeAudio = false }: PrefetchOptions = {},
-): Promise<void> {
+): Promise<PrefetchResult> {
   // Lo primero, antes de bajar un solo byte: pedir que el sistema no desaloje
   // esto cuando le falte disco. Va aquí y no en el arranque porque los
   // navegadores lo conceden con más facilidad dentro de un gesto del usuario, y
@@ -126,7 +142,7 @@ export async function prefetchTripOffline(
 
   // 1) Datos. `key` es la query key real del hook; las tareas sin `key` solo se
   // descargan (las audioguías se cachean por actividad, más abajo).
-  const tasks: { name: string; key?: readonly unknown[]; fn: () => Promise<unknown> }[] = [
+  const tasks: { name: string; label?: string; key?: readonly unknown[]; fn: () => Promise<unknown> }[] = [
     { name: 'trip', key: tripKeys.detail(tripId), fn: async () => {
       const { data, error } = await supabase.from('trips').select('*').eq('id', tripId).single()
       if (error) throw error
@@ -137,7 +153,16 @@ export async function prefetchTripOffline(
     { name: 'documents', key: docKeys.all(tripId), fn: sel('documents', { col: 'datetime_start' }) },
     { name: 'travelers', key: travelerKeys.all(tripId), fn: sel('travelers', { col: 'created_at' }) },
     { name: 'expenses', key: expenseKeys.all(tripId), fn: sel('expenses', { col: 'date', asc: false }) },
-    { name: 'packing', key: packingKeys.all(tripId), fn: sel('packing_items', { col: 'created_at' }) },
+    // packing_items no tiene created_at: pedirlo ordenado por esa columna daba
+    // error y, como los fallos se callaban, el equipaje nunca se descargaba.
+    // Mismo orden que usePackingItems.
+    { name: 'packing', key: packingKeys.all(tripId), fn: async () => {
+      const { data, error } = await supabase
+        .from('packing_items').select('*').eq('trip_id', tripId)
+        .order('category').order('order_index')
+      if (error) throw error
+      return data
+    } },
     { name: 'reminders', key: reminderKeys.byTrip(tripId), fn: sel('reminders', { col: 'remind_at' }) },
     { name: 'places', key: placeKeys.all(tripId), fn: sel('favorite_places', { col: 'created_at' }) },
     { name: 'journal', key: journalKeys.photos(tripId), fn: sel('journal_photos', { col: 'created_at' }) },
@@ -161,19 +186,49 @@ export async function prefetchTripOffline(
       return data
     } },
     { name: 'audioStops', fn: sel('audioguide_stops', { col: 'order_index' }) },
+    // Transporte público de los trayectos (062) y versiones del itinerario
+    // (061, 065). Sin esto solo quedaban sin conexión si antes se había abierto
+    // el itinerario, o el panel de versiones, con internet.
+    { name: 'transit', label: 'transporte público', key: transitRoutesKey(tripId), fn: sel('transit_routes') },
+    // Tu papel en el viaje: sin él, sin conexión la app no sabe si puedes
+    // editar y esconde los botones (marcar hecho, añadir un gasto…).
+    { name: 'role', label: 'tus permisos en el viaje', key: collaboratorKeys.myRole(tripId), fn: async () => {
+      const { data, error } = await supabase.rpc('my_trip_role', { p_trip_id: tripId })
+      if (error) throw error
+      return data
+    } },
+    { name: 'versions', label: 'versiones del itinerario', key: versionKeys.all(tripId), fn: sel('itinerary_versions', { col: 'created_at', asc: false }) },
   ]
+  const LABELS: Record<string, string> = {
+    trip: 'el viaje', days: 'los días', activities: 'las actividades', documents: 'documentos',
+    travelers: 'viajeros', expenses: 'gastos', packing: 'equipaje', reminders: 'recordatorios',
+    places: 'sitios guardados', journal: 'diario', attachments: 'adjuntos', guides: 'guía del destino',
+    audioguides: 'audioguías', audioStops: 'audioguías',
+  }
 
   let done = 0
   const total = tasks.length
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const results: Record<string, any> = {}
+  const failedData = new Set<string>()
   await Promise.all(tasks.map(async (t) => {
+    // fetchQuery con staleTime 0 y no ensureQueryData: «descargar» tiene que
+    // traer lo que hay AHORA en el servidor. ensureQueryData se conformaba con
+    // lo que hubiera en caché, por viejo que fuera, así que «toca para
+    // actualizar» no actualizaba los bloques que no estuvieran en pantalla.
+    // Si la petición falla se conserva la copia anterior (si la había).
     results[t.name] = await (t.key
-      ? qc.ensureQueryData({ queryKey: t.key, queryFn: t.fn })
+      ? qc.fetchQuery({ queryKey: t.key, queryFn: t.fn, staleTime: 0, retry: 1 })
       : t.fn()
-    ).catch(() => null)
+    ).catch(() => {
+      failedData.add(t.name)
+      return (t.key ? qc.getQueryData(t.key) : null) ?? null
+    })
     onProgress?.({ phase: 'data', done: ++done, total })
   }))
+  if ([...failedData].some((n) => ESENCIALES.has(n))) {
+    throw new Error('No se han podido descargar los datos del viaje')
+  }
 
   // Las audioguías se cachean por ámbito (audioguideKeys.byScope), no por
   // viaje: se traen enteras de una vez y se reparten a mano en la caché, con la
@@ -242,9 +297,10 @@ export async function prefetchTripOffline(
   const docs = [...docPaths]
   let bytes = 0
   let docsDone = 0
+  const failed = { docs: 0, photos: 0, audios: 0 }
   await Promise.all(docs.map((p) => cacheDoc(p)
     .then((n) => { bytes += n })
-    .catch(() => {})
+    .catch(() => { failed.docs++ })
     .then(() => onProgress?.({ phase: 'files', done: ++docsDone, total: docs.length }))))
 
   // 3) Fotos, si se han aceptado: se guardan reducidas (ver photoCache).
@@ -253,7 +309,7 @@ export async function prefetchTripOffline(
   if (photos.length > 0) onProgress?.({ phase: 'photos', done: 0, total: photos.length })
   await Promise.all(photos.map((u) => cachePhoto(u)
     .then((n) => { bytes += n })
-    .catch(() => {})
+    .catch(() => { failed.photos++ })
     .then(() => onProgress?.({ phase: 'photos', done: ++photosDone, total: photos.length }))))
 
   // 4) Audios de las audioguías, solo si se han aceptado: son con diferencia lo
@@ -265,7 +321,7 @@ export async function prefetchTripOffline(
   let audioDone = 0
   if (audios.length > 0) onProgress?.({ phase: 'audio', done: 0, total: audios.length })
   for (const url of audios) {
-    bytes += await cacheAudio(url).catch(() => 0)
+    bytes += await cacheAudio(url).catch(() => { failed.audios++; return 0 })
     onProgress?.({ phase: 'audio', done: ++audioDone, total: audios.length })
   }
 
@@ -277,4 +333,9 @@ export async function prefetchTripOffline(
     docs: [...new Set([...(previous?.docs ?? []), ...docs])],
     bytes: (previous?.bytes ?? 0) + bytes,
   })
+
+  return {
+    data: [...new Set([...failedData].map((n) => tasks.find((t) => t.name === n)?.label ?? LABELS[n] ?? n))],
+    ...failed,
+  }
 }

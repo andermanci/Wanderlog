@@ -83,6 +83,9 @@ export function formatTravelLeg(leg: TravelLeg): string {
   const dist = leg.distanceMeters >= 1000
     ? `${(leg.distanceMeters / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} km`
     : `${Math.round(leg.distanceMeters)} m`
+  // Sin tiempo: un trayecto en coche que Google no ha devuelto. La distancia
+  // se puede aproximar; lo que tarda un coche, no.
+  if (leg.estimated && leg.durationSeconds <= 0) return `≈ ${dist}`
   return `${leg.estimated ? '≈ ' : ''}${mins} min · ${dist}`
 }
 
